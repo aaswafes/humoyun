@@ -2,21 +2,45 @@
 
 import * as React from "react";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
-import { Skeleton } from "@/components/ui/primitives";
+import { Segmented, Skeleton } from "@/components/ui/primitives";
 import { useNow } from "@/hooks/use-hotkeys";
-import { toISO } from "@/lib/date";
-import { currentPrayer, prayerTimesFor } from "@/lib/prayer";
+import { addDays, toISO } from "@/lib/date";
+import { prayerTimesFor } from "@/lib/prayer";
 import { useStore } from "@/lib/store";
-import { NextPrayerSubtitle } from "@/components/salah/countdown";
+import { HeaderStatus } from "@/components/salah/countdown";
+import { HijriCard } from "@/components/salah/hijri-card";
+import { LocationLine } from "@/components/salah/location-line";
 import { MonthGrid } from "@/components/salah/month-grid";
+import { PatternView } from "@/components/salah/pattern-view";
+import { PrayerInsights } from "@/components/salah/insights";
+import { QiblaCompass } from "@/components/salah/qibla-compass";
 import { QuranTracker } from "@/components/salah/quran-tracker";
+import { TimesCalendar } from "@/components/salah/times-calendar";
 import { TodayCard } from "@/components/salah/today-card";
+import { UpcomingReadings } from "@/components/salah/upcoming-readings";
+import { useSalahPrefs } from "@/components/salah/prefs";
+import { nextPrayer, openWindow, type TimesTriple } from "@/components/salah/windows";
+
+type View = "today" | "rhythm" | "quran" | "times";
+
+const VIEWS: { value: View; label: string; title: string }[] = [
+  { value: "today", label: "Today", title: "The five, their windows and what follows them" },
+  { value: "rhythm", label: "Rhythm", title: "Jamaah, alone and qadha over a week or a month" },
+  { value: "quran", label: "Quran", title: "Khatm progress, juz by juz, and the reading plan" },
+  { value: "times", label: "Times", title: "A month of times, the Hijri date and the qibla" },
+];
+
+const RAIL = "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
 
 export default function SalahPage() {
   const ready = useStore((s) => s.ready);
   const profile = useStore((s) => s.profile);
+  const [prefs, setPrefs] = useSalahPrefs();
 
-  // One slow tick drives both the current-window highlight and the day rollover;
+  const [view, setView] = React.useState<View>("today");
+  const [planning, setPlanning] = React.useState(false);
+
+  // One slow tick drives the current-window highlight and the day rollover;
   // the per-second countdowns keep their own faster clocks.
   const nowTs = useNow(20_000);
   const today = React.useMemo(() => toISO(new Date(nowTs)), [nowTs]);
@@ -25,35 +49,80 @@ export default function SalahPage() {
     return d.getHours() * 60 + d.getMinutes();
   }, [nowTs]);
 
-  const times = React.useMemo(() => {
+  // Three days, because Isha's window runs past midnight into tomorrow's Fajr
+  // and this morning still belongs to last night's.
+  const times = React.useMemo<TimesTriple | null>(() => {
     if (!profile) return null;
-    return prayerTimesFor(today, {
+    const config = {
       latitude: profile.latitude,
       longitude: profile.longitude,
       method: profile.calc_method,
       madhab: profile.madhab,
-    });
+    };
+    return {
+      prev: prayerTimesFor(addDays(today, -1), config),
+      today: prayerTimesFor(today, config),
+      next: prayerTimesFor(addDays(today, 1), config),
+    };
   }, [today, profile]);
 
-  const next = times ? currentPrayer(times, nowMin) : null;
+  const open = times ? openWindow(times, nowMin) : null;
+  const next = times ? nextPrayer(times, nowMin) : null;
 
   return (
     <>
       <PageHeader
         title="Salah"
-        subtitle={next ? <NextPrayerSubtitle name={next.next} at={next.nextAt} /> : undefined}
-      />
+        subtitle={next ? <HeaderStatus open={open} next={next} /> : undefined}
+      >
+        <Segmented
+          size="sm"
+          value={view}
+          onChange={setView}
+          options={VIEWS.map((v) => ({ value: v.value, label: v.label, title: v.title }))}
+        />
+      </PageHeader>
 
-      <PageBody className="max-w-[1000px]">
+      <PageBody className="max-w-[1120px]">
         {!ready || !times ? (
           <LoadingSalah />
-        ) : (
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-8">
-            <div className="flex flex-col gap-6">
-              <TodayCard date={today} times={times} nowMin={nowMin} />
-              <QuranTracker today={today} />
-            </div>
+        ) : view === "today" ? (
+          <div className={RAIL}>
+            <TodayCard
+              date={today}
+              t={times}
+              nowMin={nowMin}
+              showSunnah={prefs.sunnah}
+              onToggleSunnah={() => setPrefs({ sunnah: !prefs.sunnah })}
+              hijriOffset={prefs.hijriOffset}
+            />
             <MonthGrid today={today} />
+          </div>
+        ) : view === "rhythm" ? (
+          <div className="flex flex-col gap-6">
+            <PatternView today={today} />
+            <PrayerInsights today={today} t={times} />
+          </div>
+        ) : view === "quran" ? (
+          <div className={RAIL}>
+            <QuranTracker today={today} planning={planning} onPlanning={setPlanning} />
+            <UpcomingReadings today={today} onPlan={() => setPlanning(true)} />
+          </div>
+        ) : (
+          <div className={RAIL}>
+            <TimesCalendar today={today} hijriOffset={prefs.hijriOffset} />
+            <div className="flex flex-col gap-6">
+              <HijriCard
+                date={today}
+                afterMaghrib={nowMin >= times.today.maghrib}
+                offset={prefs.hijriOffset}
+                onOffset={(hijriOffset) => setPrefs({ hijriOffset })}
+              />
+              <QiblaCompass />
+              <div className="surface p-4">
+                <LocationLine />
+              </div>
+            </div>
           </div>
         )}
       </PageBody>
@@ -63,7 +132,7 @@ export default function SalahPage() {
 
 function LoadingSalah() {
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-8">
+    <div className={RAIL}>
       <div className="flex flex-col gap-6">
         <div className="surface p-5">
           <div className="flex justify-between">
@@ -75,11 +144,6 @@ function LoadingSalah() {
               <Skeleton key={i} className="h-9 w-full" />
             ))}
           </div>
-        </div>
-        <div className="surface p-5">
-          <Skeleton className="h-9 w-32" />
-          <Skeleton className="mt-5 h-1.5 w-full" />
-          <Skeleton className="mt-3 h-4 w-2/3" />
         </div>
       </div>
       <div className="surface p-4">

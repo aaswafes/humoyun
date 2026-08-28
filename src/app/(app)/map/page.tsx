@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CalendarRange, Network, Plus, Waypoints } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { formatDate } from "@/lib/date";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { Button, EmptyState, Segmented } from "@/components/ui/primitives";
 import { BoardSwitcher } from "@/components/map/board-switcher";
@@ -41,12 +42,24 @@ export default function MapPage() {
     try { localStorage.setItem(LAST_MODE, timelineMode ? "1" : "0"); } catch { /* private mode */ }
   }, [timelineMode]);
 
-  const boardNodes = active
-    ? nodes.filter((n) => n.board_id === active.id || (n.board_id === null && active.id === sorted[0]?.id))
-    : [];
-  const nodeIds = new Set(boardNodes.map((n) => n.id));
-  const boardEdges = edges.filter((e) => nodeIds.has(e.source_id) && nodeIds.has(e.target_id));
-  const dated = boardNodes.filter((n) => n.date).length;
+  const boardNodes = React.useMemo(
+    () => (active
+      ? nodes.filter((n) => n.board_id === active.id || (n.board_id === null && active.id === sorted[0]?.id))
+      : []),
+    [active, nodes, sorted],
+  );
+
+  const summary = React.useMemo(() => {
+    const ids = new Set(boardNodes.map((n) => n.id));
+    const links = edges.filter((e) => ids.has(e.source_id) && ids.has(e.target_id)).length;
+    const dates = boardNodes.map((n) => n.date).filter(Boolean).sort() as string[];
+    return {
+      links,
+      dated: dates.length,
+      first: dates[0] ?? null,
+      last: dates[dates.length - 1] ?? null,
+    };
+  }, [boardNodes, edges]);
 
   function createFirstBoard() {
     const board = insert("boards", { name: "Mind Map", color: "blue", order_index: 0 });
@@ -60,8 +73,15 @@ export default function MapPage() {
         subtitle={
           active ? (
             <span className="tnum">
-              {boardNodes.length} node{boardNodes.length === 1 ? "" : "s"} · {boardEdges.length} link
-              {boardEdges.length === 1 ? "" : "s"} · {dated} dated
+              {boardNodes.length} node{boardNodes.length === 1 ? "" : "s"} · {summary.links} link
+              {summary.links === 1 ? "" : "s"} · {summary.dated} dated
+              {timelineMode && summary.first && summary.last && (
+                <>
+                  {" · "}
+                  {formatDate(summary.first, { weekday: false, year: true })}
+                  {summary.first !== summary.last && ` → ${formatDate(summary.last, { weekday: false, year: true })}`}
+                </>
+              )}
             </span>
           ) : undefined
         }

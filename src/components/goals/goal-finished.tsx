@@ -52,11 +52,14 @@ export function GoalFinished({
   const tallies = React.useMemo(() => {
     let tasks = 0;
     let targetsHit = 0;
+    let milestones = 0;
     for (const goal of done) {
-      tasks += index.stats(goal.id).directDone;
+      const stats = index.stats(goal.id);
+      tasks += stats.directDone;
+      milestones += stats.milestoneDone;
       if (goal.target != null && goal.current >= goal.target) targetsHit += 1;
     }
-    return { tasks, targetsHit };
+    return { tasks, targetsHit, milestones };
   }, [done, index]);
 
   function restore(goal: Goal) {
@@ -83,6 +86,12 @@ export function GoalFinished({
             <Tally value={done.length} label={done.length === 1 ? "goal finished" : "goals finished"} />
             <Tally value={tallies.tasks} label={tallies.tasks === 1 ? "task closed" : "tasks closed"} />
             <Tally value={tallies.targetsHit} label={tallies.targetsHit === 1 ? "target hit" : "targets hit"} />
+            {tallies.milestones > 0 && (
+              <Tally
+                value={tallies.milestones}
+                label={tallies.milestones === 1 ? "milestone reached" : "milestones reached"}
+              />
+            )}
           </div>
 
           {groups.map((group) => (
@@ -111,6 +120,8 @@ export function GoalFinished({
         <section className="mt-2 border-t border-line pt-4">
           <button
             onClick={() => setShowArchive((v) => !v)}
+            aria-expanded={showArchive}
+            aria-controls="goal-archive-panel"
             className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 transition-colors hover:text-ink-2"
           >
             <ChevronRight className={cn("size-3 transition-transform duration-200", showArchive && "rotate-90")} />
@@ -119,7 +130,7 @@ export function GoalFinished({
           </button>
 
           {showArchive && (
-            <div className="-mx-2 mt-1.5">
+            <div id="goal-archive-panel" className="-mx-2 mt-1.5">
               {archived.map((goal) => (
                 <div
                   key={goal.id}
@@ -210,6 +221,12 @@ function FinishedRow({
           )}
           {stats.childCount > 0 && (
             <span className="tnum">{stats.childDone}/{stats.childCount} sub-goals</span>
+          )}
+          {stats.milestoneTotal > 0 && (
+            <span className="tnum">{stats.milestoneDone}/{stats.milestoneTotal} milestones</span>
+          )}
+          {stats.meta.checkins.length > 0 && (
+            <span className="tnum">{stats.meta.checkins.length} check-ins</span>
           )}
           {ran != null && ran > 0 && <span className="tnum">ran {ran} days</span>}
         </div>

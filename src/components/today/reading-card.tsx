@@ -1,30 +1,101 @@
 "use client";
 
-import { BookOpen, Check } from "lucide-react";
+import * as React from "react";
+import { BookOpen } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import { Progress } from "@/components/ui/primitives";
-import { RailCard, RailEmpty, RailLink, RailRow } from "./rail-card";
+import type { Book, Task } from "@/lib/types";
+import { Button, Checkbox, Progress } from "@/components/ui/primitives";
+import { RailCard, RailEmpty, RailItem, RailLink, RailMeta } from "./rail-card";
+
+interface Group {
+  book: Book;
+  blocks: Task[];
+  /** First and last page the day asks for. */
+  from: number;
+  to: number;
+  /** True when nothing is scheduled and the target comes from the daily rate. */
+  implied: boolean;
+}
 
 export function ReadingCard({ date }: { date: string }) {
   const tasks = useStore((s) => s.tasks);
   const books = useStore((s) => s.books);
   const toggleTask = useStore((s) => s.toggleTask);
+  const logReading = useStore((s) => s.logReading);
+  const patch = useStore((s) => s.patch);
+  const toast = useStore((s) => s.toast);
 
-  const blocks = tasks
-    .filter((t) => t.date === date && !t.parent_id && (t.kind === "reading" || !!t.book_id))
-    .sort((a, b) => (a.start_min ?? 1440) - (b.start_min ?? 1440) || a.order_index - b.order_index);
+  const blocks = React.useMemo(
+    () => tasks
+      .filter((t) => t.date === date && !t.parent_id && (t.kind === "reading" || !!t.book_id))
+      .sort((a, b) => (a.start_min ?? 1440) - (b.start_min ?? 1440) || a.order_index - b.order_index),
+    [tasks, date],
+  );
 
-  // The book's progress bar belongs to its first block of the day, not to every one.
-  const seen = new Set<string>();
-  const rows = blocks.map((block) => {
-    const book = block.book_id ? books.find((b) => b.id === block.book_id) : undefined;
-    const leading = !!book && !seen.has(book.id);
-    if (book) seen.add(book.id);
-    return { block, book, leading };
-  });
+  const { groups, loose } = React.useMemo(() => {
+    const map = new Map<string, Group>();
+    const orphans: Task[] = [];
 
-  const done = blocks.filter((b) => b.status === "done").length;
+    for (const block of blocks) {
+      const book = block.book_id ? books.find((b) => b.id === block.book_id) : undefined;
+      if (!book) { orphans.push(block); continue; }
+      const group = map.get(book.id) ?? { book, blocks: [], from: Number.MAX_SAFE_INTEGER, to: 0, implied: false };
+      group.blocks.push(block);
+      if (block.page_from != null) group.from = Math.min(group.from, block.page_from);
+      if (block.page_to != null) group.to = Math.max(group.to, block.page_to);
+      map.set(book.id, group);
+    }
+
+    const list = [...map.values()].map((g) => ({
+      ...g,
+      from: g.from === Number.MAX_SAFE_INTEGER ? g.book.current_page + 1 : g.from,
+    }));
+
+    // Nothing scheduled but a book is open: the daily rate still names a target.
+    if (!list.length) {
+      for (const book of books) {
+        if (book.status !== "reading" || !book.pages_per_day) continue;
+        if (book.current_page >= book.total_pages) continue;
+        list.push({
+          book,
+          blocks: [],
+          from: book.current_page + 1,
+          to: Math.min(book.total_pages, book.current_page + book.pages_per_day),
+          implied: true,
+        });
+        if (list.length >= 2) break;
+      }
+    }
+
+    return { groups: list, loose: orphans };
+  }, [blocks, books]);
+
+  const totals = groups.reduce(
+    (acc, g) => {
+      const planned = Math.max(0, g.to - (g.from - 1));
+      const read = Math.min(planned, Math.max(0, g.book.current_page - (g.from - 1)));
+      acc.planned += planned;
+      acc.read += read;
+      return acc;
+    },
+    { planned: 0, read: 0 },
+  );
+  const pagesLeft = Math.max(0, totals.planned - totals.read);
+
+  function log(group: Group) {
+    const before = group.book.current_page;
+    const gained = group.to - before;
+    logReading(group.book.id, group.to);
+    toast({
+      title: `${gained} page${gained === 1 ? "" : "s"} logged`,
+      description: `${group.book.title} — now on p.${group.to}`,
+      tone: "success",
+      action: { label: "Undo", run: () => patch("books", group.book.id, { current_page: before }) },
+    });
+  }
+
+  const doneBlocks = blocks.filter((b) => b.status === "done").length;
 
   return (
     <RailCard
@@ -35,77 +106,134 @@ export function ReadingCard({ date }: { date: string }) {
       accessory={
         blocks.length > 0 ? (
           <span className="text-[11.5px] font-medium text-ink-2 tnum">
-            {done}/{blocks.length}
+            {doneBlocks}/{blocks.length}
           </span>
         ) : undefined
       }
+      footer={
+        totals.planned > 0 ? (
+          <div>
+            <RailMeta value={`${totals.read}/${totals.planned}`}>
+              {pagesLeft ? `${pagesLeft} pages left today` : "Today's pages are done"}
+            </RailMeta>
+            <Progress value={totals.read} max={totals.planned} height={3} className="mt-1.5" />
+          </div>
+        ) : undefined
+      }
     >
-      {rows.length === 0 ? (
+      {groups.length === 0 && loose.length === 0 ? (
         <RailEmpty action={<RailLink href="/books">{books.length ? "Schedule a book" : "Add a book"}</RailLink>}>
           Nothing to read today. Schedule a book across your calendar and its daily page ranges land here.
         </RailEmpty>
       ) : (
-        rows.map(({ block, book, leading }) => {
-          const complete = block.status === "done";
-          const pages =
-            block.page_from != null && block.page_to != null ? `p. ${block.page_from}–${block.page_to}` : null;
-          const pct = book && book.total_pages > 0
-            ? Math.round((book.current_page / book.total_pages) * 100)
-            : 0;
+        <>
+          {groups.map((group) => {
+            const { book } = group;
+            const pct = book.total_pages > 0 ? Math.round((book.current_page / book.total_pages) * 100) : 0;
+            const left = Math.max(0, group.to - book.current_page);
 
-          return (
-            <div key={block.id} className={cn(book ? `tint-${book.color}` : "tint-slate")}>
-              <RailRow
-                onClick={() => toggleTask(block.id)}
-                ariaLabel={`${book?.title ?? block.title}${pages ? ` ${pages}` : ""} — mark as ${complete ? "not read" : "read"}`}
-                ariaPressed={complete}
-                className="items-start"
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "mt-[2px] grid size-[17px] shrink-0 place-items-center rounded-[5px] border",
-                    "transition-[background-color,border-color] duration-150 ease-[var(--ease-out-apple)]",
-                    complete ? "border-transparent text-canvas" : "border-line-strong",
-                  )}
-                  style={complete ? { background: "var(--tint)" } : undefined}
-                >
-                  {complete && <Check className="size-3 stroke-[3.5]" />}
-                </span>
+            return (
+              <div key={book.id} className={`tint-${book.color}`}>
+                {group.blocks.map((block) => {
+                  const complete = block.status === "done";
+                  const pages =
+                    block.page_from != null && block.page_to != null
+                      ? `p. ${block.page_from}–${block.page_to}`
+                      : null;
+                  return (
+                    <RailItem key={block.id} className="items-start">
+                      <span className="mt-[3px]">
+                        <Checkbox
+                          checked={complete}
+                          tint={book.color}
+                          onChange={() => toggleTask(block.id)}
+                          label={`${book.title}${pages ? ` ${pages}` : ""} — mark as ${complete ? "not read" : "read"}`}
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={cn(
+                            "block truncate text-[13px]",
+                            complete ? "text-ink-3 line-through decoration-ink-4/60" : "text-ink",
+                          )}
+                        >
+                          {book.title}
+                        </span>
+                        {(pages || book.author) && (
+                          <span className="mt-0.5 block truncate text-[11.5px] text-ink-3 tnum">
+                            {pages}
+                            {pages && book.author ? " · " : ""}
+                            {book.author}
+                          </span>
+                        )}
+                      </span>
+                    </RailItem>
+                  );
+                })}
 
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={cn(
-                      "block truncate text-[13px]",
-                      complete ? "text-ink-3 line-through decoration-ink-4/60" : "text-ink",
-                    )}
-                  >
-                    {book?.title ?? block.title}
-                  </span>
-                  {(pages || book?.author) && (
-                    <span className="mt-0.5 block truncate text-[11.5px] text-ink-3 tnum">
-                      {pages}
-                      {pages && book?.author ? " · " : ""}
-                      {book?.author}
+                {group.implied && (
+                  <RailItem className="items-start">
+                    <span aria-hidden className="mt-1.5 size-[7px] shrink-0 rounded-full" style={{ background: "var(--tint)" }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] text-ink">{book.title}</span>
+                      <span className="mt-0.5 block truncate text-[11.5px] text-ink-3 tnum">
+                        No block scheduled · target p. {group.from}–{group.to}
+                      </span>
                     </span>
-                  )}
-                </span>
-              </RailRow>
+                  </RailItem>
+                )}
 
-              {leading && book && (
                 <div className="px-2 pb-2 pt-1">
-                  <Progress value={book.current_page} max={book.total_pages} tint={book.color} height={3} />
+                  <div className="flex items-center gap-2">
+                    <Progress
+                      value={book.current_page}
+                      max={book.total_pages}
+                      tint={book.color}
+                      height={3}
+                      className="flex-1"
+                    />
+                    {left > 0 && (
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        className="shrink-0"
+                        aria-label={`Log ${left} pages of ${book.title}, up to page ${group.to}`}
+                        onClick={() => log(group)}
+                      >
+                        Log {left}p
+                      </Button>
+                    )}
+                  </div>
                   <p className="mt-1 flex items-baseline justify-between text-[11px] text-ink-4 tnum">
                     <span>
                       {book.current_page} / {book.total_pages} pages
                     </span>
-                    <span>{pct}%</span>
+                    <span>{left > 0 ? `${left} to today's target` : `${pct}% read`}</span>
                   </p>
                 </div>
-              )}
-            </div>
-          );
-        })
+              </div>
+            );
+          })}
+
+          {loose.map((block) => (
+            <RailItem key={block.id}>
+              <Checkbox
+                checked={block.status === "done"}
+                tint={block.color}
+                onChange={() => toggleTask(block.id)}
+                label={`${block.title} — mark as ${block.status === "done" ? "not read" : "read"}`}
+              />
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-[13px]",
+                  block.status === "done" ? "text-ink-3 line-through decoration-ink-4/60" : "text-ink",
+                )}
+              >
+                {block.title}
+              </span>
+            </RailItem>
+          ))}
+        </>
       )}
     </RailCard>
   );

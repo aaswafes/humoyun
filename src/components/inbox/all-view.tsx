@@ -2,30 +2,46 @@
 
 import * as React from "react";
 import {
-  ArrowDownUp, ChevronDown, Flag, ListFilter, Search, Tag as TagIcon, X,
+  ArrowDownUp, BookmarkPlus, ChevronDown, Flag, Group, ListFilter, Search, Tag as TagIcon, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import { PRIORITY_LABELS, type Task, type TaskStatus, type Tint } from "@/lib/types";
+import { friendlyDate, todayISO } from "@/lib/date";
+import { PRIORITY_LABELS, type Task, type TaskKind, type TaskStatus, type Tint } from "@/lib/types";
 import { Button, EmptyState, Input } from "@/components/ui/primitives";
 import { Popover, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/overlays";
 import { openQuickAdd } from "@/components/shell/quick-add";
-import { SelectableRow } from "./selectable-row";
+import {
+  useTriage, useRegisterRows, useRegisterRowDrop,
+  type GroupKey, type SortKey,
+} from "./triage-context";
+import { TriageRow } from "./triage-dnd";
 import { QuickSchedule } from "./quick-schedule";
-import { useSelectionHotkeys } from "./selection";
+import { LabelHeader } from "./group-header";
+import { VirtualRows } from "./virtual-list";
+import { saveView } from "./saved-views";
 
-const PAGE = 100;
+/** Past this many rows the list stops rendering what nobody can see. */
+const VIRTUAL_AFTER = 100;
 
-type SortKey = "date" | "priority" | "created" | "alpha";
-
-const SORT_LABELS: Record<SortKey, string> = {
+export const SORT_LABELS: Record<SortKey, string> = {
+  manual: "Manual",
   date: "Date",
   priority: "Priority",
   created: "Newest",
   alpha: "A–Z",
 };
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
+export const GROUP_LABELS: Record<GroupKey, string> = {
+  none: "Nothing",
+  date: "Date",
+  priority: "Priority",
+  status: "Status",
+  tag: "Tag",
+  kind: "Type",
+};
+
+export const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: "To-do",
   doing: "Doing",
   done: "Done",
@@ -33,16 +49,13 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 };
 
 const STATUS_ORDER: TaskStatus[] = ["todo", "doing", "done", "dropped"];
+const SORT_ORDER: SortKey[] = ["date", "priority", "created", "alpha"];
+const GROUP_ORDER: GroupKey[] = ["none", "date", "priority", "status", "tag", "kind"];
 
-interface Filters {
-  q: string;
-  tags: string[];
-  priority: number | null;
-  status: TaskStatus | "any";
-  sort: SortKey;
-}
-
-const INITIAL: Filters = { q: "", tags: [], priority: null, status: "any", sort: "date" };
+const KIND_LABELS: Record<TaskKind, string> = {
+  task: "Tasks", event: "Events", reading: "Reading", habit: "Habits",
+  prayer: "Prayer", block: "Blocks", milestone: "Milestones",
+};
 
 function sortTasks(list: Task[], sort: SortKey): Task[] {
   const copy = [...list];
@@ -55,6 +68,8 @@ function sortTasks(list: Task[], sort: SortKey): Task[] {
       return copy.sort((a, b) => b.created_at.localeCompare(a.created_at));
     case "alpha":
       return copy.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+    case "manual":
+      return copy.sort((a, b) => a.order_index - b.order_index);
     default:
       // undated tasks sink to the bottom rather than pretending to be the year 0
       return copy.sort((a, b) => {
@@ -67,44 +82,88 @@ function sortTasks(list: Task[], sort: SortKey): Task[] {
   }
 }
 
+interface Bucket { key: string; label: string; items: Task[] }
+
+function bucketOf(task: Task, group: GroupKey, today: string): { key: string; label: string; rank: number } {
+  switch (group) {
+    case "date": {
+      if (!task.date) return { key: "none", label: "No date", rank: 4 };
+      if (task.date < today) return { key: "overdue", label: "Overdue", rank: 0 };
+      if (task.date === today) return { key: today, label: "Today", rank: 1 };
+      return { key: task.date, label: friendlyDate(task.date), rank: 2 };
+    }
+    case "priority":
+      return {
+        key: `p${task.priority}`,
+        label: task.priority ? `${PRIORITY_LABELS[task.priority]} priority` : "No priority",
+        rank: 3 - task.priority,
+      };
+    case "status":
+      return { key: task.status, label: STATUS_LABELS[task.status], rank: STATUS_ORDER.indexOf(task.status) };
+    case "tag": {
+      const tag = task.tags[0];
+      return tag ? { key: `#${tag}`, label: `#${tag}`, rank: 0 } : { key: "untagged", label: "Untagged", rank: 1 };
+    }
+    case "kind":
+      return { key: task.kind, label: KIND_LABELS[task.kind] ?? task.kind, rank: 0 };
+    default:
+      return { key: "all", label: "All", rank: 0 };
+  }
+}
+
+function groupTasks(list: Task[], group: GroupKey, today: string): Bucket[] {
+  if (group === "none") return [{ key: "all", label: "All", items: list }];
+  const map = new Map<string, Bucket & { rank: number }>();
+  list.forEach((task) => {
+    const b = bucketOf(task, group, today);
+    const existing = map.get(b.key);
+    if (existing) existing.items.push(task);
+    else map.set(b.key, { key: b.key, label: b.label, rank: b.rank, items: [task] });
+  });
+  return [...map.values()].sort(
+    (a, b) => a.rank - b.rank || a.key.localeCompare(b.key),
+  );
+}
+
 function Chip({
-  label, value, icon: Icon, active, onClick,
+  label, value, icon: Icon, active,
 }: {
   label: string;
   value?: string;
   icon: React.ComponentType<{ className?: string }>;
   active?: boolean;
-  onClick?: (e: React.MouseEvent) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      aria-label={value ? `${label}: ${value}` : label}
       className={cn(
         "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium cursor-pointer",
         "transition-[background-color,color] duration-150 ease-[var(--ease-out-apple)]",
         active ? "bg-accent-soft text-accent" : "bg-hover text-ink-2 hover:bg-active hover:text-ink",
       )}
     >
-      <Icon className="size-3.5" />
+      <Icon aria-hidden className="size-3.5" />
       <span>{value ?? label}</span>
-      <ChevronDown className="size-3 opacity-60" />
+      <ChevronDown aria-hidden className="size-3 opacity-60" />
     </button>
   );
 }
 
-export function AllView() {
+type ListRow =
+  | { kind: "header"; key: string; label: string; count: number }
+  | { kind: "task"; key: string; task: Task };
+
+const rowKey = (row: ListRow) => row.key;
+
+export function AllView({ searchRef }: { searchRef?: React.RefObject<HTMLInputElement | null> }) {
   const tasks = useStore((s) => s.tasks);
   const tagRows = useStore((s) => s.tags);
+  const toast = useStore((s) => s.toast);
 
-  const [f, setF] = React.useState<Filters>(INITIAL);
-  const [limit, setLimit] = React.useState(PAGE);
-
-  // Any filter change restarts paging — otherwise page 3 of the old query bleeds through.
-  const update = React.useCallback((changes: Partial<Filters>) => {
-    setF((prev) => ({ ...prev, ...changes }));
-    setLimit(PAGE);
-  }, []);
+  const { filters: f, patchFilters, resetFilters, cursorId, announce, tab } = useTriage();
+  const [viewName, setViewName] = React.useState("");
+  const today = todayISO();
 
   const tagColors = React.useMemo(() => {
     const map = new Map<string, Tint>();
@@ -136,28 +195,72 @@ export function AllView() {
     return sortTasks(list, f.sort);
   }, [tasks, f]);
 
-  const visible = React.useMemo(() => filtered.slice(0, limit), [filtered, limit]);
-  const order = React.useMemo(() => visible.map((t) => t.id), [visible]);
-  useSelectionHotkeys();
+  const buckets = React.useMemo(
+    () => groupTasks(filtered, f.group, today),
+    [filtered, f.group, today],
+  );
 
-  const dirty = f.q !== "" || f.tags.length > 0 || f.priority !== null || f.status !== "any";
-  const remaining = filtered.length - visible.length;
+  const listRows = React.useMemo<ListRow[]>(() => {
+    const out: ListRow[] = [];
+    buckets.forEach((bucket) => {
+      if (f.group !== "none") {
+        out.push({ kind: "header", key: `h:${bucket.key}`, label: bucket.label, count: bucket.items.length });
+      }
+      bucket.items.forEach((task) => out.push({ kind: "task", key: task.id, task }));
+    });
+    return out;
+  }, [buckets, f.group]);
+
+  const order = React.useMemo(() => filtered.map((t) => t.id), [filtered]);
+  useRegisterRows(order);
+  useRegisterRowDrop(null);
+
+  const dirty =
+    f.q !== "" || f.tags.length > 0 || f.priority !== null || f.status !== "any" ||
+    f.sort !== "date" || f.group !== "none";
+  const virtual = listRows.length > VIRTUAL_AFTER;
+
+  const renderRow = React.useCallback(
+    (row: ListRow) =>
+      row.kind === "header" ? (
+        <LabelHeader key={row.key} title={row.label} count={row.count} sticky={!virtual} />
+      ) : (
+        <TriageRow
+          key={row.key}
+          task={row.task}
+          order={order}
+          showDate
+          trailing={<QuickSchedule task={row.task} />}
+        />
+      ),
+    [order, virtual],
+  );
+
+  function persistView() {
+    const name = viewName.trim();
+    if (!name) return;
+    saveView({ name, tab, filters: f });
+    setViewName("");
+    toast({ title: `Saved “${name}”`, description: "Pinned to the view bar.", tone: "success" });
+    announce(`View ${name} saved`);
+  }
 
   return (
     <div>
       <div className="sticky top-0 z-10 -mx-3 mb-2 flex flex-wrap items-center gap-1.5 px-3 py-2 material hairline-b">
         <div className="relative min-w-[170px] flex-1">
-          <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
+          <Search aria-hidden className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
           <Input
+            ref={searchRef}
             value={f.q}
-            onChange={(e) => update({ q: e.target.value })}
+            onChange={(e) => patchFilters({ q: e.target.value })}
             placeholder="Search titles, notes and tags"
             aria-label="Search tasks"
             className="h-7 pl-7 pr-7"
           />
           {f.q && (
             <button
-              onClick={() => update({ q: "" })}
+              onClick={() => patchFilters({ q: "" })}
               aria-label="Clear search"
               className="absolute right-1.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-sm text-ink-4 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
             >
@@ -191,7 +294,7 @@ export function AllView() {
                     key={tag}
                     checked={on}
                     onClick={() =>
-                      update({ tags: on ? f.tags.filter((t) => t !== tag) : [...f.tags, tag] })
+                      patchFilters({ tags: on ? f.tags.filter((t) => t !== tag) : [...f.tags, tag] })
                     }
                   >
                     <span className={cn(`tint-${tagColors.get(tag) ?? "slate"}`, "inline-flex items-center gap-1.5")}>
@@ -204,7 +307,7 @@ export function AllView() {
               {f.tags.length > 0 && (
                 <>
                   <MenuSeparator />
-                  <MenuItem icon={X} onClick={() => update({ tags: [] })}>Clear tags</MenuItem>
+                  <MenuItem icon={X} onClick={() => patchFilters({ tags: [] })}>Clear tags</MenuItem>
                 </>
               )}
             </>
@@ -225,16 +328,12 @@ export function AllView() {
         >
           {(close) => (
             <>
-              <MenuItem checked={f.priority === null} onClick={() => { update({ priority: null }); close(); }}>
+              <MenuItem checked={f.priority === null} onClick={() => { patchFilters({ priority: null }); close(); }}>
                 Any priority
               </MenuItem>
               <MenuSeparator />
               {[3, 2, 1, 0].map((p) => (
-                <MenuItem
-                  key={p}
-                  checked={f.priority === p}
-                  onClick={() => { update({ priority: p }); close(); }}
-                >
+                <MenuItem key={p} checked={f.priority === p} onClick={() => { patchFilters({ priority: p }); close(); }}>
                   {PRIORITY_LABELS[p]}
                 </MenuItem>
               ))}
@@ -256,15 +355,44 @@ export function AllView() {
         >
           {(close) => (
             <>
-              <MenuItem checked={f.status === "any"} onClick={() => { update({ status: "any" }); close(); }}>
+              <MenuItem checked={f.status === "any"} onClick={() => { patchFilters({ status: "any" }); close(); }}>
                 Any status
               </MenuItem>
               <MenuSeparator />
               {STATUS_ORDER.map((s) => (
-                <MenuItem key={s} checked={f.status === s} onClick={() => { update({ status: s }); close(); }}>
+                <MenuItem key={s} checked={f.status === s} onClick={() => { patchFilters({ status: s }); close(); }}>
                   {STATUS_LABELS[s]}
                 </MenuItem>
               ))}
+            </>
+          )}
+        </Popover>
+
+        <Popover
+          align="start"
+          className="w-[190px]"
+          trigger={
+            <Chip
+              icon={Group}
+              label="Group"
+              value={f.group !== "none" ? GROUP_LABELS[f.group] : undefined}
+              active={f.group !== "none"}
+            />
+          }
+        >
+          {(close) => (
+            <>
+              <MenuLabel>Group by</MenuLabel>
+              {GROUP_ORDER.map((key) => (
+                <MenuItem key={key} checked={f.group === key} onClick={() => { patchFilters({ group: key }); close(); }}>
+                  {GROUP_LABELS[key]}
+                </MenuItem>
+              ))}
+              {f.group === "tag" && (
+                <p className="px-2 pb-1 pt-0.5 text-[11px] leading-snug text-ink-4">
+                  A task with several tags sits under its first one.
+                </p>
+              )}
             </>
           )}
         </Popover>
@@ -277,8 +405,8 @@ export function AllView() {
           {(close) => (
             <>
               <MenuLabel>Sort by</MenuLabel>
-              {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-                <MenuItem key={key} checked={f.sort === key} onClick={() => { update({ sort: key }); close(); }}>
+              {SORT_ORDER.map((key) => (
+                <MenuItem key={key} checked={f.sort === key} onClick={() => { patchFilters({ sort: key }); close(); }}>
                   {SORT_LABELS[key]}
                 </MenuItem>
               ))}
@@ -286,8 +414,56 @@ export function AllView() {
           )}
         </Popover>
 
+        <Popover
+          align="end"
+          className="w-[248px] p-2"
+          trigger={
+            <button
+              type="button"
+              aria-label="Save this view"
+              title="Save this combination of filters"
+              className="inline-flex size-7 items-center justify-center rounded-md bg-hover text-ink-2 hover:bg-active hover:text-ink cursor-pointer transition-colors"
+            >
+              <BookmarkPlus aria-hidden className="size-3.5" />
+            </button>
+          }
+        >
+          {(close) => (
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+                Save this view
+              </p>
+              <Input
+                value={viewName}
+                onChange={(e) => setViewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  if (!viewName.trim()) return;
+                  persistView();
+                  close();
+                }}
+                placeholder="Name it — “Deep work”"
+                aria-label="View name"
+                className="h-7"
+              />
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-ink-4 tnum">{filtered.length} rows</span>
+                <Button
+                  variant="primary"
+                  size="xs"
+                  disabled={!viewName.trim()}
+                  onClick={() => { persistView(); close(); }}
+                >
+                  Save &amp; pin
+                </Button>
+              </div>
+            </div>
+          )}
+        </Popover>
+
         {dirty && (
-          <Button variant="ghost" size="xs" onClick={() => { setF(INITIAL); setLimit(PAGE); }}>
+          <Button variant="ghost" size="xs" onClick={resetFilters}>
             Clear
           </Button>
         )}
@@ -299,11 +475,7 @@ export function AllView() {
             icon={Search}
             title="Nothing matches"
             description="No task fits this combination of search, tags, priority and status."
-            action={
-              <Button variant="secondary" size="sm" onClick={() => { setF(INITIAL); setLimit(PAGE); }}>
-                Clear filters
-              </Button>
-            }
+            action={<Button variant="secondary" size="sm" onClick={resetFilters}>Clear filters</Button>}
           />
         ) : (
           <EmptyState
@@ -315,29 +487,28 @@ export function AllView() {
         )
       ) : (
         <>
-          <p className="mb-1 px-2 text-[11.5px] text-ink-4">
-            <span className="tnum">{visible.length}</span>
-            {remaining > 0 && <> of <span className="tnum">{filtered.length}</span></>}
+          <p aria-live="polite" aria-atomic="true" className="mb-1 px-2 text-[11.5px] text-ink-4">
+            <span className="tnum">{filtered.length}</span>
             {filtered.length === 1 ? " task" : " tasks"}
+            {f.group !== "none" && (
+              <> in <span className="tnum">{buckets.length}</span> {buckets.length === 1 ? "group" : "groups"}</>
+            )}
+            {virtual && <span className="text-ink-4"> · windowed</span>}
           </p>
 
-          {visible.map((task) => (
-            <SelectableRow
-              key={task.id}
-              task={task}
-              order={order}
-              showDate
-              trailing={<QuickSchedule task={task} />}
-            />
-          ))}
-
-          {remaining > 0 && (
-            <div className="mt-3 flex justify-center">
-              <Button variant="secondary" size="sm" onClick={() => setLimit((l) => l + PAGE)}>
-                Show {Math.min(PAGE, remaining)} more
-              </Button>
-            </div>
-          )}
+          <div role="group" aria-label={`${filtered.length} matching tasks`}>
+            {virtual ? (
+              <VirtualRows
+                items={listRows}
+                getKey={rowKey}
+                estimate={34}
+                focusKey={cursorId}
+                render={renderRow}
+              />
+            ) : (
+              listRows.map((row) => renderRow(row))
+            )}
+          </div>
         </>
       )}
     </div>

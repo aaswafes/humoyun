@@ -5,9 +5,10 @@ import { Check, Monitor, MoonStar, SunMedium } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatTime } from "@/lib/date";
-import { ACCENTS, type Accent, type Tint } from "@/lib/types";
-import { Segmented } from "@/components/ui/primitives";
-import { Pane, Row } from "./ui";
+import { ACCENTS, TINTS, type Accent, type Tint } from "@/lib/types";
+import { Badge, Button, Checkbox, Progress, Segmented } from "@/components/ui/primitives";
+import { SwatchCheck } from "@/components/ui/form";
+import { Group, Pane, Row } from "./ui";
 
 type Theme = "light" | "dark" | "system";
 
@@ -28,6 +29,47 @@ const ACCENT_LABEL: Record<Accent, string> = {
   rose: "Rose",
   graphite: "Graphite",
 };
+
+const TINT_LABEL: Record<Tint, string> = {
+  slate: "Slate", red: "Red", orange: "Orange", amber: "Amber", emerald: "Emerald",
+  teal: "Teal", blue: "Blue", violet: "Violet", pink: "Pink", brown: "Brown",
+};
+
+interface RovingProps {
+  ref: (el: HTMLButtonElement | null) => void;
+  tabIndex: number;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+}
+
+/**
+ * Arrow-key movement inside a radio group, with a roving tab stop — one Tab
+ * lands in the group, arrows choose. Returns the props each option needs.
+ */
+function useRovingRadio<T extends string>(
+  values: readonly T[], value: T, onChange: (v: T) => void,
+): (i: number) => RovingProps {
+  const refs = React.useRef<(HTMLButtonElement | null)[]>([]);
+  const index = Math.max(0, values.indexOf(value));
+
+  function onKeyDown(e: React.KeyboardEvent, i: number) {
+    const last = values.length - 1;
+    let next = i;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = i === last ? 0 : i + 1;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = i === 0 ? last : i - 1;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = last;
+    else return;
+    e.preventDefault();
+    onChange(values[next]);
+    refs.current[next]?.focus();
+  }
+
+  return (i: number) => ({
+    ref: (el: HTMLButtonElement | null) => { refs.current[i] = el; },
+    tabIndex: i === index ? 0 : -1,
+    onKeyDown: (e: React.KeyboardEvent) => onKeyDown(e, i),
+  });
+}
 
 /**
  * A miniature of the app in one theme, painted so it stays true under *both*
@@ -68,13 +110,14 @@ function Chrome({ variant }: { variant: "light" | "dark" }) {
 }
 
 function ThemeCard({
-  theme, label, icon: Icon, active, onSelect,
+  theme, label, icon: Icon, active, onSelect, roving,
 }: {
   theme: Theme;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   active: boolean;
   onSelect: () => void;
+  roving: RovingProps;
 }) {
   return (
     <button
@@ -82,6 +125,7 @@ function ThemeCard({
       role="radio"
       aria-checked={active}
       onClick={onSelect}
+      {...roving}
       className={cn(
         "group flex flex-1 cursor-pointer flex-col gap-2 rounded-lg border p-1.5 text-left",
         "transition-[border-color,background-color,transform] duration-200 ease-[var(--ease-out-apple)]",
@@ -117,6 +161,42 @@ function ThemeCard({
   );
 }
 
+/**
+ * The accent, shown doing its actual job. Everything in here is a live
+ * primitive, so what you see is exactly what the rest of the app renders.
+ */
+function AccentPreview() {
+  const [done, setDone] = React.useState(false);
+
+  return (
+    <div className="rounded-lg border border-line bg-raised p-3">
+      <div className="flex items-center gap-2.5 rounded-md bg-selected px-2 py-1.5">
+        <Checkbox checked={done} onChange={setDone} label="Preview task" size="sm" />
+        <span className={cn("min-w-0 flex-1 truncate text-[13px]", done ? "text-ink-4 line-through" : "text-ink")}>
+          Deep work — hardest thing first
+        </span>
+        <span className="shrink-0 text-[11.5px] text-ink-3 tnum">8:00</span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2 px-2">
+        <Button variant="primary" size="xs">Primary</Button>
+        <Button size="xs">Secondary</Button>
+        <span className="rounded-md bg-accent-soft px-2 py-1 text-[11.5px] font-medium leading-none text-accent">
+          Selected
+        </span>
+        <span className="rounded-md border border-accent-line px-2 py-1 text-[11.5px] font-medium leading-none text-ink-2">
+          Outline
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3 px-2">
+        <Progress value={68} className="flex-1" />
+        <span className="shrink-0 text-[11.5px] text-ink-3 tnum">68%</span>
+      </div>
+    </div>
+  );
+}
+
 export function AppearanceSection() {
   const profile = useStore((s) => s.profile);
   const hour12 = useStore((s) => s.hour12);
@@ -126,6 +206,10 @@ export function AppearanceSection() {
 
   const theme = (profile?.theme ?? "system") as Theme;
   const accent = (profile?.accent ?? "blue") as Accent;
+
+  const themes: Theme[] = ["light", "dark", "system"];
+  const themeRoving = useRovingRadio(themes, theme, setTheme);
+  const accentRoving = useRovingRadio(ACCENTS, accent, setAccent);
 
   function setClock(next: boolean) {
     // `hour12` is lifted out of prefs at hydrate, so it needs updating alongside.
@@ -138,78 +222,92 @@ export function AppearanceSection() {
       title="Appearance"
       description="How the app looks and how it writes the time. Changes apply the moment you pick them."
     >
-      <Row
-        label="Theme"
-        hint="System follows your device between light and dark on its own."
-        stacked
-      >
-        <div role="radiogroup" aria-label="Theme" className="flex gap-2.5">
-          <ThemeCard theme="light" label="Light" icon={SunMedium} active={theme === "light"} onSelect={() => setTheme("light")} />
-          <ThemeCard theme="dark" label="Dark" icon={MoonStar} active={theme === "dark"} onSelect={() => setTheme("dark")} />
-          <ThemeCard theme="system" label="System" icon={Monitor} active={theme === "system"} onSelect={() => setTheme("system")} />
-        </div>
-      </Row>
-
-      <Row
-        label="Accent"
-        hint="One colour, used sparingly — selection, primary buttons, the day you are on."
-        stacked
-      >
-        <div>
-          <div role="radiogroup" aria-label="Accent colour" className="flex flex-wrap gap-2.5">
-            {ACCENTS.map((a) => {
-              const active = accent === a;
-              return (
-                <button
-                  key={a}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  aria-label={ACCENT_LABEL[a]}
-                  title={ACCENT_LABEL[a]}
-                  onClick={() => setAccent(a)}
-                  className={cn(
-                    `tint-${ACCENT_TINT[a]}`,
-                    "grid size-7 cursor-pointer place-items-center rounded-full",
-                    "transition-transform duration-200 ease-[var(--ease-out-apple)] hover:scale-110 active:scale-95",
-                    active && "ring-2 ring-accent ring-offset-2 ring-offset-[var(--canvas)]",
-                  )}
-                  style={{ background: "var(--tint)" }}
-                >
-                  {active && <Check className="size-3.5 text-canvas" strokeWidth={3.5} />}
-                </button>
-              );
-            })}
+      <Group title="Theme">
+        <Row
+          label="Light, dark, or whatever the system says"
+          hint="System follows your device between light and dark on its own."
+          stacked
+        >
+          <div role="radiogroup" aria-label="Theme" className="flex gap-2.5">
+            <ThemeCard theme="light" label="Light" icon={SunMedium} active={theme === "light"} onSelect={() => setTheme("light")} roving={themeRoving(0)} />
+            <ThemeCard theme="dark" label="Dark" icon={MoonStar} active={theme === "dark"} onSelect={() => setTheme("dark")} roving={themeRoving(1)} />
+            <ThemeCard theme="system" label="System" icon={Monitor} active={theme === "system"} onSelect={() => setTheme("system")} roving={themeRoving(2)} />
           </div>
+        </Row>
+      </Group>
 
-          <div className="mt-3.5 flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium leading-none text-accent-ink">
-              Primary
-            </span>
-            <span className="rounded-md bg-accent-soft px-2.5 py-1 text-[12px] font-medium leading-none text-accent">
-              Selected
-            </span>
-            <span className="rounded-md border border-accent-line px-2.5 py-1 text-[12px] font-medium leading-none text-ink-2">
-              Outline
-            </span>
-            <span className="text-[12px] text-ink-3">{ACCENT_LABEL[accent]}</span>
-          </div>
-        </div>
-      </Row>
-
-      <Row
-        label="Clock"
-        hint={`Every time in the app follows this — currently ${formatTime(14 * 60 + 5, hour12)}.`}
+      <Group
+        title="Accent"
+        description="One colour, used sparingly — selection, primary buttons, the day you are on."
       >
-        <Segmented
-          value={hour12 ? "12" : "24"}
-          onChange={(v) => setClock(v === "12")}
-          options={[
-            { value: "12", label: "12-hour" },
-            { value: "24", label: "24-hour" },
-          ]}
-        />
-      </Row>
+        <Row label="Pick one" hint={`Currently ${ACCENT_LABEL[accent]}. Arrow keys move between them.`} stacked>
+          <div>
+            <div role="radiogroup" aria-label="Accent colour" className="flex flex-wrap gap-2.5">
+              {ACCENTS.map((a, i) => {
+                const active = accent === a;
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={ACCENT_LABEL[a]}
+                    title={ACCENT_LABEL[a]}
+                    onClick={() => setAccent(a)}
+                    {...accentRoving(i)}
+                    className={cn(
+                      `tint-${ACCENT_TINT[a]}`,
+                      "grid size-7 cursor-pointer place-items-center rounded-full",
+                      "transition-transform duration-200 ease-[var(--ease-out-apple)] hover:scale-110 active:scale-95",
+                      active && "ring-2 ring-accent ring-offset-2 ring-offset-[var(--canvas)]",
+                    )}
+                    style={{ background: "var(--tint)" }}
+                  >
+                    {/* A bare white tick washes out on Amber and Slate; SwatchCheck
+                        carries its own scrim so it reads on every tint. */}
+                    {active && <SwatchCheck />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 max-w-[420px]">
+              <AccentPreview />
+            </div>
+          </div>
+        </Row>
+      </Group>
+
+      <Group
+        title="Entity colours"
+        description="Tasks, books, habits and tags carry one of these ten. They are tuned separately for light and dark, so a task keeps its identity when the theme flips."
+      >
+        <Row label="The palette" hint="Not editable — this is the reference, so you can name a colour when you pick one." stacked>
+          <div className="flex flex-wrap gap-1.5">
+            {TINTS.map((t) => (
+              <Badge key={t} tint={t} dot className="h-[22px] px-2 text-[11.5px]">
+                {TINT_LABEL[t]}
+              </Badge>
+            ))}
+          </div>
+        </Row>
+      </Group>
+
+      <Group title="Time">
+        <Row
+          label="Clock"
+          hint={`Every time in the app follows this — currently ${formatTime(14 * 60 + 5, hour12)} and ${formatTime(8 * 60, hour12)}.`}
+        >
+          <Segmented
+            value={hour12 ? "12" : "24"}
+            onChange={(v) => setClock(v === "12")}
+            options={[
+              { value: "12", label: "12-hour" },
+              { value: "24", label: "24-hour" },
+            ]}
+          />
+        </Row>
+      </Group>
     </Pane>
   );
 }

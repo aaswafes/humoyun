@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { SOLO, SOLO_USER_ID } from "@/lib/local-db";
 import { useStore } from "@/lib/store";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { addDays, todayISO } from "@/lib/date";
@@ -12,6 +13,10 @@ import { QuickAdd, openQuickAdd } from "./quick-add";
 import { TimerBar } from "./timer-bar";
 import { TaskInspector } from "@/components/tasks/task-inspector";
 import { Spinner } from "@/components/ui/primitives";
+
+// Module scope on purpose: React 19 StrictMode mounts the shell twice in dev and
+// a state-based guard is re-created on the second mount, which double-seeded.
+let soloBooted = false;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -27,6 +32,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // ---- session ----
   React.useEffect(() => {
     let cancelled = false;
+
+    if (SOLO) {
+      if (soloBooted) return;
+      soloBooted = true;
+      hydrate(SOLO_USER_ID, "you@local").then(async () => {
+        // First boot of a local preview: fill it with a believable week so the
+        // app does not open as thirteen empty states.
+        if (!useStore.getState().soloNeedsSeed) return;
+        const { loadSampleData } = await import("@/components/settings/sample-data");
+        loadSampleData();
+        useStore.setState({ soloNeedsSeed: false });
+      });
+      return;
+    }
 
     supabase.auth.getUser().then(({ data }) => {
       if (cancelled) return;

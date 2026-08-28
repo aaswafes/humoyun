@@ -11,74 +11,54 @@ import { Popover } from "@/components/ui/overlays";
 // Field — label above control, the shape every form row uses here
 // =========================================================
 export function Field({
-  label, hint, children, className,
+  label, hint, children, className, htmlFor,
 }: {
   label: string;
   hint?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  /** id of the control this labels — turns the caption into a real <label>. */
+  htmlFor?: string;
 }) {
   // A div, not a <label> — several of these wrap buttons that open popovers,
-  // and an implicit label would fire the trigger twice.
+  // and an implicit label would fire the trigger twice. Controls that can take
+  // an id get a proper <label for> instead; the rest carry their own aria-label.
+  const caption = "text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3";
+  const generated = React.useId();
+
+  // One element child can be given the id, so the caption becomes a real label
+  // even when the caller did not supply one. Anything else keeps its own
+  // aria-label and the caption stays a plain span.
+  const single = React.isValidElement(children) ? children : null;
+  const controlId = htmlFor ?? (single ? generated : undefined);
+  const control = single && !htmlFor
+    ? React.cloneElement(single as React.ReactElement<{ id?: string }>, { id: generated })
+    : children;
+
   return (
     <div className={cn("block", className)}>
       <div className="mb-1.5 flex items-baseline gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</span>
+        {controlId
+          ? <label htmlFor={controlId} className={cn(caption, "cursor-pointer")}>{label}</label>
+          : <span className={caption}>{label}</span>}
         {hint && <span className="text-[11.5px] text-ink-4">{hint}</span>}
       </div>
-      {children}
+      {control}
     </div>
   );
 }
 
-// =========================================================
-// Toggle — iOS switch. The kit has no switch, so it lives here.
-// =========================================================
-export function Toggle({
-  checked, onChange, label, description, className,
-}: {
-  checked: boolean;
-  onChange: (next: boolean) => void;
-  label: string;
-  description?: string;
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex items-center gap-3", className)}>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] text-ink">{label}</p>
-        {description && <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-3">{description}</p>}
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "relative h-[20px] w-[34px] shrink-0 rounded-full cursor-pointer",
-          "transition-[background-color] duration-200 ease-[var(--ease-out-apple)] active:scale-[0.97]",
-          checked ? "bg-accent" : "bg-active",
-        )}
-      >
-        {/* accent-ink is tuned to sit on the accent, ink-3 reads on the off-track in both themes */}
-        <span
-          className={cn(
-            "absolute top-[2px] left-[2px] size-4 rounded-full",
-            "transition-transform duration-200 ease-[var(--ease-out-apple)]",
-            checked ? "translate-x-[14px] bg-accent-ink" : "bg-ink-3",
-          )}
-        />
-      </button>
-    </div>
-  );
-}
+// The kit gained a Toggle after this file was written; keeping a second one
+// meant two switch sizes in the same product. Re-exported so callers here and
+// the import path both stay valid.
+export { Toggle } from "@/components/ui/form";
+
 
 // =========================================================
 // NumberField — steppers either side, tabular figures in the middle
 // =========================================================
 export function NumberField({
-  value, onChange, min = 0, max = 100000, step = 1, suffix, label, className,
+  value, onChange, min = 0, max = 100000, step = 1, suffix, label, className, id,
 }: {
   value: number;
   onChange: (next: number) => void;
@@ -88,6 +68,7 @@ export function NumberField({
   suffix?: string;
   label: string;
   className?: string;
+  id?: string;
 }) {
   const clamp = (n: number) => Math.max(min, Math.min(max, n));
   const [draft, setDraft] = React.useState(String(value));
@@ -117,6 +98,7 @@ export function NumberField({
         <Minus className="size-3.5" />
       </button>
       <input
+        id={id}
         inputMode="numeric"
         aria-label={label}
         value={draft}
@@ -146,13 +128,14 @@ export function NumberField({
 // DateField — button that opens the shared MiniCalendar
 // =========================================================
 export function DateField({
-  value, onChange, weekStart = 1, label, className,
+  value, onChange, weekStart = 1, label, className, id,
 }: {
   value: string;
   onChange: (iso: string) => void;
   weekStart?: number;
   label: string;
   className?: string;
+  id?: string;
 }) {
   return (
     <Popover
@@ -161,6 +144,7 @@ export function DateField({
       trigger={
         <button
           type="button"
+          id={id}
           aria-label={label}
           className={cn(
             "flex h-8 w-full items-center gap-2 rounded-md border border-line px-2.5 text-[13.5px] text-ink",
@@ -239,5 +223,49 @@ export function RatingStars({
         </button>
       ))}
     </div>
+  );
+}
+
+// =========================================================
+// SuggestInput — a text field that remembers what you already typed
+// elsewhere. Used for series names, where consistency is the whole point.
+// =========================================================
+export function SuggestInput({
+  value, onChange, onCommit, suggestions, label, placeholder, id, className,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  onCommit: (next: string) => void;
+  suggestions: string[];
+  label: string;
+  placeholder?: string;
+  id?: string;
+  className?: string;
+}) {
+  const listId = React.useId();
+  return (
+    <>
+      <input
+        id={id}
+        list={suggestions.length ? listId : undefined}
+        aria-label={label}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => onCommit(value)}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        className={cn(
+          "w-full h-8 px-2.5 rounded-md bg-transparent border border-line text-[13.5px] text-ink",
+          "transition-[border-color,box-shadow] duration-150 placeholder:text-ink-4",
+          "hover:border-line-strong focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft",
+          className,
+        )}
+      />
+      {suggestions.length > 0 && (
+        <datalist id={listId}>
+          {suggestions.map((s) => <option key={s} value={s} />)}
+        </datalist>
+      )}
+    </>
   );
 }

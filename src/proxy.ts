@@ -6,6 +6,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  // Local preview mode has no accounts, so there is nothing to gate.
+  if (process.env.NEXT_PUBLIC_SOLO === "1") return response;
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

@@ -4,11 +4,15 @@
 // Pure functions — no React, no store.
 // =========================================================
 
-import type { Goal, Horizon, Task, Tint } from "@/lib/types";
+import type { Book, Goal, HabitLog, Horizon, Task, Tint } from "@/lib/types";
 import {
   addDays, diffDays, endOfMonth, endOfWeek, formatDate, monthName,
   quarterOf, startOfMonth, startOfWeek, todayISO, weekNumber, yearOf,
 } from "@/lib/date";
+import {
+  checkInDueOn, EMPTY_META, isDefined, milestoneCounts, readMeta,
+  type GoalMeta, type ProgressMode,
+} from "./goal-meta";
 
 export const HORIZONS: Horizon[] = ["life", "year", "quarter", "month", "week"];
 
@@ -142,6 +146,20 @@ export function splitTarget(target: number | null, count: number, i: number): nu
 // ---------------------------------------------------------
 export type Pace = "ahead" | "on track" | "behind";
 
+/** A goal is stalled when nothing underneath it has moved in this many days. */
+export const STALL_DAYS = 14;
+
+export type SignalKey = Exclude<ProgressMode, "auto">;
+
+/** One honest input to the progress bar, whether or not it has any data. */
+export interface ProgressSignal {
+  key: SignalKey;
+  label: string;
+  /** null when the goal has nothing of this kind — an absent signal never scores 0 */
+  pct: number | null;
+  detail: string;
+}
+
 export interface GoalStats {
   children: Goal[];
   childCount: number;
@@ -157,7 +175,21 @@ export interface GoalStats {
   targetPct: number | null;
   taskPct: number | null;
   childPct: number | null;
-  /** blend of whichever signals exist, 0..1 */
+  milestonePct: number | null;
+  milestoneDone: number;
+  milestoneTotal: number;
+
+  /** the sidecar fields the goals table has no columns for */
+  meta: GoalMeta;
+  /** which signal the user put in charge of the bar */
+  mode: ProgressMode;
+  signals: ProgressSignal[];
+  /** the blend of every signal that exists — what "Blend" mode uses */
+  auto: number;
+  /** the chosen driver has no data, so the blend is standing in for it */
+  modeFallback: boolean;
+
+  /** 0..1, driven by `mode` */
   overall: number;
   /** what this goal contributes to its parent — a goal you called done counts whole */
   contribution: number;
@@ -165,6 +197,18 @@ export interface GoalStats {
   elapsed: number | null;
   daysLeft: number | null;
   pace: Pace | null;
+
+  /** the most recent day anything under this goal actually moved */
+  lastActivity: string | null;
+  daysQuiet: number | null;
+  stalled: boolean;
+  overdue: boolean;
+  checkInDueOn: string | null;
+  needsCheckIn: boolean;
+  /** has both a why and a definition of done */
+  defined: boolean;
+  /** nothing points at it: no children, tasks, target or milestones */
+  unlinked: boolean;
 }
 
 export interface GoalIndex {
@@ -182,9 +226,24 @@ const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 const EMPTY_STATS: GoalStats = {
   children: [], childCount: 0, childDone: 0, descendantCount: 0,
   directTasks: [], directDone: 0, directTotal: 0, subtreeDone: 0, subtreeTotal: 0,
-  targetPct: null, taskPct: null, childPct: null, overall: 0, contribution: 0,
+  targetPct: null, taskPct: null, childPct: null, milestonePct: null,
+  milestoneDone: 0, milestoneTotal: 0,
+  meta: EMPTY_META, mode: "auto", signals: [], auto: 0, modeFallback: false,
+  overall: 0, contribution: 0,
   elapsed: null, daysLeft: null, pace: null,
+  lastActivity: null, daysQuiet: null, stalled: false, overdue: false,
+  checkInDueOn: null, needsCheckIn: false, defined: false, unlinked: true,
 };
+
+/** The later of two ISO days, either of which may be missing. */
+function laterDay(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
+const dayOf = (timestamp: string | null | undefined): string | null =>
+  timestamp && timestamp.length >= 10 ? timestamp.slice(0, 10) : null;
 
 function compareGoals(a: Goal, b: Goal): number {
   if (a.order_index !== b.order_index) return a.order_index - b.order_index;
@@ -194,7 +253,30 @@ function compareGoals(a: Goal, b: Goal): number {
   return a.title.localeCompare(b.title);
 }
 
-export function buildGoalIndex(goals: Goal[], tasks: Task[], today = todayISO()): GoalIndex {
+export interface GoalIndexInput {
+  today?: string;
+  /** logs for the habits a goal links to — a habit ticked is the goal moving */
+  habitLogs?: HabitLog[];
+  /** books a goal links to — a page turned is the goal moving */
+  books?: Book[];
+}
+
+export function buildGoalIndex(
+  goals: Goal[], tasks: Task[], input: GoalIndexInput = {},
+): GoalIndex {
+  const today = input.today ?? todayISO();
+
+  const habitActivity = new Map<string, string>();
+  for (const log of input.habitLogs ?? []) {
+    const seen = habitActivity.get(log.habit_id);
+    if (!seen || log.date > seen) habitActivity.set(log.habit_id, log.date);
+  }
+  const bookActivity = new Map<string, string>();
+  for (const book of input.books ?? []) {
+    const day = dayOf(book.updated_at);
+    if (day) bookActivity.set(book.id, day);
+  }
+
   const byId = new Map(goals.map((g) => [g.id, g]));
   const childrenOf = new Map<string, Goal[]>();
   const roots: Goal[] = [];
@@ -249,15 +331,80 @@ export function buildGoalIndex(goals: Goal[], tasks: Task[], today = todayISO())
       descendantCount += cs.descendantCount;
     }
 
+    const meta = readMeta(goal);
+    const milestones = milestoneCounts(meta);
+
     const targetPct = goal.target != null && goal.target > 0 ? clamp01(goal.current / goal.target) : null;
     const taskPct = direct.length ? directDone / direct.length : null;
     const childPct = counted.length
       ? childStats.filter(([c]) => c.status !== "dropped")
           .reduce((sum, [, cs]) => sum + cs.contribution, 0) / counted.length
       : null;
+    const milestonePct = milestones.total ? milestones.done / milestones.total : null;
 
-    const parts = [targetPct, childPct, taskPct].filter((p): p is number => p != null);
-    const overall = parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : 0;
+    // Every signal is listed whether or not it has data, so the sheet can show
+    // the whole formula instead of a number with no visible working.
+    const signals: ProgressSignal[] = [
+      {
+        key: "target",
+        label: "Target",
+        pct: targetPct,
+        detail: formatTarget(goal) ?? "No target set",
+      },
+      {
+        key: "children",
+        label: "Child goals",
+        pct: childPct,
+        detail: counted.length
+          ? `${children.filter((c) => c.status === "done").length}/${counted.length} done`
+          : "No child goals",
+      },
+      {
+        key: "tasks",
+        label: "Linked tasks",
+        pct: taskPct,
+        detail: direct.length ? `${directDone}/${direct.length} done` : "No linked tasks",
+      },
+      {
+        key: "milestones",
+        label: "Milestones",
+        pct: milestonePct,
+        detail: milestones.total ? `${milestones.done}/${milestones.total} reached` : "No milestones",
+      },
+    ];
+
+    const present = signals.filter((s) => s.pct != null);
+    const auto = present.length
+      ? present.reduce((sum, s) => sum + (s.pct as number), 0) / present.length
+      : 0;
+
+    const chosen = meta.mode === "auto" ? null : signals.find((s) => s.key === meta.mode) ?? null;
+    const modeFallback = meta.mode !== "auto" && chosen?.pct == null;
+    const overall = chosen?.pct ?? auto;
+
+    // "Has anything under this actually moved lately" — the question a stalled
+    // goal fails. Editing the goal itself deliberately does not count.
+    let lastActivity: string | null = null;
+    for (const t of direct) {
+      if (t.status === "done") {
+        lastActivity = laterDay(lastActivity, dayOf(t.completed_at) ?? dayOf(t.updated_at));
+      }
+    }
+    const latestCheckIn = meta.checkins.length ? meta.checkins[meta.checkins.length - 1].date : null;
+    lastActivity = laterDay(lastActivity, latestCheckIn);
+    for (const m of meta.milestones) if (m.done) lastActivity = laterDay(lastActivity, m.done_on);
+    for (const id of meta.habit_ids) lastActivity = laterDay(lastActivity, habitActivity.get(id) ?? null);
+    for (const id of meta.book_ids) lastActivity = laterDay(lastActivity, bookActivity.get(id) ?? null);
+    if (goal.status === "done") lastActivity = laterDay(lastActivity, dayOf(goal.updated_at));
+    for (const [, cs] of childStats) lastActivity = laterDay(lastActivity, cs.lastActivity);
+
+    const since = lastActivity ?? dayOf(goal.created_at);
+    const daysQuiet = since ? Math.max(0, diffDays(today, since)) : null;
+    const trackable =
+      direct.length > 0 || counted.length > 0 || meta.checkins.length > 0 ||
+      milestones.total > 0 || goal.target != null;
+
+    const dueOn = checkInDueOn(goal, meta);
 
     let elapsed: number | null = null;
     if (goal.start_date && goal.end_date && goal.end_date >= goal.start_date) {
@@ -284,11 +431,29 @@ export function buildGoalIndex(goals: Goal[], tasks: Task[], today = todayISO())
       targetPct,
       taskPct,
       childPct,
+      milestonePct,
+      milestoneDone: milestones.done,
+      milestoneTotal: milestones.total,
+      meta,
+      mode: meta.mode,
+      signals,
+      auto,
+      modeFallback,
       overall,
       contribution: goal.status === "done" ? 1 : goal.status === "dropped" ? 0 : overall,
       elapsed,
       daysLeft: goal.end_date ? diffDays(goal.end_date, today) : null,
       pace,
+      lastActivity,
+      daysQuiet,
+      stalled: goal.status === "active" && trackable && (daysQuiet ?? 0) >= STALL_DAYS,
+      overdue: goal.status === "active" && !!goal.end_date && goal.end_date < today,
+      checkInDueOn: dueOn,
+      needsCheckIn: goal.status === "active" && dueOn != null && dueOn <= today,
+      defined: isDefined(goal, meta),
+      unlinked:
+        direct.length === 0 && children.length === 0 &&
+        goal.target == null && milestones.total === 0,
     };
 
     visiting.delete(goal.id);
@@ -384,4 +549,111 @@ export const STATUS_LABEL: Record<Goal["status"], string> = {
 /** A sensible tint for a new child so a branch reads as one family. */
 export function inheritTint(parent: Goal | null | undefined): Tint {
   return parent?.color ?? "blue";
+}
+
+/** One line explaining where the number on the bar came from. */
+export function explainProgress(stats: GoalStats): string {
+  const present = stats.signals.filter((s) => s.pct != null);
+  if (stats.mode !== "auto") {
+    const chosen = stats.signals.find((s) => s.key === stats.mode);
+    if (stats.modeFallback) {
+      return `${chosen?.label ?? "That signal"} has nothing to measure yet, so the blend is standing in.`;
+    }
+    return `${chosen?.label} alone drives this bar — ${chosen?.detail.toLowerCase()}.`;
+  }
+  if (!present.length) return "Nothing measurable yet: no target, tasks, children or milestones.";
+  if (present.length === 1) return `Only one signal exists: ${present[0].label.toLowerCase()}.`;
+  return `The average of ${present.map((s) => s.label.toLowerCase()).join(", ")}.`;
+}
+
+// ---------------------------------------------------------
+// Review state — what needs a human this week
+// ---------------------------------------------------------
+export type AttentionKind =
+  | "overdue" | "checkin" | "stalled" | "behind" | "undated" | "undefined" | "unlinked";
+
+export interface AttentionFlag {
+  kind: AttentionKind;
+  label: string;
+  detail: string;
+  tone: "danger" | "warn" | "muted";
+}
+
+export const ATTENTION_ORDER: AttentionKind[] = [
+  "overdue", "checkin", "stalled", "behind", "undated", "undefined", "unlinked",
+];
+
+export const ATTENTION_TITLE: Record<AttentionKind, string> = {
+  overdue: "Past their end date",
+  checkin: "Waiting on a check-in",
+  stalled: "Nothing has moved",
+  behind: "Behind their own pace",
+  undated: "No dates to be judged by",
+  undefined: "Still reads as a wish",
+  unlinked: "Nothing points at them",
+};
+
+export const ATTENTION_BLURB: Record<AttentionKind, string> = {
+  overdue: "The date passed and the goal is still open. Finish it, extend it, or drop it.",
+  checkin: "You asked to be prompted. Log where the number actually stands.",
+  stalled: `No task, check-in or milestone under these in ${STALL_DAYS} days.`,
+  behind: "Less progress than time elapsed. Cut the scope or make room.",
+  undated: "Without a start and an end there is no pace, no timeline, no urgency.",
+  undefined: "A goal needs a why and a picture of done. Otherwise it is a wish.",
+  unlinked: "No child goals, no tasks, no target, no milestones. Nothing can move it.",
+};
+
+/** Everything wrong with one goal, worst first. Only active goals qualify. */
+export function goalAttention(goal: Goal, stats: GoalStats, today = todayISO()): AttentionFlag[] {
+  if (goal.status !== "active") return [];
+  const flags: AttentionFlag[] = [];
+
+  if (stats.overdue) {
+    const over = goal.end_date ? diffDays(today, goal.end_date) : 0;
+    flags.push({
+      kind: "overdue", label: "Overdue", tone: "danger",
+      detail: `${over} ${over === 1 ? "day" : "days"} past ${formatDate(goal.end_date as string, { weekday: false })}`,
+    });
+  }
+  if (stats.needsCheckIn) {
+    const late = stats.checkInDueOn ? diffDays(today, stats.checkInDueOn) : 0;
+    flags.push({
+      kind: "checkin", label: "Check in", tone: "warn",
+      detail: late <= 0 ? "Due today" : `Asked ${late} ${late === 1 ? "day" : "days"} ago`,
+    });
+  }
+  if (stats.stalled) {
+    flags.push({
+      kind: "stalled", label: "Stalled", tone: "warn",
+      detail: `Quiet for ${stats.daysQuiet} days`,
+    });
+  }
+  if (stats.pace === "behind" && !stats.overdue) {
+    flags.push({
+      kind: "behind", label: "Behind", tone: "warn",
+      detail: `${pct(stats.overall)} done, ${pct(stats.elapsed ?? 0)} of the time gone`,
+    });
+  }
+  if (!goal.start_date || !goal.end_date) {
+    flags.push({ kind: "undated", label: "No dates", tone: "muted", detail: formatGoalRange(goal) });
+  }
+  if (!stats.defined) {
+    flags.push({
+      kind: "undefined", label: "Undefined", tone: "muted",
+      detail: stats.meta.done_looks_like.trim() ? "No why written" : "No picture of done",
+    });
+  }
+  if (stats.unlinked) {
+    flags.push({ kind: "unlinked", label: "Nothing linked", tone: "muted", detail: "No tasks, children or target" });
+  }
+
+  return flags;
+}
+
+/** Sort key: how loudly a goal is asking for attention. */
+export function attentionScore(flags: AttentionFlag[]): number {
+  return flags.reduce(
+    (sum, f) => sum + (f.tone === "danger" ? 100 : f.tone === "warn" ? 10 : 1),
+    0,
+  );
 }

@@ -6,10 +6,11 @@ import { addDays, todayISO } from "@/lib/date";
 import type { Book, Tint } from "@/lib/types";
 import { Button, Input } from "@/components/ui/primitives";
 import { Modal, TintPicker } from "@/components/ui/overlays";
-import { Field, NumberField, Toggle } from "./fields";
+import { Field, NumberField, SuggestInput, Toggle } from "./fields";
 import { PlanEditor } from "./plan-editor";
 import { BookCover } from "./book-cover";
 import { computePlan, skipWeekdaysOf, type PlanDraft } from "./plan";
+import { seriesNames, setSeries, useLibraryPrefs } from "./library-prefs";
 
 const freshDraft = (): PlanDraft => ({
   mode: "rate",
@@ -32,11 +33,13 @@ export function AddBookModal({
   const scheduleBook = useStore((s) => s.scheduleBook);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
+  const library = useLibraryPrefs();
 
   const [title, setTitle] = React.useState("");
   const [author, setAuthor] = React.useState("");
   const [totalPages, setTotalPages] = React.useState(300);
   const [tint, setTint] = React.useState<Tint>("amber");
+  const [series, setSeriesDraft] = React.useState("");
   const [schedule, setSchedule] = React.useState(true);
   const [draft, setDraft] = React.useState<PlanDraft>(freshDraft);
 
@@ -57,6 +60,8 @@ export function AddBookModal({
       order_index: books.length ? Math.max(...books.map((b) => b.order_index)) + 1 : 0,
     });
 
+    if (series.trim()) setSeries(book.id, series);
+
     if (schedule) {
       // Pass the rate we previewed rather than the end date: scheduleBook prefers
       // an explicit pagesPerDay, and this keeps the plan the user read on screen.
@@ -72,7 +77,10 @@ export function AddBookModal({
         tone: "success",
       });
     } else {
-      toast({ title: "Added to your shelf", description: `${book.title} is waiting in Planned.` });
+      toast({
+        title: "Added to your shelf",
+        description: `${book.title} is waiting in your Up next queue.`,
+      });
     }
 
     onAdded?.(book);
@@ -99,14 +107,26 @@ export function AddBookModal({
               />
             </Field>
 
-            <Field label="Author">
-              <Input
-                aria-label="Author"
-                placeholder="Fyodor Dostoevsky"
-                value={author}
-                onChange={(e) => setAuthor(e.target.value)}
-              />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Author">
+                <Input
+                  aria-label="Author"
+                  placeholder="Fyodor Dostoevsky"
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                />
+              </Field>
+              <Field label="Series" hint="optional">
+                <SuggestInput
+                  label="Series or collection"
+                  placeholder="Karamazov cycle"
+                  value={series}
+                  suggestions={seriesNames(library.series)}
+                  onChange={setSeriesDraft}
+                  onCommit={setSeriesDraft}
+                />
+              </Field>
+            </div>
 
             <div className="grid grid-cols-[130px_minmax(0,1fr)] items-start gap-3">
               <Field label="Pages">

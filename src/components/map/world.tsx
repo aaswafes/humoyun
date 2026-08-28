@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
-import type { MapEdge, MapNode } from "@/lib/types";
-import { edgeGeometry, sizeOf, type Box, type Pos } from "./geometry";
+import type { MapEdge, MapNode, Tint } from "@/lib/types";
+import { edgeGeometry, sizeOf, type Box, type Pos, type Size } from "./geometry";
 import { NodeCard, type NodeApi } from "./node-card";
-import type { TimelineLayout } from "./timeline";
+import { LANE_H, laneTop, type TimelineLayout } from "./timeline";
 
 export type EdgePart = "line" | "head" | "hit" | "label";
 
@@ -19,16 +19,58 @@ export interface WorldLayerProps {
   nodes: MapNode[];
   edges: MapEdge[];
   boxes: Map<string, Box>;
+  /** rendered size per node — timeline mode overrides the stored w/h */
+  sizes: Map<string, Size>;
   selectedNodes: Set<string>;
   selectedEdge: string | null;
   editing: { id: string; field: "title" | "body" } | null;
+  editingEdge: string | null;
   api: NodeApi;
   registerNode: (id: string, el: HTMLElement | null) => void;
   registerEdge: (id: string, part: EdgePart, el: Element | null) => void;
   linkRef: React.RefObject<SVGPathElement | null>;
   onEdgeDown: (e: React.PointerEvent<SVGPathElement>, id: string) => void;
   onEdgeSelect: (id: string) => void;
+  onEdgeLabelEdit: (id: string | null) => void;
+  onEdgeLabelCommit: (id: string, value: string) => void;
   timeline: TimelineLayout | null;
+  tintOf: (node: MapNode) => Tint;
+  curveOf: (edgeId: string) => number;
+  /** ids that survive the current search / legend filter, or null when neither is on */
+  matches: Set<string> | null;
+  goalLabelOf: (node: MapNode) => string | null;
+}
+
+function EdgeLabelInput({
+  value, onCommit, onCancel,
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+  onCancel: () => void;
+}) {
+  const ref = React.useRef<HTMLInputElement>(null);
+  const cancelled = React.useRef(false);
+
+  React.useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+
+  return (
+    <input
+      ref={ref}
+      defaultValue={value}
+      aria-label="Link label"
+      onPointerDown={(e) => e.stopPropagation()}
+      onBlur={(e) => { if (!cancelled.current) onCommit(e.target.value); }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") { cancelled.current = true; onCancel(); }
+        if (e.key === "Enter") onCommit(e.currentTarget.value);
+      }}
+      className="h-[22px] w-[140px] rounded-[5px] border border-accent bg-raised px-1.5 text-[11px] font-medium text-ink outline-none"
+    />
+  );
 }
 
 /**
@@ -37,8 +79,9 @@ export interface WorldLayerProps {
  * during a gesture no matter how many nodes are on the board.
  */
 function WorldLayerImpl({
-  nodes, edges, boxes, selectedNodes, selectedEdge, editing, api,
-  registerNode, registerEdge, linkRef, onEdgeDown, onEdgeSelect, timeline,
+  nodes, edges, boxes, sizes, selectedNodes, selectedEdge, editing, editingEdge, api,
+  registerNode, registerEdge, linkRef, onEdgeDown, onEdgeSelect, onEdgeLabelEdit,
+  onEdgeLabelCommit, timeline, tintOf, curveOf, matches, goalLabelOf,
 }: WorldLayerProps) {
   const titleOf = React.useMemo(() => {
     const map = new Map(nodes.map((n) => [n.id, n.title || "Untitled"]));
@@ -50,9 +93,11 @@ function WorldLayerImpl({
       const a = boxes.get(edge.source_id);
       const b = boxes.get(edge.target_id);
       if (!a || !b) return null;
-      return { edge, geom: edgeGeometry(a, b) };
+      return { edge, geom: edgeGeometry(a, b, curveOf(edge.id)) };
     })
     .filter(Boolean) as { edge: MapEdge; geom: ReturnType<typeof edgeGeometry> }[];
+
+  const dim = (id: string) => !!matches && !matches.has(id);
 
   return (
     <>
@@ -65,12 +110,25 @@ function WorldLayerImpl({
       >
         {timeline && (
           <g aria-hidden>
-            {timeline.months.map((m) => (
+            {/* lane bands first — rows you can aim a node at */}
+            {Array.from({ length: Math.max(timeline.laneCount, 1) }, (_, i) => (
+              <rect
+                key={`lane-${i}`}
+                x={timeline.x0 - 40}
+                y={laneTop(i)}
+                width={timeline.x1 - timeline.x0 + 80}
+                height={LANE_H}
+                rx={10}
+                fill="var(--hover)"
+                opacity={i % 2 === 0 ? 0.55 : 0.25}
+              />
+            ))}
+            {timeline.ticks.map((t) => (
               <line
-                key={m.iso}
-                x1={m.x} y1={0} x2={m.x} y2={timeline.height}
-                stroke="var(--line)"
-                strokeWidth={1}
+                key={t.iso}
+                x1={t.x} y1={0} x2={t.x} y2={timeline.height}
+                stroke={t.major ? "var(--line-strong)" : "var(--line)"}
+                strokeWidth={t.major ? 1.5 : 1}
               />
             ))}
             <line
@@ -85,6 +143,7 @@ function WorldLayerImpl({
 
         {drawn.map(({ edge, geom }) => {
           const active = edge.id === selectedEdge;
+          const faded = dim(edge.source_id) || dim(edge.target_id);
           return (
             <g
               key={edge.id}
@@ -97,7 +156,7 @@ function WorldLayerImpl({
                   ? `Connection: ${edge.label}, ${titleOf(edge.source_id)} to ${titleOf(edge.target_id)}`
                   : `Connection from ${titleOf(edge.source_id)} to ${titleOf(edge.target_id)}`
               }
-              style={{ pointerEvents: "auto" }}
+              style={{ pointerEvents: "auto", opacity: faded && !active ? 0.15 : 1 }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -120,6 +179,7 @@ function WorldLayerImpl({
                 strokeWidth={16}
                 style={{ pointerEvents: "stroke", cursor: "pointer" }}
                 onPointerDown={(e) => onEdgeDown(e, edge.id)}
+                onDoubleClick={(e) => { e.stopPropagation(); onEdgeLabelEdit(edge.id); }}
               />
               <path
                 ref={(el) => { registerEdge(edge.id, "line", el); }}
@@ -153,27 +213,48 @@ function WorldLayerImpl({
         />
       </svg>
 
-      {drawn.map(({ edge, geom }) =>
-        edge.label ? (
+      {drawn.map(({ edge, geom }) => {
+        const editingThis = editingEdge === edge.id;
+        if (!edge.label && !editingThis) return null;
+        const faded = dim(edge.source_id) || dim(edge.target_id);
+        return (
           <div
             key={`label-${edge.id}`}
             ref={(el) => { registerEdge(edge.id, "label", el); }}
-            className={cn(
-              "pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-[5px] px-1.5 py-0.5",
-              "text-[11px] font-medium leading-none",
-              `tint-${edge.color}`,
-            )}
+            className={cn("absolute left-0 top-0", `tint-${edge.color}`)}
             style={{
               transform: `translate(${geom.mid.x}px, ${geom.mid.y}px) translate(-50%, -50%)`,
-              background: "var(--raised)",
-              color: "var(--tint-ink)",
-              boxShadow: "var(--shadow-sm)",
+              opacity: faded && edge.id !== selectedEdge ? 0.15 : 1,
             }}
           >
-            {edge.label}
+            {editingThis ? (
+              <EdgeLabelInput
+                value={edge.label ?? ""}
+                onCommit={(v) => onEdgeLabelCommit(edge.id, v)}
+                onCancel={() => onEdgeLabelEdit(null)}
+              />
+            ) : (
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); onEdgeSelect(edge.id); }}
+                onDoubleClick={(e) => { e.stopPropagation(); onEdgeLabelEdit(edge.id); }}
+                aria-label={`Edit the label “${edge.label}”`}
+                className={cn(
+                  "cursor-pointer whitespace-nowrap rounded-[5px] px-1.5 py-1 text-[11px] font-medium leading-none",
+                  "transition-transform duration-150 ease-[var(--ease-out-apple)] active:scale-[0.96]",
+                )}
+                style={{
+                  background: "var(--raised)",
+                  color: "var(--tint-ink)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                {edge.label}
+              </button>
+            )}
           </div>
-        ) : null,
-      )}
+        );
+      })}
 
       {nodes.map((node) => {
         const pos = boxes.get(node.id) as Pos | undefined;
@@ -183,11 +264,15 @@ function WorldLayerImpl({
             key={node.id}
             node={node}
             pos={pos}
-            size={sizeOf(node)}
+            size={sizes.get(node.id) ?? sizeOf(node)}
             selected={selectedNodes.has(node.id)}
             editing={editing?.id === node.id ? editing.field : null}
             api={api}
             register={registerNode}
+            tint={tintOf(node)}
+            dimmed={dim(node.id)}
+            compact={!!timeline}
+            goalLabel={goalLabelOf(node)}
           />
         );
       })}

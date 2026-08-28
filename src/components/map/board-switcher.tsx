@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import type { Board, Tint } from "@/lib/types";
 import { Button, Input } from "@/components/ui/primitives";
+import { Field } from "@/components/ui/form";
 import {
   ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Modal, Popover, TintPicker,
 } from "@/components/ui/overlays";
@@ -94,22 +95,24 @@ export function BoardSwitcher({
             <MenuLabel>Boards</MenuLabel>
             <div className="max-h-[260px] overflow-y-auto">
               {boards.map((b) => (
-                <button
+                // MenuItem, not a hand-rolled row: the four actions below are
+                // MenuItems too, and one menu should have one row height.
+                <MenuItem
                   key={b.id}
+                  checked={b.id === active?.id}
+                  shortcut={String(nodes.filter((n) => n.board_id === b.id).length)}
                   onClick={() => { onSelect(b.id); close(); }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-[6px] text-left text-[13px] text-ink",
-                    "cursor-pointer transition-colors duration-100 hover:bg-hover",
-                    `tint-${b.color}`,
-                  )}
+                  className={`tint-${b.color}`}
                 >
-                  <span className="size-2 shrink-0 rounded-full" style={{ background: "var(--tint)" }} />
-                  <span className="min-w-0 flex-1 truncate">{b.name}</span>
-                  <span className="text-[11px] text-ink-4 tnum">
-                    {nodes.filter((n) => n.board_id === b.id).length}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ background: "var(--tint)" }}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 truncate">{b.name}</span>
                   </span>
-                  {b.id === active?.id && <Check className="size-3.5 shrink-0 text-accent" />}
-                </button>
+                </MenuItem>
               ))}
             </div>
             <MenuSeparator />
@@ -131,20 +134,22 @@ export function BoardSwitcher({
         width={380}
       >
         <div className="p-4">
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-            Name
-          </label>
-          <Input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") save(); }}
-            placeholder="Product strategy"
-          />
-          <label className="mb-1 mt-4 block text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-            Colour
-          </label>
-          <TintPicker value={color} onChange={(t) => setColor((t ?? "blue") as Tint)} />
+          <Field label="Name" description="Boards keep separate maps — one per project, or one per year.">
+            <Input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+              placeholder="Product strategy"
+            />
+          </Field>
+
+          {/* A caption, not a <label>: TintPicker is a group of ten buttons, and
+              a label pointing at a group would focus nothing when clicked. */}
+          <div className="mt-4" role="group" aria-label="Board colour">
+            <p className="mb-1 text-[12px] font-medium text-ink-2">Colour</p>
+            <TintPicker value={color} onChange={(t) => setColor((t ?? "blue") as Tint)} />
+          </div>
           <div className="mt-5 flex justify-end gap-2">
             <Button size="sm" onClick={() => setDialog(null)}>Cancel</Button>
             <Button size="sm" variant="primary" onClick={save}>

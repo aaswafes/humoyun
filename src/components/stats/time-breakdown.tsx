@@ -6,7 +6,8 @@ import { formatDuration } from "@/lib/date";
 import { useStore } from "@/lib/store";
 import { Button, EmptyState, SectionLabel } from "@/components/ui/primitives";
 import {
-  Chart, Panel, PanelNote, fmt, pctOf, type HoverPoint, type TipState,
+  Chart, Panel, PanelNote, fmt, pctOf, useSvgId,
+  type TableSpec, type TipState,
 } from "./chart-kit";
 import type { Slice } from "./derive";
 
@@ -14,30 +15,44 @@ const ROW_H = 30;
 const VALUE_W = 74;
 
 function HBars({
-  slices, total, title, emptyNote,
+  slices, total, title, emptyNote, activeTags, onSelectTag,
 }: {
   slices: Slice[];
   total: number;
   title: string;
   emptyNote: string;
+  activeTags?: string[];
+  /** Given for the tag column: a row becomes a live filter for the whole page. */
+  onSelectTag?: (tag: string) => void;
 }) {
-  const clipId = React.useId();
-  const [hover, setHover] = React.useState<HoverPoint | null>(null);
+  const clipId = useSvgId("hbar");
+  const [cursor, setCursor] = React.useState<number | null>(null);
   const max = Math.max(1, ...slices.map((s) => s.minutes));
   const height = Math.max(ROW_H, slices.length * ROW_H);
+  const active = React.useMemo(() => new Set(activeTags ?? []), [activeTags]);
 
-  const tip: TipState | null =
-    hover && slices[hover.i]
-      ? {
-          x: hover.x,
-          y: hover.y,
-          title: slices[hover.i].label,
-          rows: [
-            { label: "Focus", value: formatDuration(Math.round(slices[hover.i].minutes)) },
-            { label: "Share", value: `${pctOf(slices[hover.i].minutes, total)}%` },
-          ],
-        }
-      : null;
+  const describe = React.useCallback((i: number) => {
+    const s = slices[i];
+    if (!s) return "";
+    const filtering = s.tag && active.has(s.tag) ? " Currently filtering the page." : "";
+    return `${s.label}: ${formatDuration(Math.round(s.minutes))}, ${pctOf(s.minutes, total)}% of the total.${filtering}`;
+  }, [slices, total, active]);
+
+  const tipAt = (w: number): TipState | null => {
+    if (cursor == null || !slices[cursor]) return null;
+    const s = slices[cursor];
+    return {
+      x: Math.min(w - 20, Math.max(20, (s.minutes / max) * w)),
+      y: cursor * ROW_H + 16,
+      title: s.label,
+      rows: [
+        { label: "Focus", value: formatDuration(Math.round(s.minutes)) },
+        { label: "Share", value: `${pctOf(s.minutes, total)}%` },
+      ],
+    };
+  };
+
+  const canFilter = (s: Slice) => !!(onSelectTag && s.tag);
 
   return (
     <div>
@@ -48,10 +63,22 @@ function HBars({
         <Chart
           className="mt-2"
           height={height}
+          animateKey={`${title}-${slices.length}`}
           label={`${title}. ${slices
             .map((s) => `${s.label}: ${formatDuration(Math.round(s.minutes))}`)
             .join(", ")}.`}
-          tip={tip}
+          tip={({ w }) => tipAt(w)}
+          nav={{
+            n: slices.length,
+            index: cursor,
+            onIndex: setCursor,
+            describe,
+            onActivate: onSelectTag
+              ? (i) => { const s = slices[i]; if (s.tag) onSelectTag(s.tag); }
+              : undefined,
+            activateLabel: onSelectTag ? "filter the page by that tag" : undefined,
+            hint: "Arrow keys move between rows",
+          }}
         >
           {({ w }) => {
             const barW = Math.max(20, w);
@@ -67,18 +94,26 @@ function HBars({
                 {slices.map((s, i) => {
                   const top = i * ROW_H;
                   const width = Math.max(2, (s.minutes / max) * barW);
-                  const dim = hover != null && hover.i !== i;
+                  const dim = cursor != null && cursor !== i;
+                  const on = !!s.tag && active.has(s.tag);
                   return (
                     <g
                       key={s.key}
                       className={s.tint ? `tint-${s.tint}` : undefined}
                       opacity={dim ? 0.5 : 1}
                     >
+                      <title>{describe(i)}</title>
+                      {on && (
+                        <rect
+                          x={-4} y={top - 1} width={barW + 8} height={ROW_H - 2} rx={6}
+                          fill="var(--accent)" opacity={0.08}
+                        />
+                      )}
                       <text
                         x={0} y={top + 10}
                         clipPath={`url(#${clipId})`}
                         className="text-[12px]"
-                        fill="var(--ink-2)"
+                        fill={on ? "var(--accent)" : "var(--ink-2)"}
                       >
                         {s.label}
                       </text>
@@ -97,8 +132,10 @@ function HBars({
                       <rect
                         x={0} y={top} width={barW} height={ROW_H}
                         fill="transparent"
-                        onMouseEnter={() => setHover({ i, x: Math.min(width, barW - 8), y: top + 16 })}
-                        onMouseLeave={() => setHover((h) => (h?.i === i ? null : h))}
+                        className={canFilter(s) ? "cursor-pointer" : undefined}
+                        onMouseEnter={() => setCursor(i)}
+                        onMouseLeave={() => setCursor((c) => (c === i ? null : c))}
+                        onClick={canFilter(s) ? () => onSelectTag!(s.tag!) : undefined}
                       />
                     </g>
                   );
@@ -113,11 +150,13 @@ function HBars({
 }
 
 export function TimeBreakdown({
-  byTag, byTask, totalMinutes,
+  byTag, byTask, totalMinutes, activeTags, onToggleTag,
 }: {
   byTag: Slice[];
   byTask: Slice[];
   totalMinutes: number;
+  activeTags: string[];
+  onToggleTag: (tag: string) => void;
 }) {
   const startTimer = useStore((s) => s.startTimer);
   const hasData = byTag.length > 0 || byTask.length > 0;
@@ -130,8 +169,17 @@ export function TimeBreakdown({
         ? `, and ${topTag.label} took the largest share at ${fmt(pctOf(topTag.minutes, totalMinutes))}%.`
         : ".");
 
+  const table: TableSpec = {
+    caption: "Focus minutes by tag and by task.",
+    columns: ["Group", "Name", "Minutes", "Share %"],
+    rows: [
+      ...byTag.map((s) => ["Tag", s.label, Math.round(s.minutes), pctOf(s.minutes, totalMinutes)]),
+      ...byTask.map((s) => ["Task", s.label, Math.round(s.minutes), pctOf(s.minutes, totalMinutes)]),
+    ],
+  };
+
   return (
-    <Panel title="Where the time went" subtitle={summary}>
+    <Panel id="panel-focus" title="Where the time went" subtitle={summary} table={table}>
       {!hasData ? (
         <EmptyState
           className="py-8"
@@ -156,6 +204,8 @@ export function TimeBreakdown({
               total={totalMinutes}
               title="By tag"
               emptyNote="None of your sessions carry a tag yet."
+              activeTags={activeTags}
+              onSelectTag={onToggleTag}
             />
             <HBars
               slices={byTask}
@@ -166,7 +216,8 @@ export function TimeBreakdown({
           </div>
           <PanelNote>
             A session wearing several tags is counted once under each of them, so the tag column can
-            add up to more than the total.
+            add up to more than the total. Click or press Enter on a tag row to narrow the whole
+            page to it.
           </PanelNote>
         </>
       )}

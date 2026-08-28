@@ -3,27 +3,52 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
-import { BookOpen, CalendarPlus, LayoutTemplate, PanelRightClose } from "lucide-react";
+import {
+  BookOpen, CalendarPlus, Clock, Flag, Inbox, LayoutTemplate, Maximize2, PanelRightClose,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
-import { dayName, friendlyDate } from "@/lib/date";
-import { useStore } from "@/lib/store";
-import type { Book, Template } from "@/lib/types";
-import { Button, EmptyState, IconButton, Progress } from "@/components/ui/primitives";
-import { applyTemplateOnDay, scheduleBookOnDay } from "./calendar-utils";
+import {
+  addDays, dayName, formatDate, formatDuration, formatTime, friendlyDate,
+} from "@/lib/date";
+import { inboxTasks, useStore } from "@/lib/store";
+import type { Book, Task, Template } from "@/lib/types";
+import { Button, EmptyState, IconButton, Progress, Segmented } from "@/components/ui/primitives";
+import { MiniEmpty } from "@/components/ui/form";
+import { openQuickAdd } from "@/components/shell/quick-add";
+import { applyTemplateOnDay, moveTaskToDay, scheduleBookOnDay } from "./calendar-utils";
 
-type Tab = "books" | "templates";
+type Tab = "books" | "templates" | "unscheduled";
 
 const STATUS_LABEL: Record<string, string> = {
   reading: "Reading",
   planned: "Planned",
 };
 
+/**
+ * Two rows with the same id would render the same card twice — a duplicated
+ * shelf is the one bug a drag target must never have, because both copies
+ * schedule the same book.
+ */
+function uniqueById<T extends { id: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------
-// Shared card shell — drag with the pointer, or use the button
-// (keyboard users never lose the feature to a mouse gesture).
+// Shared card shell — drag with the pointer, or use the button.
+// dnd-kit's keyboard sensor needs `attributes` to take a tab stop; this card
+// deliberately skips them and offers the button instead, so there is exactly
+// one keyboard route and it says what it will do.
 // ---------------------------------------------------------
 function RailCard({
-  dragId, payload, cover, title, subtitle, meta, footer, actionLabel, onAction,
+  dragId, payload, cover, title, subtitle, meta, footer, preview, actionLabel, onAction,
+  openLabel, onOpen,
 }: {
   dragId: string;
   payload: Record<string, unknown>;
@@ -32,8 +57,11 @@ function RailCard({
   subtitle?: string | null;
   meta?: React.ReactNode;
   footer?: React.ReactNode;
+  preview: React.ReactNode;
   actionLabel: string;
   onAction: () => void;
+  openLabel?: string;
+  onOpen?: () => void;
 }) {
   const { listeners, setNodeRef, isDragging } = useDraggable({ id: dragId, data: payload });
 
@@ -50,21 +78,38 @@ function RailCard({
       {cover}
 
       <div className="min-w-0 flex-1 pt-0.5">
-        <p className="truncate pr-6 text-[13px] font-medium leading-snug text-ink">{title}</p>
+        <p className={cn("truncate text-[13px] font-medium leading-snug text-ink", onOpen ? "pr-14" : "pr-7")}>
+          {title}
+        </p>
         {subtitle && <p className="truncate text-[11.5px] leading-snug text-ink-3">{subtitle}</p>}
         {meta}
         {footer}
+        {/* What the drop will do, before anything is dropped. */}
+        <p className="mt-1 truncate text-[11px] leading-snug text-accent tnum">{preview}</p>
       </div>
 
-      <IconButton
-        label={actionLabel}
-        size="sm"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={onAction}
-        className="absolute right-1 top-1 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/card:opacity-100"
-      >
-        <CalendarPlus />
-      </IconButton>
+      <div className="absolute right-0.5 top-0.5 flex items-center gap-0.5">
+        {onOpen && (
+          <IconButton
+            label={openLabel ?? "Open"}
+            size="md"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onOpen}
+            className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/card:opacity-100"
+          >
+            <Maximize2 />
+          </IconButton>
+        )}
+        <IconButton
+          label={actionLabel}
+          size="md"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onAction}
+          className="opacity-70 transition-opacity duration-150 group-hover/card:opacity-100"
+        >
+          <CalendarPlus />
+        </IconButton>
+      </div>
     </div>
   );
 }
@@ -84,8 +129,10 @@ function CoverBlock({ tint, children }: { tint: string; children: React.ReactNod
 // Books
 // ---------------------------------------------------------
 function BookCard({ book, date }: { book: Book; date: string }) {
-  const perDay = book.pages_per_day ?? 30;
+  const perDay = Math.max(1, book.pages_per_day ?? 30);
   const pct = book.total_pages ? Math.round((book.current_page / book.total_pages) * 100) : 0;
+  const remaining = Math.max(0, book.total_pages - book.current_page);
+  const days = remaining ? Math.max(1, Math.ceil(remaining / perDay)) : 0;
 
   return (
     <RailCard
@@ -117,6 +164,11 @@ function BookCard({ book, date }: { book: Book; date: string }) {
           {STATUS_LABEL[book.status] ?? book.status}
         </p>
       }
+      preview={
+        days === 0
+          ? "Finished — nothing left to schedule"
+          : `${days} ${days === 1 ? "block" : "blocks"} → finishes ${formatDate(addDays(date, days - 1), { weekday: false })}`
+      }
     />
   );
 }
@@ -126,8 +178,7 @@ function BooksTab({ date }: { date: string }) {
   const router = useRouter();
 
   const shelf = React.useMemo(
-    () => books
-      .filter((b) => b.status === "reading" || b.status === "planned")
+    () => uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned"))
       .sort((a, b) => (a.status === b.status ? a.order_index - b.order_index : a.status === "reading" ? -1 : 1)),
     [books],
   );
@@ -157,6 +208,8 @@ function BooksTab({ date }: { date: string }) {
 function TemplateCard({ template, date }: { template: Template; date: string }) {
   const count = template.items.length;
   const timed = template.items.filter((i) => i.start_min != null).length;
+  const offsets = template.items.map((i) => i.day_offset ?? 0);
+  const span = count ? Math.max(0, ...offsets) - Math.min(0, ...offsets) + 1 : 0;
 
   return (
     <RailCard
@@ -178,6 +231,12 @@ function TemplateCard({ template, date }: { template: Template; date: string }) 
           {template.use_count > 0 && <><span className="mx-1">·</span>used {template.use_count}×</>}
         </p>
       }
+      preview={
+        count === 0
+          ? "Empty — add items on the Templates page"
+          : `${count} ${count === 1 ? "task" : "tasks"} on ${formatDate(date, { weekday: false })}` +
+            (span > 1 ? ` over ${span} days` : "")
+      }
     />
   );
 }
@@ -185,10 +244,11 @@ function TemplateCard({ template, date }: { template: Template; date: string }) 
 function TemplatesTab({ date }: { date: string }) {
   const templates = useStore((s) => s.templates);
   const saveDayAsTemplate = useStore((s) => s.saveDayAsTemplate);
+  const remove = useStore((s) => s.remove);
   const toast = useStore((s) => s.toast);
 
   const sorted = React.useMemo(
-    () => [...templates].sort((a, b) => a.order_index - b.order_index || b.use_count - a.use_count),
+    () => uniqueById(templates).sort((a, b) => a.order_index - b.order_index || b.use_count - a.use_count),
     [templates],
   );
 
@@ -201,7 +261,12 @@ function TemplatesTab({ date }: { date: string }) {
       });
       return;
     }
-    toast({ title: `Saved “${made.name}”`, description: `${made.items.length} items.`, tone: "success" });
+    toast({
+      title: `Saved “${made.name}”`,
+      description: `${made.items.length} items.`,
+      tone: "success",
+      action: { label: "Undo", run: () => remove("templates", made.id) },
+    });
   }
 
   if (!sorted.length) {
@@ -220,12 +285,87 @@ function TemplatesTab({ date }: { date: string }) {
     <div className="flex flex-col gap-0.5">
       {sorted.map((template) => <TemplateCard key={template.id} template={template} date={date} />)}
       <button
+        type="button"
         onClick={saveToday}
         title={`Turn ${friendlyDate(date)} into a reusable template`}
-        className="mt-1 cursor-pointer rounded-md px-1.5 py-1.5 text-left text-[12px] text-ink-4 transition-colors hover:bg-hover hover:text-ink-2"
+        className="mt-1 h-7 cursor-pointer rounded-md px-1.5 text-left text-[12px] text-ink-4 transition-colors hover:bg-hover hover:text-ink-2"
       >
         + Save this day as a template
       </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------
+// Unscheduled — the inbox, one drag away from a date
+// ---------------------------------------------------------
+function UnscheduledCard({ task, date }: { task: Task; date: string }) {
+  const openInspector = useStore((s) => s.openInspector);
+  const hour12 = useStore((s) => s.hour12);
+  const timed = task.start_min != null;
+
+  return (
+    <RailCard
+      dragId={`task:${task.id}`}
+      payload={{ type: "task", taskId: task.id }}
+      actionLabel={`Schedule ${task.title || "task"} on ${friendlyDate(date)}`}
+      onAction={() => moveTaskToDay(task.id, date)}
+      openLabel={`Open ${task.title || "task"}`}
+      onOpen={() => openInspector(task.id)}
+      cover={
+        <CoverBlock tint={task.color ?? "slate"}>
+          <Inbox className="size-4 text-[var(--tint-ink)]" />
+        </CoverBlock>
+      }
+      title={task.title || "Untitled"}
+      subtitle={task.notes}
+      footer={
+        (task.priority > 0 || task.duration_min || task.tags.length > 0) ? (
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] leading-snug text-ink-4 tnum">
+            {task.priority > 0 && (
+              <span className="inline-flex items-center gap-1 text-warn">
+                <Flag className="size-2.5" fill="currentColor" aria-hidden />
+                {["", "Low", "Medium", "High"][task.priority]}
+              </span>
+            )}
+            {task.duration_min != null && (
+              <span className="inline-flex items-center gap-1">
+                <Clock className="size-2.5" aria-hidden />
+                {formatDuration(task.duration_min)}
+              </span>
+            )}
+            {task.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
+          </p>
+        ) : null
+      }
+      preview={
+        timed
+          ? `Lands ${formatDate(date, { weekday: false })} at ${formatTime(task.start_min, hour12)}`
+          : `Lands all-day on ${formatDate(date, { weekday: false })}`
+      }
+    />
+  );
+}
+
+function UnscheduledTab({ date }: { date: string }) {
+  const tasks = useStore((s) => s.tasks);
+  const inbox = React.useMemo(() => uniqueById(inboxTasks(tasks)), [tasks]);
+
+  if (!inbox.length) {
+    return (
+      <MiniEmpty
+        className="py-8"
+        action={<Button size="sm" onClick={openQuickAdd}>Capture something</Button>}
+      >
+        Nothing waiting. Anything captured without a date lands here, ready to be
+        dropped on a day.
+      </MiniEmpty>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {inbox.map((task) => <UnscheduledCard key={task.id} task={task} date={date} />)}
     </div>
   );
 }
@@ -235,38 +375,52 @@ function TemplatesTab({ date }: { date: string }) {
 // ---------------------------------------------------------
 export function RightRail({ date, onClose }: { date: string; onClose: () => void }) {
   const [tab, setTab] = React.useState<Tab>("books");
+  const books = useStore((s) => s.books);
+  const templates = useStore((s) => s.templates);
+  const tasks = useStore((s) => s.tasks);
+
+  const counts = React.useMemo(() => ({
+    books: uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned")).length,
+    templates: uniqueById(templates).length,
+    unscheduled: inboxTasks(tasks).length,
+  }), [books, templates, tasks]);
+  const tabCount = counts[tab];
 
   return (
     <aside className="flex w-[292px] shrink-0 flex-col border-l border-line pl-4">
-      <div className="flex items-center gap-1 pb-2">
-        <div className="flex items-center gap-3">
-          {(["books", "templates"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                "cursor-pointer pb-1 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors duration-150",
-                tab === t
-                  ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]"
-                  : "text-ink-4 hover:text-ink-2",
-              )}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <IconButton label="Hide the rail" size="sm" onClick={onClose} className="ml-auto">
+      <div className="pb-2">
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          className="w-full [&>button]:flex-1"
+          options={[
+            { value: "books", label: "Books", title: `${counts.books} on the shelf` },
+            { value: "templates", label: "Templates", title: `${counts.templates} saved` },
+            { value: "unscheduled", label: "Unscheduled", title: `${counts.unscheduled} without a date` },
+          ]}
+        />
+      </div>
+
+      <div className="flex items-start gap-1 pb-3">
+        <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-ink-3">
+          Drag onto any day to schedule it. Buttons target{" "}
+          <span className="text-ink-2">{friendlyDate(date).toLowerCase()}</span>
+          {tabCount > 0 && (
+            <>
+              <span className="mx-1 text-ink-4">·</span>
+              <span className="tnum">{tabCount} here</span>
+            </>
+          )}
+        </p>
+        <IconButton label="Hide the rail" size="md" onClick={onClose}>
           <PanelRightClose />
         </IconButton>
       </div>
 
-      <p className="pb-3 text-[11.5px] leading-snug text-ink-3">
-        Drag onto any day to schedule it. Buttons add to{" "}
-        <span className="text-ink-2">{friendlyDate(date).toLowerCase()}</span>.
-      </p>
-
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        {tab === "books" ? <BooksTab date={date} /> : <TemplatesTab date={date} />}
+        {tab === "books" && <BooksTab date={date} />}
+        {tab === "templates" && <TemplatesTab date={date} />}
+        {tab === "unscheduled" && <UnscheduledTab date={date} />}
       </div>
     </aside>
   );

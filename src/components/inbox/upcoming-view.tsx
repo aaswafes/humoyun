@@ -1,48 +1,88 @@
 "use client";
 
 import * as React from "react";
-import { CalendarDays, ArrowRight } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { useStore, overdueTasks, tasksOn } from "@/lib/store";
-import { addDays, formatDate, todayISO } from "@/lib/date";
+import { addDays, formatDate, friendlyDate, todayISO } from "@/lib/date";
 import type { Task } from "@/lib/types";
 import { Button, EmptyState } from "@/components/ui/primitives";
 import { openQuickAdd } from "@/components/shell/quick-add";
-import { SelectableRow } from "./selectable-row";
+import { InlineComposer } from "@/components/tasks/task-list";
+import { useTriage, useRegisterRows, useRegisterRowDrop } from "./triage-context";
+import { useTriageActions } from "./actions";
+import { TriageRow, DateDropZone } from "./triage-dnd";
 import { QuickSchedule } from "./quick-schedule";
 import { DayHeader, LabelHeader } from "./group-header";
-import { useSelectionHotkeys } from "./selection";
 
-const HORIZON = 14;
+const STEP = 14;
 
 export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
   const tasks = useStore((s) => s.tasks);
   const moveTask = useStore((s) => s.moveTask);
   const toast = useStore((s) => s.toast);
+  const { selecting, announce } = useTriage();
+  const actions = useTriageActions();
+
+  const [horizon, setHorizon] = React.useState(STEP);
+  const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(() => new Set<string>());
+  const [overdueOpen, setOverdueOpen] = React.useState(true);
 
   const today = todayISO();
   const overdue = React.useMemo(() => overdueTasks(tasks, today), [tasks, today]);
 
   const days = React.useMemo(() => {
     const out: { iso: string; items: Task[] }[] = [];
-    for (let i = 0; i < HORIZON; i++) {
+    for (let i = 0; i < horizon; i++) {
       const iso = addDays(today, i);
       const items = tasksOn(tasks, iso);
       if (items.length) out.push({ iso, items });
     }
     return out;
-  }, [tasks, today]);
+  }, [tasks, today, horizon]);
 
-  const horizonEnd = addDays(today, HORIZON - 1);
+  const horizonEnd = addDays(today, horizon - 1);
   const beyond = React.useMemo(
-    () => tasks.filter((t) => t.date && t.date > horizonEnd && t.status !== "done" && !t.parent_id).length,
+    () => tasks.filter((t) => t.date && t.date > horizonEnd && t.status !== "done" && !t.parent_id),
     [tasks, horizonEnd],
   );
 
-  const order = React.useMemo(
-    () => [...overdue.map((t) => t.id), ...days.flatMap((d) => d.items.map((t) => t.id))],
-    [overdue, days],
+  const scheduled = React.useMemo(
+    () => days.reduce((n, d) => n + d.items.filter((t) => t.status !== "done").length, 0),
+    [days],
   );
-  useSelectionHotkeys();
+
+  // A collapsed day's rows are not on screen, so the keyboard must not walk into them.
+  const order = React.useMemo(
+    () => [
+      ...(overdueOpen ? overdue.map((t) => t.id) : []),
+      ...days.filter((d) => !collapsed.has(d.iso)).flatMap((d) => d.items.map((t) => t.id)),
+    ],
+    [overdue, days, collapsed, overdueOpen],
+  );
+  useRegisterRows(order);
+
+  // Dropping a row on another row in a dated list means "join that day".
+  const onRowDrop = React.useCallback(
+    (overId: string, ids: string[]) => {
+      const target = tasks.find((t) => t.id === overId);
+      if (!target?.date) return;
+      const movers = ids.filter((id) => tasks.find((t) => t.id === id)?.date !== target.date);
+      if (!movers.length) return;
+      actions.moveToDate(movers, target.date);
+    },
+    [tasks, actions],
+  );
+  useRegisterRowDrop(onRowDrop);
+
+  function toggleDay(iso: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(iso)) next.delete(iso);
+      else next.add(iso);
+      return next;
+    });
+  }
 
   function pullOverdueForward() {
     const before = overdue.map((t) => [t.id, t.date] as const);
@@ -51,6 +91,7 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
       title: `${before.length} moved to today`,
       action: { label: "Undo", run: () => before.forEach(([id, date]) => moveTask(id, date)) },
     });
+    announce(`${before.length} overdue tasks moved to today`);
   }
 
   if (!overdue.length && !days.length) {
@@ -66,54 +107,115 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
 
   return (
     <div>
+      <p className="mb-1 px-1.5 text-[12.5px] text-ink-3">
+        <span className="tnum text-ink-2">{scheduled}</span> open across{" "}
+        <span className="tnum text-ink-2">{days.length}</span> {days.length === 1 ? "day" : "days"}
+        {overdue.length > 0 && (
+          <> · <span className="tnum text-danger">{overdue.length}</span> overdue</>
+        )}
+      </p>
+
       {overdue.length > 0 && (
-        <section className="mb-5">
+        <section aria-label="Overdue" className="mb-5">
           <LabelHeader
             title="Overdue"
             count={overdue.length}
             tone="danger"
             action={
-              <Button variant="ghost" size="xs" onClick={pullOverdueForward}>
-                Move all to today
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="xs" onClick={pullOverdueForward}>
+                  Move all to today
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setOverdueOpen((v) => !v)}
+                  aria-expanded={overdueOpen}
+                  aria-label={overdueOpen ? "Collapse overdue" : "Expand overdue"}
+                  className="grid size-7 place-items-center rounded-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
+                >
+                  <ChevronDown
+                    aria-hidden
+                    className={cn("size-3.5 transition-transform duration-200", !overdueOpen && "-rotate-90")}
+                  />
+                </button>
+              </div>
             }
           />
-          {overdue.map((task) => (
-            <SelectableRow
-              key={task.id}
-              task={task}
-              order={order}
-              showDate
-              trailing={<QuickSchedule task={task} />}
-            />
-          ))}
+          {overdueOpen &&
+            overdue.map((task) => (
+              <TriageRow
+                key={task.id}
+                task={task}
+                order={order}
+                showDate
+                trailing={<QuickSchedule task={task} />}
+              />
+            ))}
         </section>
       )}
 
-      {days.map(({ iso, items }) => (
-        <section key={iso} className="mb-5">
-          <DayHeader iso={iso} done={items.filter((t) => t.status === "done").length} total={items.length} />
-          {items.map((task) => (
-            <SelectableRow
-              key={task.id}
-              task={task}
-              order={order}
-              trailing={<QuickSchedule task={task} />}
-            />
-          ))}
-        </section>
-      ))}
+      {days.map(({ iso, items }) => {
+        const isOpen = !collapsed.has(iso);
+        const done = items.filter((t) => t.status === "done").length;
+        return (
+          <section key={iso} aria-label={`${friendlyDate(iso)}, ${items.length} tasks`} className="mb-5">
+            <DateDropZone iso={iso}>
+              {({ isOver }) => (
+                <DayHeader
+                  iso={iso}
+                  done={done}
+                  total={items.length}
+                  collapsed={!isOpen}
+                  onToggle={() => toggleDay(iso)}
+                  dropActive={isOver}
+                />
+              )}
+            </DateDropZone>
 
-      {beyond > 0 && (
-        <button
-          onClick={onSeeAll}
-          className="group/beyond mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-2 text-left text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors duration-150"
-        >
-          <span className="tnum">{beyond}</span>
-          <span>scheduled after {formatDate(horizonEnd, { weekday: false })}</span>
-          <ArrowRight className="size-3.5 transition-transform duration-200 ease-[var(--ease-out-apple)] group-hover/beyond:translate-x-0.5" />
-        </button>
-      )}
+            {isOpen && (
+              <>
+                {items.map((task) => (
+                  <TriageRow
+                    key={task.id}
+                    task={task}
+                    order={order}
+                    trailing={<QuickSchedule task={task} />}
+                  />
+                ))}
+                {!selecting && (
+                  <InlineComposer
+                    date={iso}
+                    placeholder={`Add to ${friendlyDate(iso)}`}
+                    className="mt-0.5 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
+                  />
+                )}
+              </>
+            )}
+          </section>
+        );
+      })}
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={() => setHorizon((h) => h + STEP)}>
+          Show {STEP} more days
+        </Button>
+        <span className="text-[11.5px] text-ink-4">
+          through {formatDate(addDays(today, horizon + STEP - 1), { weekday: false })}
+        </span>
+        {beyond.length > 0 && (
+          <button
+            onClick={onSeeAll}
+            className="group/beyond ml-auto flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors duration-150"
+          >
+            <span className="tnum">{beyond.length}</span>
+            <span>scheduled after {formatDate(horizonEnd, { weekday: false })}</span>
+            <ArrowRight
+              aria-hidden
+              className="size-3.5 transition-transform duration-200 ease-[var(--ease-out-apple)] group-hover/beyond:translate-x-0.5"
+            />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

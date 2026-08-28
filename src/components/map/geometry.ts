@@ -15,29 +15,50 @@ export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.mi
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Rendered footprint. Round and rotated shapes ignore the stored w/h ratio. */
+/**
+ * Rendered footprint. Every shape has one size rule and one pair of bounds, so
+ * a circle can never end up three times the size of the cards around it.
+ * Square shapes read `min(w, h)` and `resizeTo` writes both, which keeps the
+ * two functions each other's inverse.
+ */
+export const SIZE_BOUNDS: Record<MapNode["shape"], { min: Size; max: Size }> = {
+  card: { min: { w: 132, h: 64 }, max: { w: 560, h: 520 } },
+  sticky: { min: { w: 120, h: 120 }, max: { w: 320, h: 320 } },
+  pill: { min: { w: 120, h: 44 }, max: { w: 520, h: 44 } },
+  circle: { min: { w: 104, h: 104 }, max: { w: 340, h: 340 } },
+  diamond: { min: { w: 104, h: 104 }, max: { w: 340, h: 340 } },
+};
+
+const SQUARE = new Set<MapNode["shape"]>(["circle", "diamond", "sticky"]);
+
 export function sizeOf(node: Pick<MapNode, "w" | "h" | "shape">): Size {
-  const w = Math.max(96, node.w || 220);
-  const h = Math.max(48, node.h || 120);
-  switch (node.shape) {
-    case "pill":
-      return { w, h: 44 };
-    case "circle":
-    case "diamond": {
-      const s = clamp(Math.min(w, h), 132, 260);
-      return { w: s, h: s };
-    }
-    case "sticky": {
-      const s = clamp(Math.min(w, h) + 40, 150, 220);
-      return { w: s, h: s };
-    }
-    default:
-      return { w, h };
+  const b = SIZE_BOUNDS[node.shape] ?? SIZE_BOUNDS.card;
+  const w = node.w || 220;
+  const h = node.h || 120;
+  if (node.shape === "pill") return { w: clamp(w, b.min.w, b.max.w), h: 44 };
+  if (SQUARE.has(node.shape)) {
+    const s = clamp(Math.min(w, h), b.min.w, b.max.w);
+    return { w: s, h: s };
   }
+  return { w: clamp(w, b.min.w, b.max.w), h: clamp(h, b.min.h, b.max.h) };
 }
 
-export function boxOf(node: MapNode, pos: Pos): Box {
-  const { w, h } = sizeOf(node);
+/** What to store when a resize lands on `w`×`h`. Round-trips through `sizeOf`. */
+export function resizeTo(shape: MapNode["shape"], w: number, h: number): Size {
+  const b = SIZE_BOUNDS[shape] ?? SIZE_BOUNDS.card;
+  if (shape === "pill") return { w: Math.round(clamp(w, b.min.w, b.max.w)), h: 44 };
+  if (SQUARE.has(shape)) {
+    const s = Math.round(clamp((w + h) / 2, b.min.w, b.max.w));
+    return { w: s, h: s };
+  }
+  return {
+    w: Math.round(clamp(w, b.min.w, b.max.w)),
+    h: Math.round(clamp(h, b.min.h, b.max.h)),
+  };
+}
+
+export function boxOf(node: MapNode, pos: Pos, size?: Size): Box {
+  const { w, h } = size ?? sizeOf(node);
   return { x: pos.x, y: pos.y, w, h, shape: node.shape };
 }
 
@@ -97,21 +118,32 @@ function cubicAt(p0: Pos, p1: Pos, p2: Pos, p3: Pos, t: number): Pos {
   };
 }
 
+/** The default arc strength. `curve` scales it: 0 is a straight line, 2 loops wide. */
+export const DEFAULT_CURVE = 1;
+export const MAX_CURVE = 2;
+
 /** Smooth link between two boxes, leaving and entering along the border normals. */
-export function edgeGeometry(from: Box, to: Box): EdgeGeom {
+export function edgeGeometry(from: Box, to: Box, curve = DEFAULT_CURVE): EdgeGeom {
   const a = anchor(from, centerOf(to));
   const b = anchor(to, centerOf(from));
   const dist = Math.hypot(b.p.x - a.p.x, b.p.y - a.p.y);
-  const off = clamp(dist * 0.45, 38, 240);
+  const off = clamp(dist * 0.45, 38, 240) * clamp(curve, 0, MAX_CURVE);
   const n1 = NORMAL[a.side];
   const n2 = NORMAL[b.side];
   const c1 = { x: a.p.x + n1.x * off, y: a.p.y + n1.y * off };
   const c2 = { x: b.p.x + n2.x * off, y: b.p.y + n2.y * off };
 
   // Tangent at t=1 is p3 - c2, so the head always sits flush on the curve.
+  // At curve 0 that vector collapses, so fall back to the chord direction.
   let vx = b.p.x - c2.x;
   let vy = b.p.y - c2.y;
-  const vl = Math.hypot(vx, vy) || 1;
+  let vl = Math.hypot(vx, vy);
+  if (vl < 0.5) {
+    vx = b.p.x - a.p.x;
+    vy = b.p.y - a.p.y;
+    vl = Math.hypot(vx, vy);
+  }
+  vl = vl || 1;
   vx /= vl; vy /= vl;
   const L = 11, W = 4.4;
   const bx = b.p.x - vx * L;

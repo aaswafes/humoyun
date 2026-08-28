@@ -4,9 +4,10 @@ import * as React from "react";
 import { Check, Clock, Flame, History, Moon, Users, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, prayerStreak } from "@/lib/store";
-import { formatTime } from "@/lib/date";
+import { formatDuration, formatTime } from "@/lib/date";
 import { prayerTimesFor } from "@/lib/prayer";
-import { PRAYER_LABELS, PRAYER_NAMES, type PrayerStatus } from "@/lib/types";
+import { PRAYER_LABELS, PRAYER_NAMES, type PrayerName, type PrayerStatus } from "@/lib/types";
+import { Progress } from "@/components/ui/primitives";
 import { RailCard, RailRow } from "./rail-card";
 
 const STATUS_LABEL: Record<PrayerStatus, string> = {
@@ -39,6 +40,8 @@ const STATUS_DOT: Record<PrayerStatus, string> = {
 
 const COUNTED: PrayerStatus[] = ["prayed", "jamaah", "late"];
 
+interface Window { name: PrayerName; start: number; end: number }
+
 export function SalahCard({ date, minutesNow }: { date: string; minutesNow: number }) {
   const prayers = useStore((s) => s.prayers);
   const profile = useStore((s) => s.profile);
@@ -55,9 +58,28 @@ export function SalahCard({ date, minutesNow }: { date: string; minutesNow: numb
     [date, profile?.latitude, profile?.longitude, profile?.calc_method, profile?.madhab],
   );
 
+  // Each prayer holds the ground until the next one starts; isha runs to fajr.
+  const windows: Window[] = React.useMemo(() => [
+    { name: "fajr", start: times.fajr, end: times.sunrise },
+    { name: "dhuhr", start: times.dhuhr, end: times.asr },
+    { name: "asr", start: times.asr, end: times.maghrib },
+    { name: "maghrib", start: times.maghrib, end: times.isha },
+    { name: "isha", start: times.isha, end: times.fajr + 1440 },
+  ], [times]);
+
+  const active = windows.find((w) => minutesNow >= w.start && minutesNow < w.end) ?? null;
+  const upcoming = windows.find((w) => w.start > minutesNow) ?? null;
+
   const today = prayers.filter((p) => p.date === date);
+  const statusOf = (name: PrayerName) => today.find((p) => p.name === name)?.status ?? "none";
   const logged = today.filter((p) => COUNTED.includes(p.status)).length;
   const streak = prayerStreak(prayers, date);
+
+  const activeLeft = active ? active.end - minutesNow : 0;
+  const activeElapsed = active ? minutesNow - active.start : 0;
+  const activeSpan = active ? active.end - active.start : 1;
+  const closing = active ? activeLeft <= Math.max(15, activeSpan * 0.2) : false;
+  const activeDone = active ? COUNTED.includes(statusOf(active.name)) : false;
 
   return (
     <RailCard
@@ -76,19 +98,57 @@ export function SalahCard({ date, minutesNow }: { date: string; minutesNow: numb
           <span className="text-[11.5px] font-medium text-ink-2 tnum">{logged}/5</span>
         </span>
       }
+      footer={
+        active ? (
+          <div>
+            <p className="flex items-baseline justify-between gap-2 text-[12px] tnum">
+              <span className="min-w-0 truncate text-ink-2">
+                <span className="font-medium text-ink">{PRAYER_LABELS[active.name]}</span> window
+                {activeDone ? " · prayed" : ""}
+              </span>
+              <span className={cn("shrink-0 font-medium", closing && !activeDone ? "text-warn" : "text-ink-2")}>
+                {formatDuration(activeLeft)} left
+              </span>
+            </p>
+            <Progress value={activeElapsed} max={activeSpan} height={3} className="mt-1.5" />
+            <p className="mt-1 text-[11px] text-ink-4 tnum">
+              closes {formatTime(active.end % 1440, hour12)}
+              {upcoming ? ` · ${PRAYER_LABELS[upcoming.name]} next at ${formatTime(upcoming.start, hour12)}` : ""}
+            </p>
+          </div>
+        ) : upcoming ? (
+          <p className="flex items-baseline justify-between gap-2 text-[12px] tnum">
+            <span className="truncate text-ink-2">
+              Next · <span className="font-medium text-ink">{PRAYER_LABELS[upcoming.name]}</span>{" "}
+              {formatTime(upcoming.start, hour12)}
+            </span>
+            <span className="shrink-0 font-medium text-ink-2">in {formatDuration(upcoming.start - minutesNow)}</span>
+          </p>
+        ) : (
+          <p className="text-[12px] text-ink-3 tnum">
+            Fajr opens {formatTime(times.fajr, hour12)} — the day is done.
+          </p>
+        )
+      }
     >
       {PRAYER_NAMES.map((name) => {
-        const status = today.find((p) => p.name === name)?.status ?? "none";
+        const status = statusOf(name);
         const at = times[name];
         const Icon = STATUS_ICON[status];
+        const isNow = active?.name === name;
         const pending = status === "none" && at > minutesNow;
 
         return (
           <RailRow
             key={name}
             onClick={() => cyclePrayer(date, name)}
-            ariaLabel={`${PRAYER_LABELS[name]} — ${STATUS_LABEL[status]}. Change status.`}
+            ariaLabel={
+              `${PRAYER_LABELS[name]} at ${formatTime(at, hour12)} — ${STATUS_LABEL[status]}` +
+              (isNow ? `, in its window with ${formatDuration(activeLeft)} left` : "") +
+              ". Change status."
+            }
             ariaPressed={COUNTED.includes(status)}
+            className={cn(isNow && "bg-hover")}
           >
             <span
               aria-hidden
@@ -100,10 +160,23 @@ export function SalahCard({ date, minutesNow }: { date: string; minutesNow: numb
             >
               {Icon && <Icon className="size-2.5 stroke-[3]" />}
             </span>
-            <span className={cn("flex-1 text-[13px]", pending ? "text-ink-3" : "text-ink")}>
+
+            <span className={cn("min-w-0 flex-1 truncate text-[13px]", pending ? "text-ink-3" : "text-ink")}>
               {PRAYER_LABELS[name]}
             </span>
-            <span className={cn("text-[12px] tnum", pending ? "text-ink-4" : "text-ink-3")}>
+
+            {isNow && (
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-semibold uppercase tracking-[0.06em]",
+                  status === "none" ? "bg-accent-soft text-accent" : "bg-success-soft text-success",
+                )}
+              >
+                now
+              </span>
+            )}
+
+            <span className={cn("shrink-0 text-[12px] tnum", pending ? "text-ink-4" : "text-ink-3")}>
               {formatTime(at, hour12)}
             </span>
           </RailRow>

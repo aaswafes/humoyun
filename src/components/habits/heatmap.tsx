@@ -4,11 +4,16 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 import { addDays, dayNameOf, formatDate, fromISO, monthNameOf, todayISO } from "@/lib/date";
 import type { Habit } from "@/lib/types";
-import { isScheduled, type Counts } from "./habit-utils";
+import { VisuallyHidden } from "@/components/ui/form";
+import {
+  countLabel, dayState, isComplete, NO_SKIPS, type Counts, type DayState, type Skips,
+} from "./habit-utils";
 
 interface HeatmapProps {
   habit: Habit;
   counts: Counts;
+  /** Days rested on purpose — drawn hollow, never as a miss. */
+  skips?: Skips;
   /** ISO of the first column's week-start day. */
   startWeek: string;
   weeks: number;
@@ -21,16 +26,39 @@ interface HeatmapProps {
   className?: string;
 }
 
+/** Fill and shape for one cell. Shape carries the state as well as colour. */
+function paint(state: DayState, ratio: number): React.CSSProperties {
+  switch (state) {
+    case "done":
+    case "partial":
+      return { background: "var(--tint)", opacity: 0.32 + 0.68 * ratio };
+    case "skipped":
+      // Hollow ring — a rest day is a decision, not an empty square.
+      return { background: "transparent", boxShadow: "inset 0 0 0 1.5px var(--line-strong)" };
+    case "future":
+      return { background: "transparent", border: "1px dashed var(--line)" };
+    case "rest":
+      return { background: "var(--active)", opacity: 0.4 };
+    case "due":
+      return { background: "var(--active)", boxShadow: "inset 0 0 0 1px var(--accent-line)" };
+    default:
+      return { background: "var(--active)" };
+  }
+}
+
 /**
- * A contribution grid: one column per week, one row per weekday.
- * The whole grid is a single tab stop with arrow-key navigation — 140 tab
- * stops per habit would bury the rest of the page.
+ * A contribution grid: one row per weekday, one column per week.
+ *
+ * The whole grid is a single tab stop with arrow-key navigation — 140 tab stops
+ * per habit would bury the rest of the page — and each weekday is a real
+ * `role="row"`, because `role="grid"` may only own rows.
  */
 export function Heatmap({
-  habit, counts, startWeek, weeks, weekStart = 1,
+  habit, counts, skips = NO_SKIPS, startWeek, weeks, weekStart = 1,
   cellSize = 11, gap = 3, showMonths, showWeekdays, onToggle, className,
 }: HeatmapProps) {
   const uid = React.useId();
+  const summaryId = `${uid}-summary`;
   const today = todayISO();
   const total = weeks * 7;
 
@@ -42,7 +70,7 @@ export function Heatmap({
   const gridW = weeks * cellSize + (weeks - 1) * gap;
   const gridH = 7 * cellSize + 6 * gap;
 
-  // Cells are emitted column-major, so cell index and day offset coincide.
+  // Cell index is the day offset from `startWeek`: column * 7 + row.
   const dateAt = React.useCallback((i: number) => addDays(startWeek, i), [startWeek]);
 
   // Clamp the cursor when the range changes underneath it (year navigation).
@@ -62,14 +90,28 @@ export function Heatmap({
     return out;
   }, [showMonths, startWeek, weeks]);
 
-  function describe(date: string) {
-    const count = counts.get(date) ?? 0;
-    if (date > today) return "Upcoming";
-    if (count > 0) {
-      if (habit.target_count > 1) return `${count} of ${habit.target_count}${habit.unit ? ` ${habit.unit}` : ""}`;
-      return habit.unit ? `1 ${habit.unit}` : "Done";
+  const tally = React.useMemo(() => {
+    let done = 0;
+    let missed = 0;
+    let rested = 0;
+    for (let i = 0; i < total; i++) {
+      const date = dateAt(i);
+      const state = dayState(habit, counts, skips, date, today, weekStart);
+      if (state === "done") done++;
+      else if (state === "missed") missed++;
+      else if (state === "skipped") rested++;
     }
-    return isScheduled(habit, date, counts, weekStart) ? "Not logged" : "Rest day";
+    return { done, missed, rested };
+  }, [counts, dateAt, habit, skips, today, total, weekStart]);
+
+  function describe(date: string) {
+    const state = dayState(habit, counts, skips, date, today, weekStart);
+    if (state === "done" || state === "partial") return countLabel(habit, counts.get(date) ?? 0);
+    if (state === "skipped") return "Rest day";
+    if (state === "future") return "Upcoming";
+    if (state === "rest") return "Not scheduled";
+    if (state === "due") return "Due today";
+    return "Missed";
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -93,7 +135,13 @@ export function Heatmap({
   const tipIndex = hover ?? (focused ? safeCursor : null);
 
   return (
-    <div className={cn(`tint-${habit.color}`, "inline-block", className)}>
+    <div className={cn(`tint-${habit.color}`, "relative inline-block", className)}>
+      <VisuallyHidden id={summaryId}>
+        {`${tally.done} days done, ${tally.missed} missed and ${tally.rested} rested between `}
+        {`${formatDate(dateAt(0), { year: true })} and ${formatDate(dateAt(total - 1), { year: true })}. `}
+        Use the arrow keys to move between days and Enter to log one.
+      </VisuallyHidden>
+
       {showMonths && (
         <div className="relative mb-1 h-[13px]" style={{ width: gridW, marginLeft: showWeekdays ? 26 : 0 }}>
           {months.map((m) => (
@@ -114,6 +162,7 @@ export function Heatmap({
             {Array.from({ length: 7 }, (_, row) => (
               <span
                 key={row}
+                aria-hidden
                 className="text-[10.5px] leading-none text-ink-4"
                 style={{ lineHeight: `${cellSize}px` }}
               >
@@ -128,53 +177,55 @@ export function Heatmap({
             role="grid"
             tabIndex={0}
             aria-label={`${habit.name} activity, ${weeks} weeks`}
+            aria-describedby={summaryId}
             aria-activedescendant={`${uid}-${safeCursor}`}
             onKeyDown={onKeyDown}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onMouseLeave={() => setHover(null)}
-            className="grid rounded-[5px]"
-            style={{
-              gridTemplateColumns: `repeat(${weeks}, ${cellSize}px)`,
-              gridTemplateRows: `repeat(7, ${cellSize}px)`,
-              gridAutoFlow: "column",
-              gap,
-            }}
+            className="flex flex-col rounded-[5px]"
+            style={{ gap }}
           >
-            {Array.from({ length: total }, (_, i) => {
-              const date = dateAt(i);
-              const count = counts.get(date) ?? 0;
-              const future = date > today;
-              const filled = count > 0;
-              const ratio = Math.min(1, count / Math.max(1, habit.target_count));
-              const scheduled = !future && isScheduled(habit, date, counts, weekStart);
-              const isCursor = focused && i === safeCursor;
-              const summary = describe(date);
+            {Array.from({ length: 7 }, (_, row) => (
+              <div
+                key={row}
+                role="row"
+                aria-label={dayNameOf((weekStart + row) % 7, "long")}
+                className="grid"
+                style={{ gridTemplateColumns: `repeat(${weeks}, ${cellSize}px)`, gap }}
+              >
+                {Array.from({ length: weeks }, (_, col) => {
+                  const i = col * 7 + row;
+                  const date = dateAt(i);
+                  const count = counts.get(date) ?? 0;
+                  const state = dayState(habit, counts, skips, date, today, weekStart);
+                  const ratio = isComplete(habit, count)
+                    ? 1
+                    : Math.min(1, count / Math.max(1, habit.target_count));
+                  const isCursor = focused && i === safeCursor;
+                  const clickable = date <= today;
 
-              return (
-                <div
-                  key={date}
-                  id={`${uid}-${i}`}
-                  role="gridcell"
-                  aria-label={`${formatDate(date, { year: true })}: ${summary}`}
-                  aria-selected={isCursor}
-                  onMouseEnter={() => setHover(i)}
-                  onClick={() => { if (!future) { setCursor(i); onToggle(date); } }}
-                  className={cn(
-                    "rounded-[3px] transition-[opacity,transform] duration-150 ease-[var(--ease-out-apple)]",
-                    !future && "cursor-pointer hover:scale-125",
-                    date === today && "ring-1 ring-ink-3",
-                    isCursor && "ring-2 ring-accent",
-                  )}
-                  style={{
-                    background: future ? "transparent" : filled ? "var(--tint)" : "var(--active)",
-                    opacity: future ? 1 : filled ? 0.32 + 0.68 * ratio : scheduled ? 1 : 0.4,
-                    border: future ? "1px dashed var(--line)" : undefined,
-                    boxSizing: "border-box",
-                  }}
-                />
-              );
-            })}
+                  return (
+                    <div
+                      key={date}
+                      id={`${uid}-${i}`}
+                      role="gridcell"
+                      aria-label={`${formatDate(date, { year: true })}: ${describe(date)}`}
+                      aria-selected={isCursor}
+                      onMouseEnter={() => setHover(i)}
+                      onClick={() => { if (clickable) { setCursor(i); onToggle(date); } }}
+                      className={cn(
+                        "rounded-[3px] transition-[opacity,transform] duration-150 ease-[var(--ease-out-apple)]",
+                        clickable && "cursor-pointer hover:scale-125",
+                        date === today && "ring-1 ring-ink-3",
+                        isCursor && "ring-2 ring-accent",
+                      )}
+                      style={{ ...paint(state, ratio), boxSizing: "border-box", height: cellSize }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
 
           {tipIndex != null && (
@@ -195,22 +246,33 @@ export function Heatmap({
   );
 }
 
-/** Less → More key. Only worth showing next to the full-year grid. */
+/** Less → More key, plus the two shapes that are not a shade of the tint. */
 export function HeatmapLegend({ habit, className }: { habit: Habit; className?: string }) {
   return (
-    <div className={cn(`tint-${habit.color}`, "flex items-center gap-1 text-[11px] text-ink-3", className)}>
-      <span>Less</span>
-      {[0, 0.25, 0.5, 0.75, 1].map((step) => (
+    <div className={cn(`tint-${habit.color}`, "flex items-center gap-2 text-[11px] text-ink-3", className)}>
+      <span className="flex items-center gap-1">
+        <span>Less</span>
+        {[0, 0.25, 0.5, 0.75, 1].map((step) => (
+          <span
+            key={step}
+            aria-hidden
+            className="size-[10px] rounded-[3px]"
+            style={{
+              background: step === 0 ? "var(--active)" : "var(--tint)",
+              opacity: step === 0 ? 1 : 0.32 + 0.68 * step,
+            }}
+          />
+        ))}
+        <span>More</span>
+      </span>
+      <span className="flex items-center gap-1">
         <span
-          key={step}
+          aria-hidden
           className="size-[10px] rounded-[3px]"
-          style={{
-            background: step === 0 ? "var(--active)" : "var(--tint)",
-            opacity: step === 0 ? 1 : 0.32 + 0.68 * step,
-          }}
+          style={{ boxShadow: "inset 0 0 0 1.5px var(--line-strong)" }}
         />
-      ))}
-      <span>More</span>
+        <span>Rest</span>
+      </span>
     </div>
   );
 }

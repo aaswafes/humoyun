@@ -29,6 +29,9 @@ export const KIND_LABELS: Record<TaskKind, string> = {
 
 export const KINDS = Object.keys(KIND_LABELS) as TaskKind[];
 
+/** Priority 0–3 as ink colours. Shared by the row, the board and the preview. */
+export const PRIORITY_CLASS = ["text-ink-4", "text-ink-3", "text-warn", "text-danger"];
+
 export function nextOrder(rows: { order_index: number }[]): number {
   return rows.length ? Math.max(...rows.map((r) => r.order_index)) + 1 : 0;
 }
@@ -45,6 +48,26 @@ export function offsetLabel(offset: number, weekStart: number, form: "short" | "
   return dayNameOf((weekStart + offset) % 7, form);
 }
 
+/** The seven day-offset columns of a week template, in the user's week order. */
+export function dayColumns(weekStart: number): { offset: number; label: string; long: string }[] {
+  return Array.from({ length: 7 }, (_, offset) => ({
+    offset,
+    label: offsetLabel(offset, weekStart),
+    long: offsetLabel(offset, weekStart, "long"),
+  }));
+}
+
 export function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+/** Total clock time a list of items asks for, timed or not. */
+export function totalMinutes(items: TemplateItem[]): number {
+  return items.reduce((sum, item) => {
+    if (item.duration_min) return sum + item.duration_min;
+    if (item.start_min != null && item.end_min != null && item.end_min > item.start_min) {
+      return sum + (item.end_min - item.start_min);
+    }
+    return sum;
+  }, 0);
 }

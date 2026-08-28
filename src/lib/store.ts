@@ -28,6 +28,7 @@ import {
   type Tint,
 } from "./types";
 import { addDays, todayISO, toISO, startOfWeek, weekday } from "./date";
+import { SOLO, SOLO_PROFILE, SOLO_USER_ID, loadLocal, saveLocal } from "./local-db";
 
 // =========================================================
 // Helpers
@@ -106,6 +107,8 @@ interface StoreState extends CollectionState {
   hour12: boolean;
   toasts: Toast[];
   timer: TimerState;
+  /** Solo mode booted with an empty database and wants the sample week. */
+  soloNeedsSeed: boolean;
 
   // ---- lifecycle ----
   hydrate: (userId: string, email?: string | null) => Promise<void>;
@@ -259,6 +262,17 @@ function restoreTimer(): TimerState {
   } catch { return EMPTY_TIMER; }
 }
 
+/** In solo mode every mutation mirrors the whole store into localStorage. */
+function persistSolo(state: StoreState) {
+  saveLocal({
+    profile: state.profile,
+    collections: Object.fromEntries(
+      COLLECTION_KEYS.map((k) => [k, state[k]]),
+    ) as Record<string, unknown[]>,
+    seeded: true,
+  });
+}
+
 export const useStore = create<StoreState>((set, get) => ({
   ...emptyCollections(),
   ready: false,
@@ -275,11 +289,36 @@ export const useStore = create<StoreState>((set, get) => ({
   hour12: true,
   toasts: [],
   timer: EMPTY_TIMER,
+  soloNeedsSeed: false,
 
   // -------------------------------------------------------
   async hydrate(userId, email) {
     if (get().loading) return;
     set({ loading: true, userId, email: email ?? null });
+
+    if (SOLO) {
+      const saved = loadLocal();
+      const collections = emptyCollections();
+      if (saved?.collections) {
+        for (const key of COLLECTION_KEYS) {
+          const rows = saved.collections[key];
+          if (Array.isArray(rows)) {
+            (collections as Record<string, unknown[]>)[key] = rows;
+          }
+        }
+      }
+      const profile = saved?.profile ?? SOLO_PROFILE;
+      set({
+        ...collections,
+        profile,
+        hour12: (profile.prefs as Record<string, unknown>)?.hour12 !== false,
+        timer: restoreTimer(),
+        soloNeedsSeed: !saved?.seeded,
+        ready: true,
+        loading: false,
+      });
+      return;
+    }
 
     const tables = COLLECTION_KEYS.map((k) => [k, TABLE_OF[k]] as const);
     const [{ data: profile }, ...results] = await Promise.all([
@@ -330,6 +369,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const full = { ...defaultsFor(key, userId), ...row } as unknown as Collections[typeof key];
     set((s) => ({ [key]: [...(s[key] as unknown[]), full] } as unknown as Partial<StoreState>));
 
+    if (SOLO) { persistSolo(get()); return full; }
+
     supabase.from(TABLE_OF[key]).insert(full as object).then(({ error }) => {
       if (error) {
         set((s) => ({
@@ -350,6 +391,8 @@ export const useStore = create<StoreState>((set, get) => ({
       [key]: (s[key] as { id: string }[]).map((r) => (r.id === id ? merged : r)),
     } as unknown as Partial<StoreState>));
 
+    if (SOLO) { persistSolo(get()); return; }
+
     const payload = { ...changes } as Record<string, unknown>;
     if ("updated_at" in (prev as object)) payload.updated_at = merged.updated_at;
     supabase.from(TABLE_OF[key]).update(payload).eq("id", id).then(({ error }) => {
@@ -369,6 +412,8 @@ export const useStore = create<StoreState>((set, get) => ({
     set((s) => ({
       [key]: (s[key] as { id: string }[]).filter((r) => r.id !== id),
     } as unknown as Partial<StoreState>));
+
+    if (SOLO) { persistSolo(get()); return; }
 
     supabase.from(TABLE_OF[key]).delete().eq("id", id).then(({ error }) => {
       if (error) {
@@ -417,6 +462,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!profile) return;
     const merged = { ...profile, ...changes };
     set({ profile: merged });
+    if (SOLO) { persistSolo(get()); return; }
     supabase.from("profiles").update(changes as object).eq("id", profile.id).then(({ error }) => {
       if (error) set({ profile });
     });

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { CalendarClock, Moon, Timer as TimerIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { useStore, tasksOn } from "@/lib/store";
+import { useStore, focusMinutesOn, tasksOn } from "@/lib/store";
 import { useNow } from "@/hooks/use-hotkeys";
 import { formatClock, formatDuration, formatRange, formatTime } from "@/lib/date";
 import { currentPrayer, prayerTimesFor } from "@/lib/prayer";
@@ -67,21 +67,25 @@ function PrayerCell({ date, minutesNow }: { date: string; minutesNow: number }) 
 // ---------------------------------------------------------
 // Focus — its own second-resolution clock so the digits move
 // ---------------------------------------------------------
-function FocusCell() {
+function FocusCell({ date }: { date: string }) {
   const timer = useStore((s) => s.timer);
   const tasks = useStore((s) => s.tasks);
+  const focusSessions = useStore((s) => s.focusSessions);
   const startTimer = useStore((s) => s.startTimer);
-  useNow(1000);
+  const tick = useNow(1000);
 
   const active = timer.running || timer.accumulated > 0;
   const seconds =
-    timer.accumulated + (timer.running && timer.startedAt ? Math.floor((Date.now() - timer.startedAt) / 1000) : 0);
+    timer.accumulated + (timer.running && timer.startedAt ? Math.floor((tick - timer.startedAt) / 1000) : 0);
   const task = timer.taskId ? tasks.find((t) => t.id === timer.taskId) : null;
+  const todayMinutes = focusMinutesOn(focusSessions, date);
 
   if (!active) {
     return (
       <Cell icon={TimerIcon} label="Focus">
-        <p className="text-[13.5px] font-medium leading-tight text-ink-3">Nothing running</p>
+        <p className="text-[13.5px] font-medium leading-tight text-ink-3">
+          {todayMinutes ? `${formatDuration(todayMinutes)} logged today` : "Nothing running"}
+        </p>
         <button
           type="button"
           onClick={() => startTimer({ mode: "pomodoro", targetMinutes: 25, label: "Focus" })}
@@ -106,6 +110,7 @@ function FocusCell() {
           {formatClock(seconds)}
         </span>
         <span> · {timer.running ? "running" : "paused"}</span>
+        {todayMinutes > 0 && <span> · {formatDuration(todayMinutes)} today</span>}
       </p>
     </Cell>
   );
@@ -129,17 +134,22 @@ function NextTaskCell({ date, minutesNow }: { date: string; minutesNow: number }
 
   if (!task) {
     const open = today.length;
+    const first = today[0];
     return (
       <Cell icon={CalendarClock} label="Next up">
-        <p className="text-[13.5px] font-medium leading-tight text-ink-3">Nothing timed left</p>
+        <p className="truncate text-[13.5px] font-medium leading-tight text-ink-3">
+          {first ? first.title || "Untitled" : "Nothing timed left"}
+        </p>
         <p className="mt-0.5 text-[12px] leading-tight text-ink-3 tnum">
-          {open ? `${open} anytime task${open === 1 ? "" : "s"} open` : "The rest of the day is clear"}
+          {open ? `${open} anytime task${open === 1 ? "" : "s"} open · no time set` : "The rest of the day is clear"}
         </p>
       </Cell>
     );
   }
 
   const endsIn = (task.end_min ?? task.start_min!) - minutesNow;
+  // What the running block hands over to — the reason to look at this cell twice.
+  const then = timed.find((t) => t.id !== task.id && t.start_min! > minutesNow);
 
   return (
     <Cell icon={CalendarClock} label="Next up">
@@ -159,6 +169,11 @@ function NextTaskCell({ date, minutesNow }: { date: string; minutesNow: number }
         </span>
         <span> · {formatRange(task.start_min, task.end_min, hour12)}</span>
       </p>
+      {then && (
+        <p className="mt-0.5 truncate text-[11.5px] leading-tight text-ink-4 tnum">
+          then {formatTime(then.start_min, hour12)} · {then.title || "Untitled"}
+        </p>
+      )}
     </Cell>
   );
 }
@@ -171,7 +186,7 @@ export function NowStrip({ date, now }: { date: string; now: number }) {
   return (
     <div className="surface grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       <PrayerCell date={date} minutesNow={minutesNow} />
-      <FocusCell />
+      <FocusCell date={date} />
       <NextTaskCell date={date} minutesNow={minutesNow} />
     </div>
   );

@@ -10,7 +10,7 @@ import {
 } from "@/lib/date";
 import { PRAYER_LABELS, PRAYER_NAMES, type PrayerStatus } from "@/lib/types";
 import { Button, IconButton } from "@/components/ui/primitives";
-import { HANDLED_STATUSES, PRAYER_STATE, StateDot, StateLegend } from "./prayer-state";
+import { ALL_STATUSES, HANDLED_STATUSES, PRAYER_STATE, StateDot, StateLegend } from "./prayer-state";
 
 const COLUMNS = "grid-cols-[24px_repeat(5,minmax(0,1fr))]";
 
@@ -32,9 +32,14 @@ export function MonthGrid({ today }: { today: string }) {
     (sum, d) => sum + PRAYER_NAMES.filter((n) => HANDLED_STATUSES.includes(statuses.get(`${d}|${n}`) ?? "none")).length,
     0,
   );
+  const jamaah = elapsed.reduce(
+    (sum, d) => sum + PRAYER_NAMES.filter((n) => statuses.get(`${d}|${n}`) === "jamaah").length,
+    0,
+  );
   const rate = elapsed.length ? Math.round((handled / (elapsed.length * 5)) * 100) : null;
   const streak = React.useMemo(() => prayerStreak(prayers, today), [prayers, today]);
   const isCurrentMonth = month === startOfMonth(today);
+  const isFuture = month > startOfMonth(today);
 
   return (
     <section className="surface p-4">
@@ -43,14 +48,14 @@ export function MonthGrid({ today }: { today: string }) {
           {monthName(month)} <span className="tnum text-ink-3">{yearOf(month)}</span>
         </h2>
         {!isCurrentMonth && (
-          <Button size="xs" variant="ghost" onClick={() => setMonth(startOfMonth(today))}>
+          <Button size="sm" variant="ghost" onClick={() => setMonth(startOfMonth(today))}>
             Today
           </Button>
         )}
-        <IconButton label="Previous month" size="sm" onClick={() => setMonth(addMonths(month, -1))}>
+        <IconButton label="Previous month" onClick={() => setMonth(addMonths(month, -1))}>
           <ChevronLeft />
         </IconButton>
-        <IconButton label="Next month" size="sm" onClick={() => setMonth(addMonths(month, 1))}>
+        <IconButton label="Next month" onClick={() => setMonth(addMonths(month, 1))}>
           <ChevronRight />
         </IconButton>
       </header>
@@ -69,9 +74,17 @@ export function MonthGrid({ today }: { today: string }) {
       </div>
 
       <p className="mt-2.5 text-[11.5px] leading-relaxed text-ink-3">
-        {elapsed.length
-          ? <><span className="tnum">{handled}</span> of <span className="tnum">{elapsed.length * 5}</span> prayers so far this month. The streak counts days where all five were prayed.</>
-          : <>Nothing has happened this month yet — come back and the grid fills itself in.</>}
+        {elapsed.length ? (
+          <>
+            <span className="tnum">{handled}</span> of <span className="tnum">{elapsed.length * 5}</span>{" "}
+            prayers recorded, <span className="tnum">{jamaah}</span> of them in jamaah. The streak counts
+            days where all five were prayed.
+          </>
+        ) : isFuture ? (
+          <>This month has not started yet. The grid fills itself in as the days arrive.</>
+        ) : (
+          <>Nothing recorded this month yet — tap any square and it starts filling in.</>
+        )}
       </p>
 
       <div className="mx-auto mt-4 w-full max-w-[208px]">
@@ -115,7 +128,7 @@ export function MonthGrid({ today }: { today: string }) {
                     title={`${PRAYER_LABELS[name]} · ${formatDate(day)} · ${PRAYER_STATE[status].label}`}
                     aria-label={`${PRAYER_LABELS[name]} on ${formatDate(day)}, ${PRAYER_STATE[status].label}`}
                     className={cn(
-                      "grid h-6 cursor-pointer place-items-center rounded-md",
+                      "grid h-7 cursor-pointer place-items-center rounded-md",
                       "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
                       "hover:bg-hover active:scale-90 disabled:pointer-events-none",
                     )}
@@ -132,7 +145,7 @@ export function MonthGrid({ today }: { today: string }) {
       <p className="mt-3.5 text-[11.5px] leading-relaxed text-ink-3">
         Tap any square to record a past prayer. Qadha counts as handled.
       </p>
-      <StateLegend className="hairline-t mt-3 pt-3" />
+      <StateLegend className="hairline-t mt-3 pt-3" statuses={ALL_STATUSES} />
     </section>
   );
 }

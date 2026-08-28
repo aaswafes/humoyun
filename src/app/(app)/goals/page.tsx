@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { ChartNoAxesGantt, Check, Plus, Rows3, Target, Trophy } from "lucide-react";
+import {
+  ChartNoAxesGantt, Check, Plus, Radar, Rows3, Target, Trophy,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
@@ -11,30 +13,28 @@ import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primiti
 import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { GoalFinished } from "@/components/goals/goal-finished";
 import { GoalLadder } from "@/components/goals/goal-ladder";
+import { GoalReview } from "@/components/goals/goal-review";
 import { GoalSheet } from "@/components/goals/goal-sheet";
 import { GoalTimeline } from "@/components/goals/goal-timeline";
 import {
-  buildGoalIndex, HORIZON_LABEL, HORIZONS, pct, periodLabel,
+  buildGoalIndex, goalAttention, HORIZON_LABEL, HORIZONS, pct, periodLabel,
 } from "@/components/goals/goal-model";
 import { useGoalActions } from "@/components/goals/use-goal-actions";
 
-type View = "ladder" | "timeline" | "finished";
-
-const VIEW_OPTIONS = [
-  { value: "ladder" as const, label: <><Rows3 className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Ladder</span></>, title: "Goals by horizon" },
-  { value: "timeline" as const, label: <><ChartNoAxesGantt className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Timeline</span></>, title: "Goals across the year" },
-  { value: "finished" as const, label: <><Trophy className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Finished</span></>, title: "What you actually finished" },
-];
+type View = "ladder" | "timeline" | "review" | "finished";
 
 const HINT: Record<View, string> = {
-  ladder: "Life sets the direction, week does the work. Hover a card to light up its branch.",
-  timeline: "Every dated goal as a bar across the year — where they stack up, you are overcommitted.",
+  ladder: "Life sets the direction, week does the work. Drag a card onto another to nest it, or between two to reorder — the ⋯ menu does the same from the keyboard.",
+  timeline: "Every dated goal as a bar, with its milestones. Where the bars stack up, you are overcommitted.",
+  review: "",
   finished: "",
 };
 
 export default function GoalsPage() {
   const goals = useStore((s) => s.goals);
   const tasks = useStore((s) => s.tasks);
+  const habitLogs = useStore((s) => s.habitLogs);
+  const books = useStore((s) => s.books);
   const ready = useStore((s) => s.ready);
   const { createGoal } = useGoalActions();
 
@@ -42,7 +42,12 @@ export default function GoalsPage() {
   const [includeDone, setIncludeDone] = React.useState(false);
   const [openId, setOpenId] = React.useState<string | null>(null);
 
-  const index = React.useMemo(() => buildGoalIndex(goals, tasks), [goals, tasks]);
+  // Habit logs and books feed the "has anything actually moved" signal, so a
+  // goal held up by a reading plan does not read as stalled.
+  const index = React.useMemo(
+    () => buildGoalIndex(goals, tasks, { habitLogs, books }),
+    [goals, tasks, habitLogs, books],
+  );
 
   const visible = React.useMemo(
     () => (includeDone ? goals : goals.filter((g) => g.status !== "done" && g.status !== "dropped")),
@@ -54,13 +59,51 @@ export default function GoalsPage() {
     ? active.reduce((sum, g) => sum + index.stats(g.id).overall, 0) / active.length
     : 0;
 
+  const needing = React.useMemo(
+    () => active.filter((g) => goalAttention(g, index.stats(g.id)).length > 0).length,
+    [active, index],
+  );
+
+  const viewOptions = React.useMemo(() => [
+    {
+      value: "ladder" as const,
+      label: <><Rows3 className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Ladder</span></>,
+      title: "Goals by horizon",
+    },
+    {
+      value: "timeline" as const,
+      label: <><ChartNoAxesGantt className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Timeline</span></>,
+      title: "Goals across the year",
+    },
+    {
+      value: "review" as const,
+      label: (
+        <>
+          <Radar className="size-3.5" />
+          <span className="ml-1.5 hidden sm:inline">Review</span>
+          {needing > 0 && (
+            <span className="ml-1.5 rounded-full bg-warn-soft px-1 text-[10.5px] font-semibold text-warn tnum">
+              {needing}
+            </span>
+          )}
+        </>
+      ),
+      title: "Goals that need attention",
+    },
+    {
+      value: "finished" as const,
+      label: <><Trophy className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Finished</span></>,
+      title: "What you actually finished",
+    },
+  ], [needing]);
+
   const create = React.useCallback((horizon: Horizon) => {
     const goal = createGoal({ horizon });
     setOpenId(goal.id);
   }, [createGoal]);
 
   const subtitle = goals.length
-    ? `${active.length} active · ${pct(average)} average progress`
+    ? `${active.length} active · ${pct(average)} average progress${needing ? ` · ${needing} need${needing === 1 ? "s" : ""} attention` : ""}`
     : "Life · Year · Quarter · Month · Week";
 
   return (
@@ -96,7 +139,7 @@ export default function GoalsPage() {
           </Popover>
         }
       >
-        <Segmented value={view} options={VIEW_OPTIONS} onChange={setView} size="sm" className="mr-1" />
+        <Segmented value={view} options={viewOptions} onChange={setView} size="sm" className="mr-1" />
       </PageHeader>
 
       <PageBody wide>
@@ -125,9 +168,9 @@ export default function GoalsPage() {
           />
         ) : (
           <>
-            {view !== "finished" && (
+            {(view === "ladder" || view === "timeline") && (
               <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <p className="text-[12.5px] text-ink-3">{HINT[view]}</p>
+                <p className="max-w-[640px] text-[12.5px] text-ink-3">{HINT[view]}</p>
                 <div className="flex-1" />
                 <Button
                   size="xs"
@@ -153,6 +196,12 @@ export default function GoalsPage() {
 
             {view === "timeline" && (
               <GoalTimeline goals={visible} index={index} openId={openId} onOpen={setOpenId} />
+            )}
+
+            {view === "review" && (
+              <div className="max-w-[880px]">
+                <GoalReview goals={goals} index={index} onOpen={setOpenId} />
+              </div>
             )}
 
             {view === "finished" && (

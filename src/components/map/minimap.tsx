@@ -2,28 +2,34 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
-import type { MapNode } from "@/lib/types";
+import type { MapNode, Tint } from "@/lib/types";
 import { boundsOf, clamp, type Box, type Rect } from "./geometry";
 
 const W = 176;
 const H = 112;
 const PAD = 8;
+/** How far one arrow press slides the viewport, in screen pixels. */
+const STEP = 120;
 
 /**
  * Bottom-right overview. Dots are tinted like their nodes so the board reads as
- * a shape you recognise; dragging inside it flies the viewport.
+ * a shape you recognise; dragging inside it flies the viewport and the arrow
+ * keys pan it, so viewport control is never pointer-only.
  *
  * The projection is derived from the content alone, never from the viewport, so
  * panning only moves the one highlighted rectangle instead of redrawing every dot.
  */
 function MinimapImpl({
-  nodes, boxes, view, onCenter, className,
+  nodes, boxes, view, onCenter, onPan, tintOf, className,
 }: {
   nodes: MapNode[];
   boxes: Map<string, Box>;
   /** the visible slice of the world, in world units */
   view: Rect;
   onCenter: (world: { x: number; y: number }) => void;
+  /** screen-space nudge, for the keyboard */
+  onPan: (dx: number, dy: number) => void;
+  tintOf: (node: MapNode) => Tint;
   className?: string;
 }) {
   const svgRef = React.useRef<SVGSVGElement>(null);
@@ -47,7 +53,7 @@ function MinimapImpl({
         return (
           <rect
             key={n.id}
-            className={`tint-${n.color}`}
+            className={`tint-${tintOf(n)}`}
             x={ox + (b.x - world.x) * scale}
             y={oy + (b.y - world.y) * scale}
             width={Math.max(2, b.w * scale)}
@@ -58,7 +64,7 @@ function MinimapImpl({
           />
         );
       }),
-    [nodes, boxes, scale, ox, oy, world.x, world.y],
+    [nodes, boxes, scale, ox, oy, world.x, world.y, tintOf],
   );
 
   const jump = React.useCallback((clientX: number, clientY: number) => {
@@ -79,32 +85,44 @@ function MinimapImpl({
   const top = clamp(vy, 1, H - 7);
 
   return (
-    <div
+    <button
+      type="button"
+      aria-label="Board overview — click to move the viewport, arrow keys to pan, Enter to centre"
+      title="Board overview"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        jump(e.clientX, e.clientY);
+        // the projection depends only on the content, so it cannot go stale mid-drag
+        const move = (ev: PointerEvent) => jump(ev.clientX, ev.clientY);
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }}
+      onClick={(e) => {
+        // detail 0 means the keyboard activated it — there are no coordinates,
+        // so Enter recentres on the content instead of jumping nowhere
+        if (e.detail !== 0) return;
+        onCenter({ x: world.x + world.w / 2, y: world.y + world.h / 2 });
+      }}
+      onKeyDown={(e) => {
+        if (!e.key.startsWith("Arrow")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const step = e.shiftKey ? STEP * 2.5 : STEP;
+        onPan(
+          e.key === "ArrowLeft" ? step : e.key === "ArrowRight" ? -step : 0,
+          e.key === "ArrowUp" ? step : e.key === "ArrowDown" ? -step : 0,
+        );
+      }}
       className={cn(
-        "material overflow-hidden rounded-lg border border-line shadow-[var(--shadow-md)]",
+        "block cursor-pointer overflow-hidden rounded-lg border border-line material shadow-[var(--shadow-md)]",
         className,
       )}
     >
-      <svg
-        ref={svgRef}
-        width={W}
-        height={H}
-        role="img"
-        aria-label="Board overview"
-        className="block cursor-pointer touch-none"
-        onPointerDown={(e) => {
-          e.preventDefault();
-          jump(e.clientX, e.clientY);
-          // the projection depends only on the content, so it cannot go stale mid-drag
-          const move = (ev: PointerEvent) => jump(ev.clientX, ev.clientY);
-          const up = () => {
-            window.removeEventListener("pointermove", move);
-            window.removeEventListener("pointerup", up);
-          };
-          window.addEventListener("pointermove", move);
-          window.addEventListener("pointerup", up);
-        }}
-      >
+      <svg ref={svgRef} width={W} height={H} aria-hidden className="block touch-none">
         {dots}
         <rect
           x={left}
@@ -117,7 +135,7 @@ function MinimapImpl({
           strokeWidth={1}
         />
       </svg>
-    </div>
+    </button>
   );
 }
 

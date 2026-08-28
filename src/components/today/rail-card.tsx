@@ -6,11 +6,12 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
- * The rail's shared shell: hairline-separated header, tight body.
+ * The rail's shared shell: hairline-separated header, tight body, optional
+ * footer for the one line of context a card wants to leave behind.
  * Cards never nest another card inside themselves — rows only.
  */
 export function RailCard({
-  icon: Icon, title, accessory, href, hrefLabel, children, className,
+  icon: Icon, title, accessory, href, hrefLabel, children, footer, className,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
@@ -18,6 +19,7 @@ export function RailCard({
   href?: string;
   hrefLabel?: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -44,6 +46,7 @@ export function RailCard({
         </div>
       </div>
       <div className="p-1.5">{children}</div>
+      {footer && <div className="px-3 py-2 hairline-t">{footer}</div>}
     </section>
   );
 }
@@ -80,7 +83,7 @@ export function RailLink({ href, children }: { href: string; children: React.Rea
   );
 }
 
-/** Row button used by every tappable rail entry. */
+/** Row button used by every rail entry whose whole surface is one action. */
 export function RailRow({
   onClick, ariaLabel, ariaPressed, children, className,
 }: {
@@ -97,7 +100,7 @@ export function RailRow({
       aria-label={ariaLabel}
       aria-pressed={ariaPressed}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-md px-2 py-[7px] text-left cursor-pointer",
+        "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left cursor-pointer",
         "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
         "hover:bg-hover active:scale-[0.985]",
         className,
@@ -105,5 +108,44 @@ export function RailRow({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Row that holds more than one control. Interactive elements never nest, so a
+ * row with a checkbox *and* a button cannot itself be a button.
+ */
+export function RailItem({
+  children, className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "group/item flex w-full items-center gap-2.5 rounded-md px-2 py-1.5",
+        "transition-colors duration-150 hover:bg-hover",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The small print a card leaves in its footer: label on the left, number on the right. */
+export function RailMeta({
+  children, value, className,
+}: {
+  children: React.ReactNode;
+  value?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <p className={cn("flex items-baseline justify-between gap-2 text-[11.5px] text-ink-3 tnum", className)}>
+      <span className="min-w-0 truncate">{children}</span>
+      {value != null && <span className="shrink-0 font-medium text-ink-2">{value}</span>}
+    </p>
   );
 }

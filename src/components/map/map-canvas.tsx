@@ -10,15 +10,26 @@ import { addDays, formatDate, todayISO } from "@/lib/date";
 import type { Board, MapEdge, MapNode } from "@/lib/types";
 import { Button, IconButton, Kbd, SectionLabel } from "@/components/ui/primitives";
 import {
-  boundsOf, boxOf, clamp, edgeGeometry, normalizeRect, pendingPath,
-  rectsIntersect, sizeOf, type Box, type Pos, type Rect,
+  DEFAULT_CURVE, boundsOf, boxOf, clamp, edgeGeometry, normalizeRect, pendingPath,
+  rectsIntersect, resizeTo, sizeOf, type Box, type Pos, type Rect, type Size,
 } from "./geometry";
-import { dateForX, timelineLayout, type TimelineLayout } from "./timeline";
+import {
+  LANE_H, dateForX, laneAtY, laneTop, timelineLayout, type TimelineLayout,
+} from "./timeline";
 import { WorldLayer, type EdgePart } from "./world";
 import type { NodeApi } from "./node-card";
 import { KIND_META, NodeMenu, type NodeMenuState } from "./node-menu";
 import { EdgeInspector } from "./edge-inspector";
 import { Minimap } from "./minimap";
+import { BoardToolbar } from "./toolbar";
+import { OutlinePanel } from "./outline";
+import { Legend } from "./legend";
+import { grouping } from "./grouping";
+import { appendChecklistItem, plainText, toggleChecklistLine } from "./markdown";
+import { LAYOUT_LABELS, autoLayout, type LayoutKind } from "./auto-layout";
+import {
+  clearNodeLanes, getMapPrefs, setEdgeCurve, setMapPrefs, setNodeLane, useMapPrefs,
+} from "./prefs";
 
 export interface MapControls {
   fit: () => void;
@@ -27,8 +38,11 @@ export interface MapControls {
 
 const TRAY_H = 96;
 const RULER_H = 34;
+const OUTLINE_W = 248;
 const MIN_K = 0.12;
 const MAX_K = 3;
+/** How far one arrow press slides the viewport when nothing is selected. */
+const PAN_STEP = 120;
 
 interface Viewport { x: number; y: number; k: number }
 interface Selection { nodes: Set<string>; edge: string | null }
@@ -43,8 +57,10 @@ type Gesture =
       start: Pos;
       edges: MapEdge[];
       temp: Map<string, Pos>;
+      lanes: Map<string, number>;
       moved: boolean;
     }
+  | { kind: "resize"; id: string; base: Size; start: Pos; edges: MapEdge[]; next: Size }
   | { kind: "link"; sourceId: string; target: string | null }
   | { kind: "tray"; nodeId: string; moved: boolean };
 
@@ -62,13 +78,18 @@ export const MapCanvas = React.forwardRef<MapControls, {
 }>(function MapCanvas({ board, timelineMode, adoptOrphans }, ref) {
   const allNodes = useStore((s) => s.nodes);
   const allEdges = useStore((s) => s.edges);
+  const goals = useStore((s) => s.goals);
+  const prefs = useMapPrefs();
 
   const [vp, setVp] = React.useState<Viewport>({ x: 0, y: 0, k: 1 });
   const [selection, setSelection] = React.useState<Selection>({ nodes: new Set(), edge: null });
   const [editing, setEditing] = React.useState<{ id: string; field: "title" | "body" } | null>(null);
+  const [editingEdge, setEditingEdge] = React.useState<string | null>(null);
   const [menu, setMenu] = React.useState<NodeMenuState | null>(null);
   const [spacePan, setSpacePan] = React.useState(false);
   const [size, setSize] = React.useState({ w: 1200, h: 800 });
+  const [query, setQuery] = React.useState("");
+  const [activeGroups, setActiveGroups] = React.useState<Set<string>>(() => new Set());
 
   // Selection is mirrored into a ref: a pointer sequence reads it several times
   // before React has re-rendered, and a stale snapshot would drop nodes from a
@@ -87,12 +108,17 @@ export const MapCanvas = React.forwardRef<MapControls, {
   const linkRef = React.useRef<SVGPathElement | null>(null);
   const ghostRef = React.useRef<HTMLDivElement>(null);
   const previewRef = React.useRef<HTMLDivElement>(null);
+  const laneRef = React.useRef<HTMLDivElement>(null);
+  const searchRef = React.useRef<HTMLInputElement>(null);
 
   const nodeEls = React.useRef(new Map<string, HTMLElement>()).current;
   const edgeEls = React.useRef(new Map<string, Partial<Record<EdgePart, Element>>>()).current;
   const gestureRef = React.useRef<Gesture | null>(null);
   const spaceRef = React.useRef(false);
-  const pending = React.useRef(new Map<string, Pos>()).current;
+  /** sizes mid-resize, before the store has heard about them */
+  const liveSizes = React.useRef(new Map<string, Size>()).current;
+  const pendingPos = React.useRef(new Map<string, Pos>()).current;
+  const pendingSize = React.useRef(new Map<string, Size>()).current;
   const flushRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---------------------------------------------------------
@@ -109,24 +135,63 @@ export const MapCanvas = React.forwardRef<MapControls, {
   );
 
   const tl: TimelineLayout | null = React.useMemo(
-    () => (timelineMode ? timelineLayout(nodes) : null),
-    [timelineMode, nodes],
+    () => (timelineMode ? timelineLayout(nodes, prefs.lane) : null),
+    [timelineMode, nodes, prefs.lane],
   );
+
+  const sizes = React.useMemo(() => {
+    const m = new Map<string, Size>();
+    for (const n of nodes) m.set(n.id, tl?.sizes.get(n.id) ?? sizeOf(n));
+    return m;
+  }, [nodes, tl]);
 
   const boxes = React.useMemo(() => {
     const m = new Map<string, Box>();
     for (const n of nodes) {
       const p = tl ? tl.positions.get(n.id) : { x: n.x, y: n.y };
-      if (p) m.set(n.id, boxOf(n, p));
+      if (p) m.set(n.id, boxOf(n, p, sizes.get(n.id)));
     }
     return m;
-  }, [nodes, tl]);
+  }, [nodes, tl, sizes]);
 
   const visible = React.useMemo(() => nodes.filter((n) => boxes.has(n.id)), [nodes, boxes]);
 
+  const group = React.useMemo(
+    () => grouping(nodes, prefs.colorBy, goals),
+    [nodes, prefs.colorBy, goals],
+  );
+
+  const goalLabelOf = React.useCallback(
+    (node: MapNode): string | null => {
+      if (prefs.colorBy !== "goal" || !node.goal_id) return null;
+      return goals.find((g) => g.id === node.goal_id)?.title ?? null;
+    },
+    [prefs.colorBy, goals],
+  );
+
+  const trimmed = query.trim().toLowerCase();
+  const matches = React.useMemo(() => {
+    if (!trimmed && activeGroups.size === 0) return null;
+    const set = new Set<string>();
+    for (const n of nodes) {
+      if (activeGroups.size && !activeGroups.has(group.keyOf(n))) continue;
+      if (trimmed) {
+        const hay = `${n.title} ${plainText(n.body)} ${KIND_META[n.kind].label} ${n.date ?? ""}`.toLowerCase();
+        if (!hay.includes(trimmed)) continue;
+      }
+      set.add(n.id);
+    }
+    return set;
+  }, [nodes, trimmed, activeGroups, group]);
+
+  const curveOf = React.useCallback(
+    (edgeId: string) => prefs.curve[edgeId] ?? DEFAULT_CURVE,
+    [prefs.curve],
+  );
+
   /** Everything the imperative handlers need, without making them re-bind. */
-  const S = React.useRef({ nodes, edges, boxes, tl, selection, vp, timelineMode, board, editing });
-  S.current = { nodes, edges, boxes, tl, selection: selectionRef.current, vp, timelineMode, board, editing };
+  const S = React.useRef({ nodes, edges, boxes, sizes, tl, selection, vp, timelineMode, board, editing });
+  S.current = { nodes, edges, boxes, sizes, tl, selection: selectionRef.current, vp, timelineMode, board, editing };
 
   // ---------------------------------------------------------
   // Coordinates
@@ -153,28 +218,75 @@ export const MapCanvas = React.forwardRef<MapControls, {
     });
   }, []);
 
-  const fit = React.useCallback(() => {
+  const zoomCentre = React.useCallback((factor: number) => {
     const el = containerRef.current;
     if (!el) return;
-    const inset = S.current.timelineMode ? TRAY_H + RULER_H : 0;
-    const cw = el.clientWidth;
-    const ch = el.clientHeight - inset;
-    const b = boundsOf(S.current.boxes.values());
-    if (!b) { setVp({ x: cw / 2, y: ch / 2, k: 1 }); return; }
-    const pad = 72;
-    const k = clamp(Math.min((cw - pad * 2) / b.w, (ch - pad * 2) / b.h), MIN_K, 1.25);
+    const r = el.getBoundingClientRect();
+    zoomAt(r.left + el.clientWidth / 2, r.top + el.clientHeight / 2, factor);
+  }, [zoomAt]);
+
+  /** Frame a world rectangle inside whatever chrome is currently on screen. */
+  const fitRect = React.useCallback((b: Rect | null) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const timeline = S.current.timelineMode;
+    const top = timeline ? RULER_H : 0;
+    const bottom = timeline ? TRAY_H : 0;
+    const left = getMapPrefs().outline ? OUTLINE_W : 0;
+    const cw = el.clientWidth - left;
+    const ch = el.clientHeight - top - bottom;
+    if (!b || cw <= 0 || ch <= 0) {
+      setVp({ x: left + Math.max(cw, 0) / 2, y: top + Math.max(ch, 0) / 2, k: 1 });
+      return;
+    }
+    const pad = 64;
+    const k = clamp(
+      Math.min((cw - pad * 2) / b.w, (ch - pad * 2) / b.h),
+      MIN_K,
+      1.25,
+    );
     setVp({
       k,
-      x: (cw - b.w * k) / 2 - b.x * k,
-      y: (ch - b.h * k) / 2 - b.y * k + (S.current.timelineMode ? RULER_H : 0),
+      x: left + (cw - b.w * k) / 2 - b.x * k,
+      y: top + (ch - b.h * k) / 2 - b.y * k,
     });
   }, []);
+
+  const fit = React.useCallback(() => {
+    fitRect(boundsOf(S.current.boxes.values()));
+  }, [fitRect]);
+
+  /** Zoom to exactly the span the dated nodes occupy — the timeline's home view. */
+  const fitDated = React.useCallback(() => {
+    const layout = S.current.tl;
+    if (!layout) { fit(); return; }
+    const rects: Rect[] = [];
+    layout.dated.forEach((n) => {
+      const b = S.current.boxes.get(n.id);
+      if (b) rects.push(b);
+    });
+    if (!rects.length) { fit(); return; }
+    const b = boundsOf(rects);
+    if (!b) { fit(); return; }
+    fitRect({ x: b.x - 40, y: Math.min(b.y, 0), w: b.w + 80, h: Math.max(b.h + 40, LANE_H) });
+  }, [fit, fitRect]);
 
   const centerOnWorld = React.useCallback((w: Pos) => {
     const el = containerRef.current;
     if (!el) return;
-    const ch = el.clientHeight - (S.current.timelineMode ? TRAY_H : 0);
-    setVp((v) => ({ ...v, x: el.clientWidth / 2 - w.x * v.k, y: ch / 2 - w.y * v.k }));
+    const timeline = S.current.timelineMode;
+    const left = getMapPrefs().outline ? OUTLINE_W : 0;
+    const cw = el.clientWidth - left;
+    const ch = el.clientHeight - (timeline ? TRAY_H + RULER_H : 0);
+    setVp((v) => ({
+      ...v,
+      x: left + cw / 2 - w.x * v.k,
+      y: (timeline ? RULER_H : 0) + ch / 2 - w.y * v.k,
+    }));
+  }, []);
+
+  const panBy = React.useCallback((dx: number, dy: number) => {
+    setVp((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
   }, []);
 
   // Refit whenever the board or the layout model changes — the old viewport
@@ -189,15 +301,15 @@ export const MapCanvas = React.forwardRef<MapControls, {
     if (!node) return null;
     const p = overrides.get(id) ?? S.current.boxes.get(id);
     if (!p) return null;
-    return boxOf(node, p);
-  }, []);
+    return boxOf(node, p, liveSizes.get(id) ?? S.current.sizes.get(id));
+  }, [liveSizes]);
 
   const redrawEdges = React.useCallback((list: MapEdge[], overrides: Map<string, Pos>) => {
     for (const e of list) {
       const a = boxWith(e.source_id, overrides);
       const b = boxWith(e.target_id, overrides);
       if (!a || !b) continue;
-      const g = edgeGeometry(a, b);
+      const g = edgeGeometry(a, b, getMapPrefs().curve[e.id] ?? DEFAULT_CURVE);
       const parts = edgeEls.get(e.id);
       parts?.line?.setAttribute("d", g.d);
       parts?.hit?.setAttribute("d", g.d);
@@ -213,11 +325,13 @@ export const MapCanvas = React.forwardRef<MapControls, {
   }, []);
 
   const flushPending = React.useCallback(() => {
-    if (!pending.size) return;
+    if (!pendingPos.size && !pendingSize.size) return;
     const { patch } = useStore.getState();
-    pending.forEach((p, id) => patch("nodes", id, { x: Math.round(p.x), y: Math.round(p.y) }));
-    pending.clear();
-  }, [pending]);
+    pendingPos.forEach((p, id) => patch("nodes", id, { x: Math.round(p.x), y: Math.round(p.y) }));
+    pendingSize.forEach((s, id) => { patch("nodes", id, { w: s.w, h: s.h }); liveSizes.delete(id); });
+    pendingPos.clear();
+    pendingSize.clear();
+  }, [pendingPos, pendingSize, liveSizes]);
 
   const schedulePendingFlush = React.useCallback(() => {
     if (flushRef.current) clearTimeout(flushRef.current);
@@ -244,14 +358,14 @@ export const MapCanvas = React.forwardRef<MapControls, {
   // ---------------------------------------------------------
   const createNode = React.useCallback((world: Pos, extra: Partial<MapNode> = {}) => {
     const { insert } = useStore.getState();
-    const { board: b, timelineMode: tlMode, tl: layout } = S.current;
+    const { board: b, tl: layout } = S.current;
     const node = insert("nodes", {
       board_id: b.id,
       title: "",
       x: Math.round(world.x - 110),
       y: Math.round(world.y - 60),
       color: b.color,
-      date: tlMode && layout ? dateForX(layout.origin, world.x) : null,
+      date: layout ? dateForX(layout.origin, world.x, layout.pxPerDay) : null,
       ...extra,
     });
     setSel({ nodes: new Set([node.id]), edge: null });
@@ -264,6 +378,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
     const sel = S.current.selection;
     if (sel.edge) {
       remove("edges", sel.edge);
+      setEdgeCurve(sel.edge, null);
       setSel((s) => ({ ...s, edge: null }));
       return;
     }
@@ -271,6 +386,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
     if (!ids.size) return;
     removeWhere("edges", (e) => ids.has(e.source_id) || ids.has(e.target_id));
     ids.forEach((id) => remove("nodes", id));
+    clearNodeLanes(ids);
     setSel({ nodes: new Set(), edge: null });
     toast({ title: ids.size > 1 ? `${ids.size} nodes deleted` : "Node deleted" });
   }, [setSel]);
@@ -300,6 +416,33 @@ export const MapCanvas = React.forwardRef<MapControls, {
       : { title: "Those are already linked" });
   }, []);
 
+  const applyLayout = React.useCallback((kind: LayoutKind) => {
+    const { patch, toast } = useStore.getState();
+    const list = S.current.nodes;
+    const next = autoLayout(kind, list, S.current.edges);
+    if (!next.size) return;
+    const before = new Map(list.map((n) => [n.id, { x: n.x, y: n.y }]));
+    next.forEach((p, id) => patch("nodes", id, { x: p.x, y: p.y }));
+
+    // Frame the result from the positions we just computed — the store's copy
+    // has not made it back through a render yet.
+    const rects: Rect[] = [];
+    next.forEach((p, id) => {
+      const s = S.current.sizes.get(id);
+      if (s) rects.push({ x: p.x, y: p.y, w: s.w, h: s.h });
+    });
+    fitRect(boundsOf(rects));
+
+    toast({
+      title: `${LAYOUT_LABELS[kind]} applied`,
+      description: `${next.size} node${next.size === 1 ? "" : "s"} rearranged.`,
+      action: {
+        label: "Undo",
+        run: () => before.forEach((p, id) => patch("nodes", id, p)),
+      },
+    });
+  }, [fitRect]);
+
   // ---------------------------------------------------------
   // Node gestures
   // ---------------------------------------------------------
@@ -318,37 +461,55 @@ export const MapCanvas = React.forwardRef<MapControls, {
       start: screenToWorld(clientX, clientY),
       edges: edgesTouching(base.keys()),
       temp: new Map(),
+      lanes: new Map(),
       moved: false,
     };
     gestureRef.current = g;
 
     const move = (ev: PointerEvent) => {
+      if (g.kind !== "drag") return;
       const p = screenToWorld(ev.clientX, ev.clientY);
       const dx = p.x - g.start.x;
-      const dy = S.current.timelineMode ? 0 : p.y - g.start.y;
+      const dy = p.y - g.start.y;
       if (!g.moved && Math.abs(dx) + Math.abs(dy) < 2) return;
       g.moved = true;
 
+      const layout = S.current.tl;
       for (const id of g.ids) {
         const b = g.base.get(id) as Pos;
-        const np = { x: b.x + dx, y: b.y + dy };
+        let np = { x: b.x + dx, y: b.y + dy };
+        if (layout) {
+          // vertical movement snaps to a lane, so a drop always lands on a row
+          const h = S.current.sizes.get(id)?.h ?? LANE_H;
+          const lane = laneAtY(np.y + h / 2, layout.laneCount);
+          g.lanes.set(id, lane);
+          np = { x: np.x, y: laneTop(lane) + (LANE_H - h) / 2 };
+        }
         g.temp.set(id, np);
         const el = nodeEls.get(id);
         if (el) el.style.transform = `translate(${np.x}px, ${np.y}px)`;
       }
       redrawEdges(g.edges, g.temp);
 
-      const layout = S.current.tl;
       const preview = previewRef.current;
+      const lead = g.ids[0];
       if (layout && preview) {
-        const node = S.current.nodes.find((n) => n.id === g.ids[0]);
-        const p0 = g.temp.get(g.ids[0]);
-        if (node && p0) {
-          const iso = dateForX(layout.origin, p0.x + sizeOf(node).w / 2);
+        const p0 = g.temp.get(lead);
+        const w = S.current.sizes.get(lead)?.w ?? 0;
+        if (p0) {
+          const iso = dateForX(layout.origin, p0.x + w / 2, layout.pxPerDay);
           const local = localOf(ev.clientX, ev.clientY);
           preview.style.display = "";
-          preview.style.transform = `translate(${local.x}px, ${local.y - 34}px) translate(-50%, 0)`;
-          preview.textContent = formatDate(iso, { year: true });
+          preview.style.transform = `translate(${local.x}px, ${local.y - 38}px) translate(-50%, 0)`;
+          preview.textContent = `${formatDate(iso, { year: true })} · Row ${(g.lanes.get(lead) ?? 0) + 1}`;
+        }
+        const band = laneRef.current;
+        const lane = g.lanes.get(lead);
+        if (band && lane !== undefined) {
+          band.style.display = "";
+          band.style.width = `${layout.x1 - layout.x0 + 80}px`;
+          band.style.height = `${LANE_H}px`;
+          band.style.transform = `translate(${layout.x0 - 40}px, ${laneTop(lane)}px)`;
         }
       }
     };
@@ -358,7 +519,8 @@ export const MapCanvas = React.forwardRef<MapControls, {
       window.removeEventListener("pointerup", up);
       gestureRef.current = null;
       if (previewRef.current) previewRef.current.style.display = "none";
-      if (!g.moved) return;
+      if (laneRef.current) laneRef.current.style.display = "none";
+      if (g.kind !== "drag" || !g.moved) return;
 
       const { patch } = useStore.getState();
       const layout = S.current.tl;
@@ -366,8 +528,10 @@ export const MapCanvas = React.forwardRef<MapControls, {
         const p = g.temp.get(id);
         if (!p) continue;
         if (layout) {
-          const node = S.current.nodes.find((n) => n.id === id);
-          if (node) patch("nodes", id, { date: dateForX(layout.origin, p.x + sizeOf(node).w / 2) });
+          const w = S.current.sizes.get(id)?.w ?? 0;
+          patch("nodes", id, { date: dateForX(layout.origin, p.x + w / 2, layout.pxPerDay) });
+          const lane = g.lanes.get(id);
+          if (lane !== undefined) setNodeLane(id, lane);
         } else {
           patch("nodes", id, { x: Math.round(p.x), y: Math.round(p.y) });
         }
@@ -377,6 +541,68 @@ export const MapCanvas = React.forwardRef<MapControls, {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }, [screenToWorld, localOf, edgesTouching, redrawEdges, nodeEls]);
+
+  const startResize = React.useCallback((clientX: number, clientY: number, id: string) => {
+    const node = S.current.nodes.find((n) => n.id === id);
+    const current = S.current.sizes.get(id);
+    if (!node || !current) return;
+
+    const g: Gesture = {
+      kind: "resize",
+      id,
+      base: current,
+      start: screenToWorld(clientX, clientY),
+      edges: edgesTouching([id]),
+      next: current,
+    };
+    gestureRef.current = g;
+
+    const move = (ev: PointerEvent) => {
+      if (g.kind !== "resize") return;
+      const p = screenToWorld(ev.clientX, ev.clientY);
+      const next = resizeTo(node.shape, g.base.w + (p.x - g.start.x), g.base.h + (p.y - g.start.y));
+      g.next = next;
+      liveSizes.set(id, next);
+      const el = nodeEls.get(id);
+      if (el) { el.style.width = `${next.w}px`; el.style.height = `${next.h}px`; }
+      redrawEdges(g.edges, new Map());
+      const preview = previewRef.current;
+      if (preview) {
+        const local = localOf(ev.clientX, ev.clientY);
+        preview.style.display = "";
+        preview.style.transform = `translate(${local.x}px, ${local.y - 38}px) translate(-50%, 0)`;
+        preview.textContent = `${next.w} × ${next.h}`;
+      }
+    };
+
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      gestureRef.current = null;
+      if (previewRef.current) previewRef.current.style.display = "none";
+      if (g.kind !== "resize") return;
+      liveSizes.delete(id);
+      if (g.next.w !== g.base.w || g.next.h !== g.base.h) {
+        useStore.getState().patch("nodes", id, { w: g.next.w, h: g.next.h });
+      }
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }, [screenToWorld, localOf, edgesTouching, redrawEdges, nodeEls, liveSizes]);
+
+  const resizeBy = React.useCallback((id: string, dw: number, dh: number) => {
+    const node = S.current.nodes.find((n) => n.id === id);
+    const current = pendingSize.get(id) ?? S.current.sizes.get(id);
+    if (!node || !current) return;
+    const next = resizeTo(node.shape, current.w + dw, current.h + dh);
+    pendingSize.set(id, next);
+    liveSizes.set(id, next);
+    const el = nodeEls.get(id);
+    if (el) { el.style.width = `${next.w}px`; el.style.height = `${next.h}px`; }
+    redrawEdges(edgesTouching([id]), new Map());
+    schedulePendingFlush();
+  }, [pendingSize, liveSizes, nodeEls, redrawEdges, edgesTouching, schedulePendingFlush]);
 
   // ---------------------------------------------------------
   // Stable API handed to every node
@@ -433,6 +659,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
       if (path) path.style.display = "";
 
       const move = (ev: PointerEvent) => {
+        if (g.kind !== "link") return;
         const src = S.current.boxes.get(g.sourceId);
         if (!src || !path) return;
         path.setAttribute("d", pendingPath(src, screenToWorld(ev.clientX, ev.clientY)));
@@ -453,6 +680,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
         window.removeEventListener("pointerup", up);
         gestureRef.current = null;
         if (path) { path.style.display = "none"; path.setAttribute("d", ""); }
+        if (g.kind !== "link") return;
         if (g.target) nodeEls.get(g.target)?.removeAttribute("data-link-target");
         if (!g.target) return;
 
@@ -495,13 +723,37 @@ export const MapCanvas = React.forwardRef<MapControls, {
         const next = value.trim();
         if (next !== node.title) patch("nodes", id, { title: next });
       } else {
-        const next = value.trim();
+        // body keeps its interior line breaks — that is the whole structure
+        const next = value.replace(/\s+$/, "");
         if (next !== (node.body ?? "")) patch("nodes", id, { body: next || null });
       }
     },
 
     cancelEdit() { setEditing(null); },
-  }), [screenToWorld, startNodeDrag, nodeEls, setSel]);
+
+    toggleCheck(id, line) {
+      const node = S.current.nodes.find((n) => n.id === id);
+      if (!node?.body) return;
+      const next = toggleChecklistLine(node.body, line);
+      if (next !== node.body) useStore.getState().patch("nodes", id, { body: next });
+    },
+
+    addCheck(id) {
+      const node = S.current.nodes.find((n) => n.id === id);
+      if (!node) return;
+      useStore.getState().patch("nodes", id, { body: appendChecklistItem(node.body) });
+      setSel({ nodes: new Set([id]), edge: null });
+      setEditing({ id, field: "body" });
+    },
+
+    startResize(e, id) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      startResize(e.clientX, e.clientY, id);
+    },
+
+    resizeBy,
+  }), [screenToWorld, startNodeDrag, startResize, resizeBy, nodeEls, setSel]);
 
   const registerNode = React.useCallback((id: string, el: HTMLElement | null) => {
     if (el) nodeEls.set(id, el); else nodeEls.delete(id);
@@ -512,6 +764,14 @@ export const MapCanvas = React.forwardRef<MapControls, {
     if (el) { entry[part] = el; edgeEls.set(id, entry); }
     else { delete entry[part]; if (!Object.keys(entry).length) edgeEls.delete(id); }
   }, [edgeEls]);
+
+  // Stable identities: NodeMenu traps focus in an effect keyed on onClose, so a
+  // fresh closure each render would re-steal focus every time the board pans.
+  const closeMenu = React.useCallback(() => setMenu(null), []);
+  const setMenuPage = React.useCallback(
+    (page: NodeMenuState["page"]) => setMenu((m) => (m ? { ...m, page } : m)),
+    [],
+  );
 
   const selectEdge = React.useCallback((id: string) => {
     containerRef.current?.focus();
@@ -524,6 +784,30 @@ export const MapCanvas = React.forwardRef<MapControls, {
     selectEdge(id);
   }, [selectEdge]);
 
+  const onEdgeLabelEdit = React.useCallback((id: string | null) => {
+    if (id) setSel({ nodes: new Set(), edge: id });
+    setEditingEdge(id);
+  }, [setSel]);
+
+  const onEdgeLabelCommit = React.useCallback((id: string, value: string) => {
+    const next = value.trim();
+    const edge = S.current.edges.find((e) => e.id === id);
+    if (edge && next !== (edge.label ?? "")) {
+      useStore.getState().patch("edges", id, { label: next || null });
+    }
+    setEditingEdge(null);
+  }, []);
+
+  const focusOnNode = React.useCallback((id: string, additive: boolean) => {
+    const b = S.current.boxes.get(id);
+    setSel((prev) =>
+      additive
+        ? { nodes: new Set([...prev.nodes, id]), edge: null }
+        : { nodes: new Set([id]), edge: null });
+    if (b) centerOnWorld({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+    containerRef.current?.focus();
+  }, [centerOnWorld, setSel]);
+
   // ---------------------------------------------------------
   // Canvas gestures
   // ---------------------------------------------------------
@@ -531,6 +815,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
     const g: Gesture = { kind: "pan", sx: clientX, sy: clientY, vx: S.current.vp.x, vy: S.current.vp.y };
     gestureRef.current = g;
     const move = (ev: PointerEvent) => {
+      if (g.kind !== "pan") return;
       setVp((v) => ({ ...v, x: g.vx + (ev.clientX - g.sx), y: g.vy + (ev.clientY - g.sy) }));
     };
     const up = () => {
@@ -549,6 +834,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
     const before = new Set(S.current.selection.nodes);
 
     const move = (ev: PointerEvent) => {
+      if (g.kind !== "marquee") return;
       const p = localOf(ev.clientX, ev.clientY);
       if (!g.moved && Math.abs(p.x - g.sx) + Math.abs(p.y - g.sy) < 4) return;
       g.moved = true;
@@ -577,7 +863,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
       window.removeEventListener("pointerup", up);
       gestureRef.current = null;
       if (marqueeRef.current) marqueeRef.current.style.display = "none";
-      if (!g.moved && !additive) setSel({ nodes: new Set(), edge: null });
+      if (g.kind === "marquee" && !g.moved && !additive) setSel({ nodes: new Set(), edge: null });
     };
 
     window.addEventListener("pointermove", move);
@@ -586,6 +872,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
 
   function onCanvasPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     setMenu(null);
+    setEditingEdge(null);
     if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
       e.preventDefault();
       containerRef.current?.focus();
@@ -647,7 +934,15 @@ export const MapCanvas = React.forwardRef<MapControls, {
     if (e.key === "Escape") {
       stop();
       if (menu) setMenu(null);
+      else if (editingEdge) setEditingEdge(null);
+      else if (matches) { setQuery(""); setActiveGroups(new Set()); }
       else setSel({ nodes: new Set(), edge: null });
+      return;
+    }
+    if (e.key === "/" && !mod) {
+      stop();
+      searchRef.current?.focus();
+      searchRef.current?.select();
       return;
     }
     if (e.key === "Delete" || e.key === "Backspace") { stop(); deleteSelection(); return; }
@@ -667,38 +962,57 @@ export const MapCanvas = React.forwardRef<MapControls, {
       return;
     }
     if (e.code === "Digit1" && e.shiftKey) { stop(); fit(); return; }
-    if (e.code === "Digit0" && e.shiftKey) {
-      stop();
-      const el = containerRef.current;
-      if (el) zoomAt(el.getBoundingClientRect().left + el.clientWidth / 2, el.getBoundingClientRect().top + el.clientHeight / 2, 1 / S.current.vp.k);
-      return;
-    }
+    if (e.code === "Digit2" && e.shiftKey) { stop(); fitDated(); return; }
+    if (e.code === "Digit0" && e.shiftKey) { stop(); zoomCentre(1 / S.current.vp.k); return; }
+
     if (e.key.startsWith("Arrow")) {
-      if (!sel.nodes.size) return;
+      const dir = {
+        x: e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0,
+        y: e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0,
+      };
+
+      // Nothing selected? Then the arrows belong to the viewport — that is the
+      // keyboard equivalent of dragging the board around.
+      if (!sel.nodes.size) {
+        stop();
+        const step = e.shiftKey ? PAN_STEP * 2.5 : PAN_STEP;
+        panBy(-dir.x * step, -dir.y * step);
+        return;
+      }
+
       stop();
-      const step = e.shiftKey ? 1 : 8;
-      const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
-      const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+
+      if (e.altKey) {
+        const step = e.shiftKey ? 4 : 16;
+        sel.nodes.forEach((id) => resizeBy(id, dir.x * step, dir.y * step));
+        return;
+      }
 
       if (S.current.timelineMode) {
-        if (!dx) return;
+        const layout = S.current.tl;
         const { patch } = useStore.getState();
         sel.nodes.forEach((id) => {
           const n = S.current.nodes.find((x) => x.id === id);
-          if (n?.date) patch("nodes", id, { date: addDays(n.date, Math.sign(dx)) });
+          if (!n) return;
+          if (dir.x && n.date) patch("nodes", id, { date: addDays(n.date, dir.x) });
+          if (dir.y && layout) {
+            const lane = clamp((layout.lanes.get(id) ?? 0) + dir.y, 0, layout.laneCount);
+            setNodeLane(id, lane);
+          }
         });
         return;
       }
 
+      const step = e.shiftKey ? 1 : 8;
       sel.nodes.forEach((id) => {
-        const cur = pending.get(id) ?? S.current.boxes.get(id);
+        const cur = pendingPos.get(id) ?? S.current.boxes.get(id);
         if (!cur) return;
-        const np = { x: cur.x + dx, y: cur.y + dy };
-        pending.set(id, np);
+        const np = { x: cur.x + dir.x * step, y: cur.y + dir.y * step };
+        pendingPos.set(id, np);
         const el = nodeEls.get(id);
         if (el) el.style.transform = `translate(${np.x}px, ${np.y}px)`;
       });
-      redrawEdges(edgesTouching(sel.nodes), pending);
+      redrawEdges(edgesTouching(sel.nodes), pendingPos);
       schedulePendingFlush();
     }
   }
@@ -715,6 +1029,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
     if (ghost) ghost.textContent = node.title || "Untitled";
 
     const move = (ev: PointerEvent) => {
+      if (g.kind !== "tray") return;
       g.moved = true;
       if (ghost) {
         ghost.style.display = "";
@@ -729,10 +1044,13 @@ export const MapCanvas = React.forwardRef<MapControls, {
       if (ghost) ghost.style.display = "none";
       const rect = containerRef.current?.getBoundingClientRect();
       const layout = S.current.tl;
-      if (!g.moved || !rect || !layout) return;
+      if (g.kind !== "tray" || !g.moved || !rect || !layout) return;
       if (ev.clientY > rect.bottom - TRAY_H) return;   // dropped back in the tray
       const world = screenToWorld(ev.clientX, ev.clientY);
-      useStore.getState().patch("nodes", node.id, { date: dateForX(layout.origin, world.x) });
+      useStore.getState().patch("nodes", node.id, {
+        date: dateForX(layout.origin, world.x, layout.pxPerDay),
+      });
+      setNodeLane(node.id, laneAtY(world.y, layout.laneCount));
       setSel({ nodes: new Set([node.id]), edge: null });
     };
 
@@ -746,9 +1064,10 @@ export const MapCanvas = React.forwardRef<MapControls, {
     addNode() {
       const el = containerRef.current;
       if (!el) return;
+      const r = el.getBoundingClientRect();
       createNode(screenToWorld(
-        el.getBoundingClientRect().left + el.clientWidth / 2,
-        el.getBoundingClientRect().top + (el.clientHeight - (S.current.timelineMode ? TRAY_H : 0)) / 2,
+        r.left + el.clientWidth / 2,
+        r.top + (el.clientHeight - (S.current.timelineMode ? TRAY_H : 0)) / 2,
       ), S.current.timelineMode ? { date: todayISO() } : {});
     },
   }), [fit, createNode, screenToWorld]);
@@ -763,8 +1082,8 @@ export const MapCanvas = React.forwardRef<MapControls, {
     const a = boxes.get(selectedEdge.source_id);
     const b = boxes.get(selectedEdge.target_id);
     if (!a || !b) return null;
-    return edgeGeometry(a, b).mid;
-  }, [selectedEdge, boxes]);
+    return edgeGeometry(a, b, curveOf(selectedEdge.id)).mid;
+  }, [selectedEdge, boxes, curveOf]);
 
   const view: Rect = React.useMemo(
     () => ({ x: -vp.x / vp.k, y: -vp.y / vp.k, w: size.w / vp.k, h: size.h / vp.k }),
@@ -772,6 +1091,12 @@ export const MapCanvas = React.forwardRef<MapControls, {
   );
 
   const undated = tl?.undated ?? [];
+  const titleOf = React.useCallback(
+    (id: string) => nodes.find((n) => n.id === id)?.title || "Untitled",
+    [nodes],
+  );
+  const laneOf = React.useCallback((id: string) => tl?.lanes.get(id), [tl]);
+  const chromeLeft = prefs.outline ? OUTLINE_W : 0;
 
   return (
     <div
@@ -788,7 +1113,9 @@ export const MapCanvas = React.forwardRef<MapControls, {
         createNode(screenToWorld(e.clientX, e.clientY));
       }}
       className={cn(
-        "relative h-full w-full touch-none overflow-hidden bg-canvas outline-none",
+        "relative h-full w-full touch-none overflow-hidden bg-canvas",
+        // the canvas owns every map shortcut, so it says out loud where focus is
+        "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
         spacePan ? "cursor-grab" : "cursor-default",
       )}
     >
@@ -809,24 +1136,40 @@ export const MapCanvas = React.forwardRef<MapControls, {
         className="absolute inset-0 origin-top-left"
         style={{ transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.k})`, willChange: "transform" }}
       >
+        {/* lane the dragged node will land in */}
+        <div
+          ref={laneRef}
+          aria-hidden
+          className="pointer-events-none absolute left-0 top-0 rounded-[10px] ring-2 ring-accent"
+          style={{ display: "none" }}
+        />
+
         <WorldLayer
           nodes={visible}
           edges={edges}
           boxes={boxes}
+          sizes={sizes}
           selectedNodes={selection.nodes}
           selectedEdge={selection.edge}
           editing={editing}
+          editingEdge={editingEdge}
           api={api}
           registerNode={registerNode}
           registerEdge={registerEdge}
           linkRef={linkRef}
           onEdgeDown={onEdgeDown}
           onEdgeSelect={selectEdge}
+          onEdgeLabelEdit={onEdgeLabelEdit}
+          onEdgeLabelCommit={onEdgeLabelCommit}
           timeline={tl}
+          tintOf={group.tintOf}
+          curveOf={curveOf}
+          matches={matches}
+          goalLabelOf={goalLabelOf}
         />
       </div>
 
-      {/* month ruler */}
+      {/* month / quarter ruler */}
       {tl && (
         <div
           className="absolute inset-x-0 top-0 z-10 material hairline-b"
@@ -834,20 +1177,23 @@ export const MapCanvas = React.forwardRef<MapControls, {
           onPointerDown={(e) => { e.stopPropagation(); startPan(e.clientX, e.clientY); }}
         >
           <div className="relative h-full overflow-hidden">
-            {tl.months.map((m) => {
-              const sx = m.x * vp.k + vp.x;
-              if (sx < -80 || sx > size.w + 40) return null;
+            {tl.ticks.map((t) => {
+              const sx = t.x * vp.k + vp.x;
+              if (sx < -90 || sx > size.w + 40) return null;
               return (
                 <div
-                  key={m.iso}
-                  className="absolute top-0 flex h-full items-center gap-1.5 pl-2"
+                  key={t.iso}
+                  className={cn(
+                    "absolute top-0 flex h-full items-center gap-1.5 pl-2",
+                    t.major && "border-l border-line-strong",
+                  )}
                   style={{ left: sx }}
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                    {m.label}
+                    {t.label}
                   </span>
-                  {m.yearStart && (
-                    <span className="display-serif text-[13px] leading-none text-ink-2 tnum">{m.year}</span>
+                  {t.sub && (
+                    <span className="display-serif text-[13px] leading-none text-ink-2 tnum">{t.sub}</span>
                   )}
                 </div>
               );
@@ -862,6 +1208,54 @@ export const MapCanvas = React.forwardRef<MapControls, {
         </div>
       )}
 
+      {/* board toolbar — search, colour-by, tidy, shortcuts */}
+      <div
+        className="absolute z-30"
+        style={{
+          left: chromeLeft + 12,
+          top: (tl ? RULER_H : 0) + 12,
+          maxWidth: Math.max(240, size.w - chromeLeft - 24),
+        }}
+      >
+        <BoardToolbar
+          query={query}
+          onQuery={setQuery}
+          searchRef={searchRef}
+          matchCount={matches ? matches.size : nodes.length}
+          total={nodes.length}
+          colorBy={prefs.colorBy}
+          onColorBy={(colorBy) => { setMapPrefs({ colorBy }); setActiveGroups(new Set()); }}
+          outlineOpen={prefs.outline}
+          onToggleOutline={() => setMapPrefs({ outline: !prefs.outline })}
+          legendOpen={prefs.legend}
+          onToggleLegend={() => setMapPrefs({ legend: !prefs.legend })}
+          onLayout={applyLayout}
+          timelineMode={!!tl}
+          onFitDated={fitDated}
+          datedCount={tl?.dated.length ?? 0}
+        />
+      </div>
+
+      {/* outline */}
+      {prefs.outline && (
+        <div
+          className="absolute bottom-0 left-0 top-0 z-30"
+          style={{ paddingTop: tl ? RULER_H : 0, paddingBottom: tl ? TRAY_H : 0 }}
+        >
+          <OutlinePanel
+            nodes={nodes}
+            edges={edges}
+            selected={selection.nodes}
+            matches={matches}
+            query={query}
+            tintOf={group.tintOf}
+            laneOf={laneOf}
+            onFocus={focusOnNode}
+            onClose={() => setMapPrefs({ outline: false })}
+          />
+        </div>
+      )}
+
       {/* marquee */}
       <div
         ref={marqueeRef}
@@ -869,10 +1263,10 @@ export const MapCanvas = React.forwardRef<MapControls, {
         style={{ display: "none" }}
       />
 
-      {/* live date readout while dragging along the axis */}
+      {/* live readout while dragging or resizing */}
       <div
         ref={previewRef}
-        className="pointer-events-none absolute left-0 top-0 z-20 rounded-md bg-ink px-2 py-1 text-[11.5px] font-medium text-canvas tnum shadow-[var(--shadow-md)]"
+        className="pointer-events-none absolute left-0 top-0 z-40 rounded-md bg-ink px-2 py-1 text-[11.5px] font-medium text-canvas tnum shadow-[var(--shadow-md)]"
         style={{ display: "none" }}
       />
 
@@ -889,7 +1283,18 @@ export const MapCanvas = React.forwardRef<MapControls, {
           edge={selectedEdge}
           x={edgeAnchor.x * vp.k + vp.x}
           y={edgeAnchor.y * vp.k + vp.y}
-          placement={edgeAnchor.y * vp.k + vp.y < 190 ? "below" : "above"}
+          placement={edgeAnchor.y * vp.k + vp.y < 260 ? "below" : "above"}
+          sourceTitle={titleOf(selectedEdge.source_id)}
+          targetTitle={titleOf(selectedEdge.target_id)}
+          curve={curveOf(selectedEdge.id)}
+          onCurve={(value) => setEdgeCurve(selectedEdge.id, value)}
+          onSwap={() =>
+            useStore.getState().patch("edges", selectedEdge.id, {
+              source_id: selectedEdge.target_id,
+              target_id: selectedEdge.source_id,
+            })}
+          onSelectEnds={() =>
+            setSel({ nodes: new Set([selectedEdge.source_id, selectedEdge.target_id]), edge: null })}
           onClose={() => setSel((s) => ({ ...s, edge: null }))}
         />
       )}
@@ -898,54 +1303,56 @@ export const MapCanvas = React.forwardRef<MapControls, {
       <div
         onPointerDown={(e) => e.stopPropagation()}
         data-no-zoom
-        className="absolute left-3 z-20 flex items-center gap-0.5 rounded-lg border border-line p-0.5 material shadow-[var(--shadow-md)]"
-        style={{ bottom: (tl ? TRAY_H : 0) + 12 }}
+        className="absolute z-20 flex items-center gap-0.5 rounded-lg border border-line p-0.5 material shadow-[var(--shadow-md)]"
+        style={{ bottom: (tl ? TRAY_H : 0) + 12, left: chromeLeft + 12 }}
       >
-        <IconButton
-          label="Zoom out"
-          size="sm"
-          onClick={() => {
-            const el = containerRef.current;
-            if (el) { const r = el.getBoundingClientRect(); zoomAt(r.left + el.clientWidth / 2, r.top + el.clientHeight / 2, 1 / 1.25); }
-          }}
-        >
+        <IconButton label="Zoom out" size="sm" onClick={() => zoomCentre(1 / 1.25)}>
           <Minus />
         </IconButton>
         <span className="w-11 text-center text-[11.5px] font-medium text-ink-2 tnum">
           {Math.round(vp.k * 100)}%
         </span>
-        <IconButton
-          label="Zoom in"
-          size="sm"
-          onClick={() => {
-            const el = containerRef.current;
-            if (el) { const r = el.getBoundingClientRect(); zoomAt(r.left + el.clientWidth / 2, r.top + el.clientHeight / 2, 1.25); }
-          }}
-        >
+        <IconButton label="Zoom in" size="sm" onClick={() => zoomCentre(1.25)}>
           <Plus />
         </IconButton>
-        <div className="mx-0.5 h-4 w-px bg-line" />
+        <div className="mx-0.5 h-4 w-px bg-line" aria-hidden />
         <IconButton label="Fit to content" size="sm" onClick={fit}>
           <Maximize2 />
         </IconButton>
       </div>
 
-      {/* minimap */}
-      {visible.length > 0 && (
-        <div
-          onPointerDown={(e) => e.stopPropagation()}
-          data-no-zoom
-          className="absolute right-3 z-20"
-          style={{ bottom: (tl ? TRAY_H : 0) + 12 }}
-        >
+      {/* legend + minimap share the bottom-right corner */}
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        data-no-zoom
+        className="absolute right-3 z-30 flex flex-col items-end gap-2"
+        style={{ bottom: (tl ? TRAY_H : 0) + 12 }}
+      >
+        {prefs.legend && (
+          <Legend
+            grouping={group}
+            active={activeGroups}
+            onToggle={(key) =>
+              setActiveGroups((prev) => {
+                const next = new Set(prev);
+                if (next.has(key)) next.delete(key); else next.add(key);
+                return next;
+              })}
+            onClear={() => setActiveGroups(new Set())}
+            onClose={() => setMapPrefs({ legend: false })}
+          />
+        )}
+        {visible.length > 0 && (
           <Minimap
             nodes={visible}
             boxes={boxes}
             view={view}
             onCenter={centerOnWorld}
+            onPan={panBy}
+            tintOf={group.tintOf}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* undated tray */}
       {tl && (
@@ -959,7 +1366,13 @@ export const MapCanvas = React.forwardRef<MapControls, {
             <SectionLabel>Undated</SectionLabel>
             <span className="text-[11px] text-ink-4 tnum">{undated.length}</span>
             <span className="truncate text-[11.5px] text-ink-4">
-              {undated.length ? "Drag one onto the timeline to date it" : "Every node on this board sits on the timeline"}
+              {undated.length
+                ? "Drag one onto a row to date it, or click it to pick a date"
+                : "Every node on this board sits on the timeline"}
+            </span>
+            <div className="flex-1" />
+            <span className="shrink-0 text-[11px] text-ink-4 tnum">
+              {tl.laneCount} row{tl.laneCount === 1 ? "" : "s"} · {tl.tickUnit}s
             </span>
           </div>
           <div className="flex min-h-0 flex-1 items-start gap-1.5 overflow-x-auto no-scrollbar">
@@ -975,18 +1388,37 @@ export const MapCanvas = React.forwardRef<MapControls, {
                     setMenu({ ids: [n.id], x: r.left, y: r.top - 8, page: "date" });
                   }}
                   className={cn(
-                    `tint-${n.color}`,
+                    `tint-${group.tintOf(n)}`,
                     "group/chip flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-line bg-raised px-2.5",
                     "max-w-[200px] cursor-grab text-[12.5px] text-ink transition-[transform,background-color] duration-150",
                     "hover:bg-hover active:scale-[0.97] active:cursor-grabbing",
+                    matches && !matches.has(n.id) && "opacity-40",
                   )}
                 >
-                  <Icon className="size-3 shrink-0 text-[var(--tint)]" />
+                  <Icon className="size-3 shrink-0 text-[var(--tint)]" aria-hidden />
                   <span className="truncate">{n.title || "Untitled"}</span>
-                  <CalendarPlus className="size-3 shrink-0 text-ink-4 opacity-0 transition-opacity group-hover/chip:opacity-100" />
+                  <CalendarPlus className="size-3 shrink-0 text-ink-4 opacity-0 transition-opacity group-hover/chip:opacity-100" aria-hidden />
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* nothing matched */}
+      {!!matches && matches.size === 0 && nodes.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+          <div className="pointer-events-auto rounded-lg border border-line px-4 py-3 text-center material shadow-[var(--shadow-md)]">
+            <p className="text-[13px] text-ink-2">
+              Nothing on this board matches{trimmed ? ` “${query.trim()}”` : " that filter"}.
+            </p>
+            <Button
+              size="sm"
+              className="mt-2"
+              onClick={() => { setQuery(""); setActiveGroups(new Set()); }}
+            >
+              Clear
+            </Button>
           </div>
         </div>
       )}
@@ -1028,11 +1460,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
       )}
 
       {menu && (
-        <NodeMenu
-          state={menu}
-          onClose={() => setMenu(null)}
-          onPage={(page) => setMenu((m) => (m ? { ...m, page } : m))}
-        />
+        <NodeMenu state={menu} onClose={closeMenu} onPage={setMenuPage} />
       )}
     </div>
   );

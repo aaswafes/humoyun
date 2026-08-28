@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import {
-  CalendarX, Check, ChevronDown, MoreHorizontal, Palette, Trash2, X,
+  CalendarX, Check, ChevronDown, ChevronRight, Gauge, MoreHorizontal, Palette,
+  PauseCircle, PlayCircle, Trash2, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import { addDays, formatDate, startOfWeek, todayISO } from "@/lib/date";
+import { addDays, diffDays, formatDate, friendlyDate, startOfWeek, todayISO } from "@/lib/date";
 import type { Book, Task } from "@/lib/types";
 import {
   AutoTextarea, Button, Checkbox, IconButton, InlineInput, Input, Progress, SectionLabel,
@@ -15,9 +16,20 @@ import {
   ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
 } from "@/components/ui/overlays";
 import { BookCover } from "./book-cover";
-import { Field, NumberField, RatingStars } from "./fields";
+import { Field, NumberField, RatingStars, SuggestInput } from "./fields";
 import { PlanEditor } from "./plan-editor";
+import { PlanDiffView } from "./plan-diff-view";
+import { BookCalendarStrip } from "./book-calendar-strip";
+import { SessionLog } from "./session-log";
+import { BookNotes } from "./book-notes";
+import { PauseDialog } from "./pause-dialog";
 import { computePlan, shortDate, skipWeekdaysOf, type PlanDraft } from "./plan";
+import { diffPlan, projectBlocks } from "./plan-diff";
+import { daysPhrase, paceStats, projectFinish, ratePhrase, readDays } from "./pace";
+import {
+  clearPause, forgetBook, notesFor, pauseUntil, seriesNames, sessionsFor, setSeries,
+  useLibraryPrefs,
+} from "./library-prefs";
 
 type BookStatus = Book["status"];
 
@@ -41,20 +53,45 @@ const STATUS_ORDER: BookStatus[] = ["reading", "planned", "paused", "finished", 
 
 // ---------------------------------------------------------
 function Section({
-  title, action, children, className,
+  title, action, children, className, count, collapsible, defaultOpen = true,
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  count?: number;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const shown = collapsible ? open : true;
+
   return (
     <section className={cn("hairline-t px-4 py-4", className)}>
       <div className="mb-2.5 flex items-center justify-between gap-2">
-        <SectionLabel>{title}</SectionLabel>
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="-my-1 flex cursor-pointer items-center gap-1.5 py-1 text-left"
+          >
+            <ChevronRight
+              className={cn("size-3 text-ink-4 transition-transform duration-200", open && "rotate-90")}
+              aria-hidden
+            />
+            <SectionLabel>{title}</SectionLabel>
+            {count !== undefined && <span className="text-[11px] text-ink-4 tnum">{count}</span>}
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <SectionLabel>{title}</SectionLabel>
+            {count !== undefined && <span className="text-[11px] text-ink-4 tnum">{count}</span>}
+          </div>
+        )}
         {action}
       </div>
-      {children}
+      {shown && children}
     </section>
   );
 }
@@ -81,6 +118,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
   const logReading = useStore((s) => s.logReading);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
+  const library = useLibraryPrefs();
 
   const today = todayISO();
   const total = Math.max(1, book.total_pages);
@@ -92,10 +130,12 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
   const [author, setAuthor] = React.useState(book.author ?? "");
   const [cover, setCover] = React.useState(book.cover_url ?? "");
   const [notes, setNotes] = React.useState(book.notes ?? "");
+  const [series, setSeriesDraft] = React.useState(library.series[book.id] ?? "");
   const [pageDraft, setPageDraft] = React.useState(read);
   const [seenPage, setSeenPage] = React.useState(read);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [confirmClear, setConfirmClear] = React.useState(false);
+  const [pausing, setPausing] = React.useState(false);
   const [showAllWeeks, setShowAllWeeks] = React.useState(false);
 
   // Ticking a block advances the bookmark — the "on page" field has to follow.
@@ -137,8 +177,26 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
     }));
   }, [blocks, weekStart]);
 
+  // ---- what actually happened ----
+  const sessions = React.useMemo(
+    () => sessionsFor(library.sessions, book.id), [library.sessions, book.id]);
+  const marginalia = React.useMemo(
+    () => notesFor(library.notes, book.id), [library.notes, book.id]);
+  const history = React.useMemo(
+    () => readDays(book.id, tasks, library.sessions), [book.id, tasks, library.sessions]);
+  const pace = React.useMemo(() => paceStats(history), [history]);
+  const projection = projectFinish(book, pace, today);
+
+  // ---- what the reschedule would do ----
+  const projected = React.useMemo(
+    () => projectBlocks(plan, total, read), [plan, total, read]);
+  const diff = React.useMemo(
+    () => diffPlan(blocks, projected, plan.startDate), [blocks, projected, plan.startDate]);
+
   const upcoming = blocks.filter((t) => t.status !== "done" && (t.date ?? "") >= today).length;
   const visibleWeeks = showAllWeeks ? weeks : weeks.slice(0, 5);
+  const resumeDate = library.paused[book.id];
+  const paused = book.status === "paused";
 
   function commit<K extends keyof Book>(field: K, value: Book[K]) {
     if (book[field] === value) return;
@@ -155,10 +213,44 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
       skipWeekdays: skipWeekdaysOf(plan.skipWeekends),
       replace: true,
     });
+    if (created && paused) clearPause(book.id);
     toast({
       title: created ? "Plan updated" : "Nothing left to schedule",
       description: created
         ? `${created} ${created === 1 ? "block" : "blocks"} · ${planResult.perDay} pages a day · done by ${shortDate(planResult.finish)}`
+        : "Every page is already read.",
+      tone: created ? "success" : "default",
+    });
+  }
+
+  function pause(date: string) {
+    unscheduleBook(book.id, today);
+    patch("books", book.id, { status: "paused" });
+    pauseUntil(book.id, date);
+    toast({
+      title: `${book.title} is paused`,
+      description: `Back on ${formatDate(date)}. ${upcoming ? `${upcoming} upcoming ${upcoming === 1 ? "block" : "blocks"} cleared.` : ""}`.trim(),
+    });
+  }
+
+  function resume(from: string) {
+    const start = from < today ? today : from;
+    // The pace the plan editor is currently showing is the one the user can see,
+    // so resuming honours it rather than a rate saved weeks ago.
+    const perDay = planResult.valid ? planResult.perDay : (book.pages_per_day ?? 30);
+    patch("books", book.id, { status: "reading" });
+    clearPause(book.id);
+    const created = scheduleBook(book.id, {
+      startDate: start,
+      pagesPerDay: perDay,
+      skipWeekdays: skipWeekdaysOf(plan.skipWeekends),
+      replace: true,
+    });
+    setPlan((p) => ({ ...p, startDate: start }));
+    toast({
+      title: created ? "Back on the calendar" : "Nothing left to schedule",
+      description: created
+        ? `${created} ${created === 1 ? "block" : "blocks"} from ${formatDate(start)} · ${perDay} pages a day`
         : "Every page is already read.",
       tone: created ? "success" : "default",
     });
@@ -171,11 +263,24 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
 
         <Popover
           align="end"
-          className="w-[200px]"
+          className="w-[210px]"
           trigger={<IconButton label="Book options" size="sm"><MoreHorizontal /></IconButton>}
         >
           {(close) => (
             <>
+              {paused ? (
+                <MenuItem icon={PlayCircle} onClick={() => { resume(today); close(); }}>
+                  Resume today
+                </MenuItem>
+              ) : (
+                <MenuItem
+                  icon={PauseCircle}
+                  disabled={book.status === "finished"}
+                  onClick={() => { setPausing(true); close(); }}
+                >
+                  Pause until…
+                </MenuItem>
+              )}
               <MenuItem
                 icon={CalendarX}
                 disabled={!upcoming}
@@ -218,7 +323,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                 else setTitle(book.title);
               }}
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-              className="text-[16.5px] font-semibold tracking-[-0.01em] text-ink"
+              className="text-[17px] font-semibold tracking-[-0.01em] text-ink"
             />
             <InlineInput
               aria-label="Author"
@@ -251,8 +356,13 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                         key={s}
                         checked={book.status === s}
                         onClick={() => {
-                          if (s === "finished") logReading(book.id, total);
-                          else commit("status", s);
+                          // Pausing is a scheduling decision, so it asks for a date.
+                          if (s === "paused" && book.status !== "paused") setPausing(true);
+                          else if (s === "finished") logReading(book.id, total);
+                          else {
+                            if (book.status === "paused") clearPause(book.id);
+                            commit("status", s);
+                          }
                           close();
                         }}
                       >
@@ -281,9 +391,52 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
               >
                 <TintPicker value={book.color} onChange={(t) => { if (t) commit("color", t); }} />
               </Popover>
+
+              {library.series[book.id] && (
+                <span className="inline-flex h-[24px] items-center rounded-full border border-line px-2 text-[12px] text-ink-3">
+                  {library.series[book.id]}
+                </span>
+              )}
             </div>
           </div>
         </div>
+
+        {/* ---- paused banner ---- */}
+        {paused && (
+          <div className="mx-4 mb-4 rounded-lg border border-line bg-warn-soft px-3 py-2.5">
+            <div className="flex items-start gap-2">
+              <PauseCircle className="mt-px size-4 shrink-0 text-warn" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="text-[12.5px] font-medium text-ink">
+                  {resumeDate
+                    ? resumeDate <= today
+                      ? "Ready to pick back up"
+                      : `Paused until ${formatDate(resumeDate)}`
+                    : "Paused"}
+                </p>
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-2 tnum">
+                  {resumeDate && resumeDate > today
+                    ? `${daysPhrase(Math.max(0, diffDays(resumeDate, today)))} to go. Resuming re-lays the plan from that day.`
+                    : "Resuming re-lays the plan from the day you choose."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Button size="sm" variant="primary" onClick={() => resume(today)}>
+                <PlayCircle className="size-3.5" />
+                Resume today
+              </Button>
+              {resumeDate && resumeDate > today && (
+                <Button size="sm" variant="secondary" onClick={() => resume(resumeDate)}>
+                  Resume on {shortDate(resumeDate)}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => setPausing(true)}>
+                Change date
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* ---- progress + bookmark ---- */}
         <Section title="Progress">
@@ -332,9 +485,45 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
               </Button>
             )}
           </div>
+
+          {/* the honest forecast, built from history rather than the plan */}
+          <div className="mt-3 rounded-md bg-hover px-2.5 py-2">
+            {projection.finish && pace.perDay > 0 ? (
+              <>
+                <p className="text-[12.5px] leading-relaxed text-ink-2 tnum">
+                  At <span className="font-medium text-ink">{ratePhrase(pace.perDay)}</span> you finish{" "}
+                  <span className="font-medium text-ink">{shortDate(projection.finish)}</span>.
+                </p>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-ink-4 tnum">
+                  {pace.activeDays} {pace.activeDays === 1 ? "day" : "days"} read out of the last {pace.spanDays}
+                  {pace.minutesPerPage ? ` · ${Math.round(pace.minutesPerPage * 10) / 10} min a page` : ""}
+                  {pace.lastRead ? ` · last read ${friendlyDate(pace.lastRead).toLowerCase()}` : ""}
+                </p>
+                {projection.vsPlan != null && (
+                  <p
+                    className={cn(
+                      "mt-1 text-[11.5px] font-medium tnum",
+                      projection.vsPlan >= 0 ? "text-success" : "text-warn",
+                    )}
+                  >
+                    {projection.vsPlan === 0
+                      ? "Dead on the plan."
+                      : projection.vsPlan > 0
+                        ? `${daysPhrase(projection.vsPlan)} ahead of the plan.`
+                        : `${daysPhrase(projection.vsPlan)} behind the plan.`}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-[12.5px] leading-relaxed text-ink-3">
+                No pace yet. Tick a reading block or log a session below and a real finish date
+                appears here — one built on what you read, not what you planned.
+              </p>
+            )}
+          </div>
         </Section>
 
-        {/* ---- reschedule ---- */}
+        {/* ---- reschedule, with the damage shown first ---- */}
         <Section
           title="Plan"
           action={
@@ -352,9 +541,38 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
             currentPage={read}
             weekStart={weekStart}
           />
+
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {plan.startDate !== today && (
+              <QuickChip onClick={() => setPlan((p) => ({ ...p, startDate: today }))}>
+                Start today
+              </QuickChip>
+            )}
+            {pace.perDay >= 1 && plan.mode === "rate" && Math.round(pace.perDay) !== plan.pagesPerDay && (
+              <QuickChip onClick={() => setPlan((p) => ({ ...p, pagesPerDay: Math.round(pace.perDay) }))}>
+                <Gauge className="size-3" aria-hidden />
+                Match my real pace ({Math.round(pace.perDay)} pp/day)
+              </QuickChip>
+            )}
+            {book.pages_per_day != null && plan.mode === "rate" && book.pages_per_day !== plan.pagesPerDay && (
+              <QuickChip onClick={() => setPlan((p) => ({ ...p, pagesPerDay: book.pages_per_day as number }))}>
+                Back to {book.pages_per_day} pp/day
+              </QuickChip>
+            )}
+          </div>
+
+          {planResult.valid && (
+            <PlanDiffView diff={diff} className="mt-3" />
+          )}
+
           <div className="mt-3 flex items-center gap-2">
-            <Button size="sm" variant="primary" disabled={!planResult.valid} onClick={reschedule}>
-              {upcoming ? "Reschedule" : "Schedule"}
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!planResult.valid || (!diff.touched && !!blocks.length)}
+              onClick={reschedule}
+            >
+              {upcoming ? "Apply changes" : "Schedule"}
             </Button>
             {!!upcoming && (
               <Button size="sm" variant="ghost" onClick={() => setConfirmClear(true)}>
@@ -363,15 +581,30 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
             )}
           </div>
           <p className="mt-2 text-[11.5px] leading-relaxed text-ink-4">
-            Rescheduling replaces every block from {shortDate(plan.startDate)} onward. Blocks you have
-            already ticked off stay put.
+            Applying replaces every unfinished block from {shortDate(plan.startDate)} onward. Blocks you
+            have already ticked off stay put.
           </p>
         </Section>
+
+        {/* ---- the plan as a calendar ---- */}
+        {(blocks.length > 0 || history.length > 0) && (
+          <Section title="Reading calendar" collapsible defaultOpen>
+            <BookCalendarStrip
+              blocks={blocks}
+              readDays={history}
+              tint={book.color}
+              weekStart={weekStart}
+              onToggle={(t) => toggleTask(t.id)}
+            />
+          </Section>
+        )}
 
         {/* ---- blocks by week ---- */}
         <Section
           title="Reading blocks"
-          action={<span className="text-[11.5px] text-ink-4 tnum">{blocks.length}</span>}
+          count={blocks.length}
+          collapsible
+          defaultOpen={false}
         >
           {weeks.length === 0 ? (
             <p className="text-[12.5px] leading-relaxed text-ink-3">
@@ -437,6 +670,34 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
           )}
         </Section>
 
+        {/* ---- sittings ---- */}
+        <Section
+          title="Sessions"
+          count={sessions.length}
+          collapsible
+          defaultOpen={sessions.length > 0}
+          action={
+            pace.pages > 0 ? (
+              <span className="text-[11.5px] text-ink-4 tnum">
+                {pace.pages} pp{pace.minutes > 0 ? ` · ${Math.round(pace.minutes / 60 * 10) / 10}h` : ""} in {pace.spanDays} days
+              </span>
+            ) : null
+          }
+        >
+          <SessionLog book={book} sessions={sessions} weekStart={weekStart} />
+        </Section>
+
+        {/* ---- marginalia ---- */}
+        <Section title="Highlights" count={marginalia.length} collapsible defaultOpen={marginalia.length > 0}>
+          <BookNotes
+            bookId={book.id}
+            notes={marginalia}
+            totalPages={total}
+            currentPage={read}
+            tint={book.color}
+          />
+        </Section>
+
         {/* ---- rating ---- */}
         {book.status === "finished" && (
           <Section title="Rating">
@@ -452,6 +713,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
         {/* ---- notes ---- */}
         <Section title="Notes">
           <AutoTextarea
+            aria-label="Notes"
             value={notes}
             onChange={setNotes}
             onBlur={() => commit("notes", notes.trim() || null)}
@@ -474,18 +736,40 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                 onChange={(v) => commit("total_pages", Math.max(1, v))}
               />
             </Field>
-            <Field label="Cover image" hint="optional">
-              <Input
-                aria-label="Cover image URL"
-                placeholder="https://…"
-                value={cover}
-                onChange={(e) => setCover(e.target.value)}
-                onBlur={() => commit("cover_url", cover.trim() || null)}
+            <Field label="Series" hint="optional">
+              <SuggestInput
+                label="Series or collection"
+                placeholder="The Lord of the Rings"
+                value={series}
+                suggestions={seriesNames(library.series)}
+                onChange={setSeriesDraft}
+                onCommit={(v) => {
+                  if (v.trim() !== (library.series[book.id] ?? "")) setSeries(book.id, v);
+                }}
               />
             </Field>
           </div>
+          <Field label="Cover image" hint="optional" className="mt-3">
+            <Input
+              aria-label="Cover image URL"
+              placeholder="https://…"
+              value={cover}
+              onChange={(e) => setCover(e.target.value)}
+              onBlur={() => commit("cover_url", cover.trim() || null)}
+            />
+          </Field>
         </Section>
       </div>
+
+      <PauseDialog
+        open={pausing}
+        onClose={() => setPausing(false)}
+        onConfirm={pause}
+        bookTitle={book.title}
+        upcoming={upcoming}
+        initialDate={resumeDate}
+        weekStart={weekStart}
+      />
 
       <ConfirmDialog
         open={confirmClear}
@@ -505,12 +789,29 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
         onConfirm={() => {
           removeWhere("tasks", (t) => t.book_id === book.id);
           remove("books", book.id);
-          toast({ title: "Book deleted", description: `${book.title} and its reading blocks are gone.` });
+          forgetBook(book.id);
+          toast({ title: "Book deleted", description: `${book.title}, its blocks, sessions and highlights are gone.` });
           onClose();
         }}
         title={`Delete ${book.title}?`}
-        description="The book and every reading block it put on your calendar will be removed. This cannot be undone."
+        description="The book, every reading block it put on your calendar, and its sessions and highlights will be removed. This cannot be undone."
       />
     </>
+  );
+}
+
+/** Small one-tap plan adjustment. */
+function QuickChip({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-line px-2.5",
+        "text-[12px] text-ink-2 transition-colors hover:bg-hover hover:text-ink active:scale-[0.97]",
+      )}
+    >
+      {children}
+    </button>
   );
 }

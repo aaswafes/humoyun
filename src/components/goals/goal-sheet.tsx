@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import {
-  Ban, ChevronRight, CircleCheck, Layers, Minus, Pause, Play, Plus,
-  Split, Trash2, Undo2, X,
+  Ban, ChevronRight, CircleCheck, Flag, Hourglass, Layers, Minus, Pause, Play, Plus,
+  Split, Trash2, TriangleAlert, Undo2, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
@@ -18,18 +18,33 @@ import {
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 import { TaskList } from "@/components/tasks/task-list";
 import { GoalDot } from "./goal-card";
+import { GoalCheckIns } from "./goal-checkins";
+import { GoalLinks } from "./goal-links";
+import { GoalMilestones } from "./goal-milestones";
+import { GoalProgress } from "./goal-progress";
 import {
-  breakdownPlan, childHorizon, formatGoalRange, formatTarget, HORIZON_LABEL,
+  breakdownPlan, childHorizon, formatGoalRange, goalAttention, HORIZON_LABEL,
   HORIZON_PLURAL, HORIZONS, horizonIndex, parentHorizon, pct, periodRange,
-  STATUS_LABEL, type GoalIndex,
+  STATUS_LABEL, type AttentionFlag, type GoalIndex,
 } from "./goal-model";
-import { useGoalActions } from "./use-goal-actions";
+import { readWhy } from "./goal-meta";
+import { useGoalActions, useGoalMeta } from "./use-goal-actions";
 
 const STATUS_TONE: Record<Goal["status"], string> = {
   active: "text-ink-2",
   done: "text-success",
   paused: "text-warn",
   dropped: "text-ink-4",
+};
+
+const FLAG_ICON: Record<AttentionFlag["kind"], React.ComponentType<{ className?: string }>> = {
+  overdue: Flag,
+  checkin: TriangleAlert,
+  stalled: Hourglass,
+  behind: TriangleAlert,
+  undated: TriangleAlert,
+  undefined: TriangleAlert,
+  unlinked: TriangleAlert,
 };
 
 const HORIZON_OPTIONS = HORIZONS.map((h) => ({ value: h, label: HORIZON_LABEL[h] }));
@@ -52,7 +67,7 @@ export function GoalSheet({
   const goal = useStore((s) => (goalId ? s.goals.find((g) => g.id === goalId) ?? null : null));
 
   return (
-    <Sheet open={!!goal} onClose={onClose} width={472}>
+    <Sheet open={!!goal} onClose={onClose} width={496}>
       {goal && (
         <GoalSheetBody key={goal.id} goal={goal} index={index} onClose={onClose} onOpen={onOpen} />
       )}
@@ -74,6 +89,7 @@ function GoalSheetBody({
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
   const { createGoal, breakDown } = useGoalActions();
+  const { setMeta, setWhy } = useGoalMeta();
 
   const stats = index.stats(goal.id);
   const children = stats.children;
@@ -83,16 +99,18 @@ function GoalSheetBody({
     () => breakdownPlan(goal, goals.filter((g) => g.parent_id === goal.id), weekStart),
     [goal, goals, weekStart],
   );
+  const flags = goalAttention(goal, stats);
 
+  const storedWhy = readWhy(goal);
   const [title, setTitle] = React.useState(goal.title);
-  const [description, setDescription] = React.useState(goal.description ?? "");
+  const [why, setWhyDraft] = React.useState(storedWhy);
+  const [done, setDone] = React.useState(stats.meta.done_looks_like);
   const [current, setCurrent] = React.useState(String(goal.current));
   const [target, setTarget] = React.useState(goal.target == null ? "" : String(goal.target));
   const [unit, setUnit] = React.useState(goal.unit ?? "");
   const [dateMode, setDateMode] = React.useState<"start" | "end">("start");
   const [confirming, setConfirming] = React.useState(false);
 
-  const progress = goal.status === "done" ? 1 : stats.overall;
   const markers = React.useMemo(() => rangeMarkers(goal), [goal]);
 
   function commitNumber(raw: string, field: "current" | "target") {
@@ -205,6 +223,7 @@ function GoalSheetBody({
           <AutoTextarea
             value={title}
             onChange={setTitle}
+            aria-label="Goal title"
             onBlur={() => {
               const next = title.trim();
               if (next && next !== goal.title) patch("goals", goal.id, { title: next });
@@ -221,70 +240,77 @@ function GoalSheetBody({
               onChange={(h: Horizon) => patch("goals", goal.id, { horizon: h })}
             />
           </div>
+
+          {flags.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {flags.map((flag) => {
+                const Icon = FLAG_ICON[flag.kind];
+                return (
+                  <span
+                    key={flag.kind}
+                    title={flag.detail}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-2 py-[3px] text-[11px] font-medium",
+                      flag.tone === "danger" && "border-danger text-danger",
+                      flag.tone === "warn" && "border-warn text-warn",
+                      flag.tone === "muted" && "border-line text-ink-3",
+                    )}
+                  >
+                    <Icon className="size-3" />
+                    {flag.label}
+                    <span className="font-normal text-ink-4 tnum">{flag.detail}</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* ---- progress ---- */}
-        <div className="surface p-4">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <div className="display-serif text-[32px] leading-none text-ink tnum">{pct(progress)}</div>
-              <div className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                Overall progress
-              </div>
-            </div>
-            {stats.pace && goal.status === "active" && (
-              <div className="text-right">
-                <div
-                  className={cn(
-                    "text-[13px] font-medium",
-                    stats.pace === "behind" ? "text-warn" : stats.pace === "ahead" ? "text-success" : "text-ink-2",
-                  )}
-                >
-                  {stats.pace}
-                </div>
-                {stats.daysLeft != null && (
-                  <div className="text-[11.5px] text-ink-3 tnum">
-                    {stats.daysLeft >= 0 ? `${stats.daysLeft} days left` : `${-stats.daysLeft} days over`}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+        <GoalProgress
+          goal={goal}
+          stats={stats}
+          onModeChange={(mode) => setMeta(goal, { mode })}
+        />
 
-          <Progress value={progress * 100} tint={goal.color} height={6} className="mt-3" />
-
-          <div className="mt-3.5 grid grid-cols-3 gap-3 pt-3.5 hairline-t">
-            <Signal
-              label="Target"
-              value={stats.targetPct == null ? "—" : pct(stats.targetPct)}
-              detail={formatTarget(goal) ?? "None set"}
-            />
-            <Signal
-              label="Tasks"
-              value={stats.directTotal ? pct(stats.directDone / stats.directTotal) : "—"}
-              detail={stats.directTotal ? `${stats.directDone}/${stats.directTotal} linked` : "None linked"}
-            />
-            <Signal
-              label="Children"
-              value={stats.childPct == null ? "—" : pct(stats.childPct)}
-              detail={stats.childCount ? `${stats.childDone}/${stats.childCount} done` : "No children"}
+        {/* ---- definition ---- */}
+        <section className="space-y-3">
+          <div>
+            <SectionLabel>Why it matters</SectionLabel>
+            <AutoTextarea
+              value={why}
+              onChange={setWhyDraft}
+              aria-label="Why this goal matters"
+              onBlur={() => {
+                const next = why.trim();
+                if (next !== storedWhy) setWhy(goal, next);
+              }}
+              placeholder="What changes in your life when this is done?"
+              className="mt-1.5 text-[13.5px] text-ink-2 placeholder:text-ink-4"
             />
           </div>
-        </div>
 
-        {/* ---- why ---- */}
-        <section>
-          <SectionLabel>Why it matters</SectionLabel>
-          <AutoTextarea
-            value={description}
-            onChange={setDescription}
-            onBlur={() => {
-              const next = description.trim();
-              if (next !== (goal.description ?? "")) patch("goals", goal.id, { description: next || null });
-            }}
-            placeholder="What changes in your life when this is done?"
-            className="mt-1.5 text-[13.5px] text-ink-2 placeholder:text-ink-4"
-          />
+          <div>
+            <SectionLabel>What done looks like</SectionLabel>
+            <AutoTextarea
+              value={done}
+              onChange={setDone}
+              aria-label="What done looks like"
+              onBlur={() => {
+                const next = done.trim();
+                if (next !== stats.meta.done_looks_like) setMeta(goal, { done_looks_like: next });
+              }}
+              placeholder="The sentence you will be able to say when this is finished."
+              className="mt-1.5 text-[13.5px] text-ink-2 placeholder:text-ink-4"
+            />
+          </div>
+
+          {!stats.defined && (
+            <p className="text-[12px] leading-relaxed text-ink-4">
+              Both blank, and this reads as a wish. One line each is enough — the why keeps you
+              going, the picture of done tells you when to stop.
+            </p>
+          )}
         </section>
 
         {/* ---- dates ---- */}
@@ -371,7 +397,17 @@ function GoalSheetBody({
               className="min-w-0 flex-1"
             />
           </div>
+          <p className="mt-1.5 text-[11.5px] leading-snug text-ink-4">
+            Nudging the number here is fine. Logging a check-in below moves it too, and keeps a
+            dated record of how it got there.
+          </p>
         </section>
+
+        {/* ---- check-ins ---- */}
+        <GoalCheckIns goal={goal} stats={stats} />
+
+        {/* ---- milestones ---- */}
+        <GoalMilestones goal={goal} stats={stats} />
 
         {/* ---- parent ---- */}
         <section>
@@ -508,24 +544,27 @@ function GoalSheetBody({
                 return (
                   <div
                     key={child.id}
-                    onClick={() => onOpen(child.id)}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-[7px] transition-colors duration-150 hover:bg-hover"
+                    className="group/child relative flex items-center gap-2 rounded-md px-1.5 py-[7px] transition-colors duration-150 hover:bg-hover"
                   >
                     <GoalDot goal={child} />
                     <button
-                      onClick={(e) => { e.stopPropagation(); onOpen(child.id); }}
+                      onClick={() => onOpen(child.id)}
                       className={cn(
                         "min-w-0 flex-1 cursor-pointer truncate text-left text-[13px]",
+                        "after:absolute after:inset-0 after:rounded-md after:content-['']",
                         child.status === "done" ? "text-ink-3 line-through decoration-ink-4/60" : "text-ink",
                       )}
                     >
                       {child.title || "Untitled goal"}
                     </button>
+                    {childStats.needsCheckIn && (
+                      <span className="shrink-0 text-[11px] font-medium text-warn">check in</span>
+                    )}
                     <div className="w-14 shrink-0">
                       <Progress value={childProgress * 100} tint={child.color} height={3} />
                     </div>
                     <span className="w-8 shrink-0 text-right text-[11px] text-ink-3 tnum">{pct(childProgress)}</span>
-                    <ChevronRight className="size-3.5 shrink-0 text-ink-4" />
+                    <ChevronRight className="size-3.5 shrink-0 text-ink-4" aria-hidden />
                   </div>
                 );
               })}
@@ -572,6 +611,9 @@ function GoalSheetBody({
             </p>
           )}
         </section>
+
+        {/* ---- other links ---- */}
+        <GoalLinks goal={goal} stats={stats} />
       </div>
 
       <footer className="flex shrink-0 items-center gap-2 px-4 py-3 hairline-t">
@@ -624,16 +666,6 @@ function GoalSheetBody({
   );
 }
 
-function Signal({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</div>
-      <div className="mt-1 text-[15px] font-medium text-ink tnum">{value}</div>
-      <div className="truncate text-[11.5px] text-ink-3 tnum" title={detail}>{detail}</div>
-    </div>
-  );
-}
-
 /** Notion's "click here and type" row, for child goals. */
 function ChildComposer({ horizon, onCreate }: { horizon: Horizon; onCreate: (title: string) => void }) {
   const [active, setActive] = React.useState(false);
@@ -672,6 +704,7 @@ function ChildComposer({ horizon, onCreate }: { horizon: Horizon; onCreate: (tit
           if (e.key === "Enter") { e.preventDefault(); submit(); }
           if (e.key === "Escape") { setValue(""); setActive(false); }
         }}
+        aria-label={`New ${HORIZON_LABEL[horizon].toLowerCase()} goal`}
         placeholder={`What has to be true by the end of the ${HORIZON_LABEL[horizon].toLowerCase()}?`}
         className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-4"
       />
