@@ -1,0 +1,305 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =========================================================
+   Humoyun — design tokens
+   Notion's structure, Apple's manners.
+   Warm-neutral surfaces, hairline separation, one accent.
+   ========================================================= */
+
+:root {
+  /* surfaces */
+  --canvas:        #ffffff;
+  --sunken:        #f7f7f5;
+  --raised:        #ffffff;
+  --overlay:       rgba(255, 255, 255, 0.72);
+  --scrim:         rgba(15, 15, 14, 0.32);
+
+  /* interaction layers */
+  --hover:         rgba(15, 15, 14, 0.038);
+  --active:        rgba(15, 15, 14, 0.07);
+  --selected:      rgba(0, 113, 227, 0.09);
+
+  /* ink */
+  --ink:           #1b1a19;
+  --ink-2:         #6b6a67;
+  --ink-3:         #9c9b97;
+  --ink-4:         #c3c2be;
+
+  /* lines */
+  --line:          rgba(15, 15, 14, 0.09);
+  --line-strong:   rgba(15, 15, 14, 0.16);
+
+  /* accent (swappable via [data-accent]) */
+  --accent:        #0071e3;
+  --accent-hover:  #0063c8;
+  --accent-ink:    #ffffff;
+  --accent-soft:   rgba(0, 113, 227, 0.11);
+  --accent-line:   rgba(0, 113, 227, 0.34);
+
+  /* semantic */
+  --success:       #15803d;
+  --success-soft:  rgba(21, 128, 61, 0.11);
+  --warn:          #b45309;
+  --warn-soft:     rgba(180, 83, 9, 0.11);
+  --danger:        #dc2626;
+  --danger-soft:   rgba(220, 38, 38, 0.1);
+
+  /* elevation — Apple keeps shadows tight and low-contrast */
+  --shadow-sm: 0 1px 2px rgba(15, 15, 14, 0.05), 0 0 0 1px rgba(15, 15, 14, 0.05);
+  --shadow-md: 0 4px 14px rgba(15, 15, 14, 0.07), 0 0 0 1px rgba(15, 15, 14, 0.055);
+  --shadow-lg: 0 14px 40px rgba(15, 15, 14, 0.11), 0 3px 8px rgba(15, 15, 14, 0.05), 0 0 0 1px rgba(15, 15, 14, 0.055);
+  --shadow-pop: 0 28px 70px rgba(15, 15, 14, 0.18), 0 8px 20px rgba(15, 15, 14, 0.08);
+
+  --sidebar-w: 264px;
+  --topbar-h: 52px;
+}
+
+.dark {
+  --canvas:        #191919;
+  --sunken:        #151515;
+  --raised:        #212121;
+  --overlay:       rgba(30, 30, 30, 0.74);
+  --scrim:         rgba(0, 0, 0, 0.55);
+
+  --hover:         rgba(255, 255, 255, 0.055);
+  --active:        rgba(255, 255, 255, 0.1);
+  --selected:      rgba(10, 132, 255, 0.16);
+
+  --ink:           #ededeb;
+  --ink-2:         #a0a09c;
+  --ink-3:         #777672;
+  --ink-4:         #575753;
+
+  --line:          rgba(255, 255, 255, 0.09);
+  --line-strong:   rgba(255, 255, 255, 0.17);
+
+  --accent:        #0a84ff;
+  --accent-hover:  #339bff;
+  --accent-ink:    #ffffff;
+  --accent-soft:   rgba(10, 132, 255, 0.17);
+  --accent-line:   rgba(10, 132, 255, 0.42);
+
+  --success:       #4ade80;
+  --success-soft:  rgba(74, 222, 128, 0.14);
+  --warn:          #fbbf24;
+  --warn-soft:     rgba(251, 191, 36, 0.14);
+  --danger:        #ff6b6b;
+  --danger-soft:   rgba(255, 107, 107, 0.14);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --shadow-lg: 0 14px 40px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-pop: 0 28px 70px rgba(0, 0, 0, 0.62), 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- accent variants ---- */
+[data-accent="violet"]       { --accent:#6b4dff; --accent-hover:#5c3ff0; --accent-soft:rgba(107,77,255,.12); --accent-line:rgba(107,77,255,.36); --selected:rgba(107,77,255,.10); }
+.dark[data-accent="violet"]  { --accent:#9a7dff; --accent-hover:#ad95ff; --accent-soft:rgba(154,125,255,.18); --accent-line:rgba(154,125,255,.44); --selected:rgba(154,125,255,.16); }
+[data-accent="emerald"]      { --accent:#00875a; --accent-hover:#00734d; --accent-soft:rgba(0,135,90,.12); --accent-line:rgba(0,135,90,.36); --selected:rgba(0,135,90,.10); }
+.dark[data-accent="emerald"] { --accent:#34d399; --accent-hover:#5ee0ae; --accent-soft:rgba(52,211,153,.18); --accent-line:rgba(52,211,153,.44); --selected:rgba(52,211,153,.16); }
+[data-accent="amber"]        { --accent:#b45309; --accent-hover:#96460a; --accent-soft:rgba(180,83,9,.12); --accent-line:rgba(180,83,9,.36); --selected:rgba(180,83,9,.10); }
+.dark[data-accent="amber"]   { --accent:#fbbf24; --accent-hover:#fcd34d; --accent-ink:#191919; --accent-soft:rgba(251,191,36,.18); --accent-line:rgba(251,191,36,.44); --selected:rgba(251,191,36,.16); }
+[data-accent="rose"]         { --accent:#c2255c; --accent-hover:#a81d4f; --accent-soft:rgba(194,37,92,.12); --accent-line:rgba(194,37,92,.36); --selected:rgba(194,37,92,.10); }
+.dark[data-accent="rose"]    { --accent:#f472b6; --accent-hover:#f899c9; --accent-soft:rgba(244,114,182,.18); --accent-line:rgba(244,114,182,.44); --selected:rgba(244,114,182,.16); }
+[data-accent="graphite"]     { --accent:#38383a; --accent-hover:#1f1f21; --accent-soft:rgba(56,56,58,.1); --accent-line:rgba(56,56,58,.3); --selected:rgba(56,56,58,.08); }
+.dark[data-accent="graphite"]{ --accent:#d4d4d2; --accent-hover:#ffffff; --accent-ink:#191919; --accent-soft:rgba(212,212,210,.15); --accent-line:rgba(212,212,210,.4); --selected:rgba(212,212,210,.13); }
+
+@theme inline {
+  --color-canvas:      var(--canvas);
+  --color-sunken:      var(--sunken);
+  --color-raised:      var(--raised);
+  --color-overlay:     var(--overlay);
+  --color-scrim:       var(--scrim);
+  --color-hover:       var(--hover);
+  --color-active:      var(--active);
+  --color-selected:    var(--selected);
+  --color-ink:         var(--ink);
+  --color-ink-2:       var(--ink-2);
+  --color-ink-3:       var(--ink-3);
+  --color-ink-4:       var(--ink-4);
+  --color-line:        var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent:      var(--accent);
+  --color-accent-hover:var(--accent-hover);
+  --color-accent-ink:  var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-success:     var(--success);
+  --color-success-soft:var(--success-soft);
+  --color-warn:        var(--warn);
+  --color-warn-soft:   var(--warn-soft);
+  --color-danger:      var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-tint:        var(--tint);
+  --color-tint-soft:   var(--tint-soft);
+  --color-tint-ink:    var(--tint-ink);
+
+  --font-sans:  var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-serif: var(--font-serif-display), "Iowan Old Style", Georgia, serif;
+  --font-mono:  ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+
+  --ease-out-apple: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-apple: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* =========================================================
+   Base
+   ========================================================= */
+* { border-color: var(--line); }
+
+html { -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+::selection { background: var(--accent-soft); color: var(--ink); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus:not(:focus-visible) { outline: none; }
+
+/* Thin, unobtrusive scrollbars — Apple style */
+* { scrollbar-width: thin; scrollbar-color: var(--ink-4) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*:hover::-webkit-scrollbar-thumb { background: var(--ink-4); background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+input, textarea, select, button { font: inherit; color: inherit; }
+input::placeholder, textarea::placeholder { color: var(--ink-4); }
+
+/* =========================================================
+   Utilities
+   ========================================================= */
+@utility tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+@utility surface {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+@utility material {
+  background: var(--overlay);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+@utility hairline-b { box-shadow: inset 0 -1px 0 0 var(--line); }
+@utility hairline-t { box-shadow: inset 0 1px 0 0 var(--line); }
+@utility hairline-r { box-shadow: inset -1px 0 0 0 var(--line); }
+@utility hairline-l { box-shadow: inset 1px 0 0 0 var(--line); }
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+/* Notion-ish serif display for big numerals & dates */
+@utility display-serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* =========================================================
+   Motion
+   ========================================================= */
+@keyframes hm-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes hm-pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.975); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes hm-slide-up { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes hm-check {
+  0%   { transform: scale(1) }
+  40%  { transform: scale(0.86) }
+  100% { transform: scale(1) }
+}
+@keyframes hm-shimmer { 100% { transform: translateX(100%) } }
+@keyframes hm-spin { to { transform: rotate(360deg) } }
+@keyframes hm-ring { 0% { box-shadow: 0 0 0 0 var(--accent-soft) } 100% { box-shadow: 0 0 0 12px transparent } }
+
+.anim-fade  { animation: hm-fade-in 160ms var(--ease-out-apple) both }
+.anim-pop   { animation: hm-pop-in 200ms var(--ease-out-apple) both }
+.anim-slide { animation: hm-slide-up 260ms var(--ease-out-apple) both }
+.anim-check { animation: hm-check 260ms var(--ease-out-apple) }
+.anim-spin  { animation: hm-spin 900ms linear infinite }
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--hover);
+  border-radius: var(--radius-sm);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--active), transparent);
+  animation: hm-shimmer 1.6s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================
+   Entity color chips (Notion palette, tuned for both themes)
+   Consumed as .tint-<name> — sets --tint / --tint-soft / --tint-ink
+   ========================================================= */
+.tint-slate   { --tint:#787774; --tint-soft:rgba(120,119,116,.13); --tint-ink:#5b5a57 }
+.tint-red     { --tint:#e03e3e; --tint-soft:rgba(224,62,62,.13);   --tint-ink:#b02b2b }
+.tint-orange  { --tint:#d9730d; --tint-soft:rgba(217,115,13,.13);  --tint-ink:#a4570a }
+.tint-amber   { --tint:#dfab01; --tint-soft:rgba(223,171,1,.15);   --tint-ink:#8a6a02 }
+.tint-emerald { --tint:#0f7b6c; --tint-soft:rgba(15,123,108,.13);  --tint-ink:#0b5c50 }
+.tint-teal    { --tint:#0b7285; --tint-soft:rgba(11,114,133,.13);  --tint-ink:#08596a }
+.tint-blue    { --tint:#0b6bcb; --tint-soft:rgba(11,107,203,.12);  --tint-ink:#0a559f }
+.tint-violet  { --tint:#6940a5; --tint-soft:rgba(105,64,165,.13);  --tint-ink:#54338a }
+.tint-pink    { --tint:#ad1a72; --tint-soft:rgba(173,26,114,.12);  --tint-ink:#8d1660 }
+.tint-brown   { --tint:#8f6c4f; --tint-soft:rgba(143,108,79,.14);  --tint-ink:#6f5340 }
+
+.dark .tint-slate   { --tint:#9b9a97; --tint-soft:rgba(155,154,151,.18); --tint-ink:#b8b7b4 }
+.dark .tint-red     { --tint:#ff7369; --tint-soft:rgba(255,115,105,.17); --tint-ink:#ff958d }
+.dark .tint-orange  { --tint:#ffa344; --tint-soft:rgba(255,163,68,.17);  --tint-ink:#ffbb75 }
+.dark .tint-amber   { --tint:#ffdc49; --tint-soft:rgba(255,220,73,.16);  --tint-ink:#ffe680 }
+.dark .tint-emerald { --tint:#4dab9a; --tint-soft:rgba(77,171,154,.17);  --tint-ink:#7cc7b9 }
+.dark .tint-teal    { --tint:#4bb3c8; --tint-soft:rgba(75,179,200,.17);  --tint-ink:#7fcbdb }
+.dark .tint-blue    { --tint:#529cca; --tint-soft:rgba(82,156,202,.17);  --tint-ink:#83bbdd }
+.dark .tint-violet  { --tint:#9a6dd7; --tint-soft:rgba(154,109,215,.17); --tint-ink:#b795e3 }
+.dark .tint-pink    { --tint:#e255a1; --tint-soft:rgba(226,85,161,.17);  --tint-ink:#ee8bc0 }
+.dark .tint-brown   { --tint:#c08b6d; --tint-soft:rgba(192,139,109,.18); --tint-ink:#d3a88f }

@@ -1,0 +1,106 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
+import { useStore } from "@/lib/store";
+import { useHotkeys } from "@/hooks/use-hotkeys";
+import { addDays, todayISO } from "@/lib/date";
+import { Sidebar } from "./sidebar";
+import { CommandPalette } from "./command-palette";
+import { QuickAdd, openQuickAdd } from "./quick-add";
+import { TimerBar } from "./timer-bar";
+import { TaskInspector } from "@/components/tasks/task-inspector";
+import { Spinner } from "@/components/ui/primitives";
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const ready = useStore((s) => s.ready);
+  const hydrate = useStore((s) => s.hydrate);
+  const reset = useStore((s) => s.reset);
+  const setCommandOpen = useStore((s) => s.setCommandOpen);
+  const toggleSidebar = useStore((s) => s.toggleSidebar);
+  const setSelectedDate = useStore((s) => s.setSelectedDate);
+  const selectedDate = useStore((s) => s.selectedDate);
+  const profile = useStore((s) => s.profile);
+
+  // ---- session ----
+  React.useEffect(() => {
+    let cancelled = false;
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      if (!data.user) { router.replace("/login"); return; }
+      hydrate(data.user.id, data.user.email);
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") { reset(); router.replace("/login"); }
+      if (event === "SIGNED_IN" && session?.user && !useStore.getState().ready) {
+        hydrate(session.user.id, session.user.email);
+      }
+    });
+
+    return () => { cancelled = true; sub.subscription.unsubscribe(); };
+  }, [hydrate, reset, router]);
+
+  // ---- accent + theme follow the profile once it loads ----
+  React.useEffect(() => {
+    if (!profile) return;
+    document.documentElement.setAttribute("data-accent", profile.accent ?? "blue");
+    try { localStorage.setItem("humoyun.accent", profile.accent ?? "blue"); } catch { /* noop */ }
+    const theme = profile.theme ?? "system";
+    const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+  }, [profile]);
+
+  // ---- global keys ----
+  useHotkeys(
+    {
+      "mod+k": () => setCommandOpen(true),
+      "mod+/": () => setCommandOpen(true),
+      "mod+\\": () => toggleSidebar(),
+      n: () => openQuickAdd(),
+      c: () => openQuickAdd(),
+      t: () => setSelectedDate(todayISO()),
+      "shift+arrowleft": () => setSelectedDate(addDays(selectedDate, -1)),
+      "shift+arrowright": () => setSelectedDate(addDays(selectedDate, 1)),
+      "g then t": () => router.push("/"),
+      "g then c": () => router.push("/calendar"),
+      "g then i": () => router.push("/inbox"),
+      "g then m": () => router.push("/map"),
+      "g then b": () => router.push("/books"),
+      "g then h": () => router.push("/habits"),
+      "g then s": () => router.push("/salah"),
+      "g then f": () => router.push("/focus"),
+      "g then g": () => router.push("/goals"),
+      "g then r": () => router.push("/review"),
+      "g then a": () => router.push("/stats"),
+    },
+    { allowInInput: false },
+  );
+
+  if (!ready) {
+    return (
+      <div className="grid h-dvh place-items-center bg-canvas">
+        <div className="flex flex-col items-center gap-3">
+          <div className="grid size-10 place-items-center rounded-xl bg-ink text-canvas">
+            <span className="display-serif text-[22px] leading-none">H</span>
+          </div>
+          <Spinner />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-dvh overflow-hidden bg-canvas">
+      <Sidebar />
+      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      <CommandPalette />
+      <QuickAdd />
+      <TaskInspector />
+      <TimerBar />
+    </div>
+  );
+}
