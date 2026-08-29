@@ -90,6 +90,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       "g then m": () => router.push("/map"),
       "g then b": () => router.push("/books"),
       "g then w": () => router.push("/watch"),
+      "g then y": () => router.push("/youtube"),
+      "g then n": () => router.push("/notes"),
       "g then h": () => router.push("/habits"),
       "g then s": () => router.push("/salah"),
       "g then f": () => router.push("/focus"),

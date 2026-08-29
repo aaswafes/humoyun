@@ -1,30 +1,30 @@
 "use client";
 
 import * as React from "react";
-import { Clapperboard, LayoutGrid, Plus, Rows3 } from "lucide-react";
+import { LayoutGrid, MonitorPlay, Plus, Rows3 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
-import { MEDIA_KINDS, MEDIA_KIND_LABELS, type Media } from "@/lib/types";
+import { MEDIA_KIND_LABELS, YOUTUBE_KINDS, type Media } from "@/lib/types";
 import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primitives";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
-import { AddMediaModal } from "@/components/watch/add-media-modal";
-import { MediaSheet } from "@/components/watch/media-sheet";
-import { MediaCard, type MediaCardMeta } from "@/components/watch/media-card";
 import {
-  buildMediaRows, finishedInYear, MediaTable, mergeWatchDays, sortMediaRows, watchDaysIndex,
-  type MediaRow, type MediaSortKey, type SortDir,
+  buildMediaRows, mergeWatchDays, watchDaysIndex, type MediaRow, type SortDir,
 } from "@/components/watch/media-table";
-import { WatchInsights } from "@/components/watch/watch-insights";
+import { AddVideoModal } from "@/components/youtube/add-video-modal";
+import { VideoSheet } from "@/components/youtube/video-sheet";
+import { VideoCard, type VideoCardMeta } from "@/components/youtube/video-card";
+import { VideoTable, sortVideoRows, type VideoSortKey } from "@/components/youtube/video-table";
+import { YoutubeInsights } from "@/components/youtube/youtube-insights";
 import {
-  WatchToolbar, type WatchGroupBy, type WatchStatusFilter,
-} from "@/components/watch/watch-toolbar";
-import { MEDIA_FACET_FALLBACKS, type MediaFacet } from "@/components/watch/facets";
+  YoutubeToolbar, type YoutubeGroupBy, type YoutubeStatusFilter,
+} from "@/components/youtube/youtube-toolbar";
+import { YOUTUBE_FACET_FALLBACKS, type YoutubeFacet } from "@/components/youtube/youtube-facets";
 
 type View = "shelf" | "table";
 
 const VIEWS: readonly View[] = ["shelf", "table"];
-const GROUPS: readonly WatchGroupBy[] =
-  ["status", "kind", "creator", "genre", "topic", "series", "none"];
+const GROUPS: readonly YoutubeGroupBy[] =
+  ["status", "kind", "channel", "genre", "topic", "series", "none"];
 
 const STATUS_ORDER: { status: Media["status"]; label: string }[] = [
   { status: "watching", label: "Watching" },
@@ -37,11 +37,11 @@ const STATUS_ORDER: { status: Media["status"]; label: string }[] = [
 const SHELF_GRID =
   "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
 
-/** Above this the shelf pages rather than rendering a thousand posters. */
+/** Above this the shelf pages rather than rendering a thousand thumbnails. */
 const PAGE_SIZE = 60;
 
 const VIEW_OPTIONS = [
-  { value: "shelf" as const, label: <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5" />Shelf</span>, title: "Posters on a shelf" },
+  { value: "shelf" as const, label: <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5" />Shelf</span>, title: "Thumbnails on a shelf" },
   { value: "table" as const, label: <span className="inline-flex items-center gap-1.5"><Rows3 className="size-3.5" />Table</span>, title: "Sortable table" },
 ];
 
@@ -76,23 +76,32 @@ function useStickyChoice<T extends string>(
   return [value, set];
 }
 
-export default function WatchPage() {
+export default function YoutubePage() {
   const ready = useStore((s) => s.ready);
   const allMedia = useStore((s) => s.media);
-  // YouTube shares the media model but has its own shelf, so this one only
-  // lists what you would call a film or a series.
+  // Films and anime share the media model but have their own shelf, so this
+  // one only lists what came off YouTube.
   const media = React.useMemo(
-    () => allMedia.filter((m) => (MEDIA_KINDS as string[]).includes(m.kind)),
+    () => allMedia.filter((m) => (YOUTUBE_KINDS as string[]).includes(m.kind)),
     [allMedia],
   );
-  const tasks = useStore((s) => s.tasks);
+  const allTasks = useStore((s) => s.tasks);
 
-  const [view, setView] = useStickyChoice<View>("humoyun.watch.view", "shelf", VIEWS);
-  const [group, setGroup] = useStickyChoice<WatchGroupBy>("humoyun.watch.group", "status", GROUPS);
-  const [filter, setFilter] = React.useState<WatchStatusFilter>("all");
+  // Every watch block belongs to some title; only the ones pointing at this
+  // shelf may feed its pace, streak and hours, or a film night would show up
+  // as a YouTube streak.
+  const tasks = React.useMemo(() => {
+    const ids = new Set(media.map((m) => m.id));
+    return allTasks.filter((t) => t.media_id != null && ids.has(t.media_id));
+  }, [allTasks, media]);
+
+  const [view, setView] = useStickyChoice<View>("humoyun.youtube.view", "shelf", VIEWS);
+  const [group, setGroup] = useStickyChoice<YoutubeGroupBy>("humoyun.youtube.group", "status", GROUPS);
+  const [filter, setFilter] = React.useState<YoutubeStatusFilter>("all");
   const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState<MediaSortKey>("title");
-  const [dir, setDir] = React.useState<SortDir>("asc");
+  // A watch-later list opens on what you saved last.
+  const [sort, setSort] = React.useState<VideoSortKey>("added");
+  const [dir, setDir] = React.useState<SortDir>("desc");
   const [adding, setAdding] = React.useState(false);
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [limit, setLimit] = React.useState(PAGE_SIZE);
@@ -121,7 +130,7 @@ export default function WatchPage() {
     if (!q) return true;
     return [
       row.item.title,
-      row.item.creator ?? "",
+      row.item.channel ?? "",
       row.item.genre ?? "",
       row.item.topic ?? "",
       row.item.series ?? "",
@@ -129,13 +138,13 @@ export default function WatchPage() {
   }, [filter, query]);
 
   const visibleRows = React.useMemo(
-    () => sortMediaRows(rows.filter(matches), sort, dir), [rows, matches, sort, dir]);
+    () => sortVideoRows(rows.filter(matches), sort, dir), [rows, matches, sort, dir]);
 
   const paged = React.useMemo(() => visibleRows.slice(0, limit), [visibleRows, limit]);
 
   const groups: Group[] = React.useMemo(() => {
     if (view === "table") return [];
-    if (group === "none") return [{ key: "all", label: "All titles", rows: paged }];
+    if (group === "none") return [{ key: "all", label: "Everything saved", rows: paged }];
 
     if (group === "status") {
       return STATUS_ORDER
@@ -148,7 +157,7 @@ export default function WatchPage() {
     }
 
     if (group === "kind") {
-      return MEDIA_KINDS
+      return YOUTUBE_KINDS
         .map((kind) => ({
           key: kind,
           label: MEDIA_KIND_LABELS[kind],
@@ -157,8 +166,8 @@ export default function WatchPage() {
         .filter((g) => g.rows.length > 0);
     }
 
-    const facet: MediaFacet = group;
-    const fallback = MEDIA_FACET_FALLBACKS[facet];
+    const facet: YoutubeFacet = group;
+    const fallback = YOUTUBE_FACET_FALLBACKS[facet];
 
     const buckets = new Map<string, MediaRow[]>();
     for (const row of paged) {
@@ -174,12 +183,10 @@ export default function WatchPage() {
         a.label === fallback ? 1 : b.label === fallback ? -1 : a.label.localeCompare(b.label));
   }, [paged, group, view]);
 
-  const finishedCount = React.useMemo(() => finishedInYear(media, tasks).length, [media, tasks]);
-
-  const watchingCount = media.filter((m) => m.status === "watching").length;
+  const waiting = media.filter((m) => m.status === "planned").length;
   const dueCount = dueToday.size;
 
-  const metaFor = React.useCallback((row: MediaRow): MediaCardMeta => ({
+  const metaFor = React.useCallback((row: MediaRow): VideoCardMeta => ({
     perDay: row.perDay,
     finish: row.finish,
     dueToday: dueToday.has(row.item.id),
@@ -188,17 +195,18 @@ export default function WatchPage() {
   const addButton = (
     <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
       <Plus className="size-3.5" />
-      Add title
+      Add video
     </Button>
   );
 
+  // The one number this shelf exists for: how much is queued up.
   const subtitle = media.length
-    ? `${media.length} ${media.length === 1 ? "title" : "titles"} · ${watchingCount} watching${dueCount ? ` · ${dueCount} due today` : ""}`
+    ? `${waiting} waiting · ${media.length} saved${dueCount ? ` · ${dueCount} due today` : ""}`
     : undefined;
 
   return (
     <>
-      <PageHeader title="Films & Anime" subtitle={subtitle} actions={addButton}>
+      <PageHeader title="YouTube" subtitle={subtitle} actions={addButton}>
         {media.length > 0 && (
           <Segmented<View>
             size="sm"
@@ -215,20 +223,20 @@ export default function WatchPage() {
           <ShelfSkeleton />
         ) : media.length === 0 ? (
           <EmptyState
-            icon={Clapperboard}
-            title="Nothing to watch yet"
-            description="Add an anime or a series with its episode count and a pace — episodes a day — and Humoyun drops a watch block on every day until the finale. A film is simply one evening on the calendar."
+            icon={MonitorPlay}
+            title="Nothing saved to watch yet"
+            description="Paste a YouTube link, give it a channel, and it waits here until you want it. A playlist takes a number of videos and a pace — videos a day — and Humoyun lays a watch block on every day until the last one."
             action={addButton}
             className="py-24"
           />
         ) : (
           <>
-            {/* The analysis strip folds away, so the page opens on the shelf. */}
+            {/* The analysis strip folds away, so the page opens on the queue. */}
             <div className="mb-8 hairline-b">
-              <WatchInsights days={days} finished={finishedCount} />
+              <YoutubeInsights days={days} />
             </div>
 
-            <WatchToolbar
+            <YoutubeToolbar
               className="mb-6"
               query={query}
               onQuery={(v) => { setQuery(v); setLimit(PAGE_SIZE); }}
@@ -247,19 +255,19 @@ export default function WatchPage() {
 
             {visibleRows.length === 0 ? (
               <EmptyState
-                icon={Clapperboard}
+                icon={MonitorPlay}
                 title={query.trim() ? `Nothing matches “${query.trim()}”` : "Nothing on this shelf"}
                 description={query.trim()
-                  ? "Try a different title, creator, genre or series."
-                  : "No film or series on your shelf sits in this state right now."}
+                  ? "Try a different title, channel, genre or series."
+                  : "Nothing you have saved sits in this state right now."}
                 action={
                   <Button size="sm" onClick={() => { setQuery(""); setFilter("all"); }}>
-                    Show every title
+                    Show everything saved
                   </Button>
                 }
               />
             ) : view === "table" ? (
-              <MediaTable
+              <VideoTable
                 rows={paged}
                 sort={sort}
                 dir={dir}
@@ -282,7 +290,7 @@ export default function WatchPage() {
                     )}
                     <div className={SHELF_GRID}>
                       {g.rows.map((row) => (
-                        <MediaCard
+                        <VideoCard
                           key={row.item.id}
                           item={row.item}
                           meta={metaFor(row)}
@@ -309,8 +317,8 @@ export default function WatchPage() {
         )}
       </PageBody>
 
-      {adding && <AddMediaModal open onClose={() => setAdding(false)} />}
-      {openId && <MediaSheet mediaId={openId} onClose={() => setOpenId(null)} />}
+      {adding && <AddVideoModal open onClose={() => setAdding(false)} />}
+      {openId && <VideoSheet mediaId={openId} onClose={() => setOpenId(null)} />}
     </>
   );
 }

@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Clapperboard, Sparkles, Tv } from "lucide-react";
+import { Clapperboard, ListVideo, MonitorPlay, Sparkles, Tv } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Media, MediaKind } from "@/lib/types";
 
 const GLYPH: Record<MediaKind, React.ComponentType<{ className?: string }>> = {
   film: Clapperboard,
+  youtube: MonitorPlay,
+  playlist: ListVideo,
   anime: Sparkles,
   series: Tv,
 };

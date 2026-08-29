@@ -6,6 +6,7 @@ import {
   Search, CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon,
   Target, Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings,
   Plus, CornerDownLeft, CheckSquare, Circle, ArrowRight, Play, SunMedium, MoonStar, Clapperboard,
+  MonitorPlay, NotebookPen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
@@ -61,6 +62,8 @@ export function CommandPalette() {
       { id: "n-map", label: "Mind Map", group: "Go to", icon: Network, run: () => go("/map") },
       { id: "n-books", label: "Books", group: "Go to", icon: BookOpen, run: () => go("/books") },
       { id: "n-watch", label: "Films & Anime", group: "Go to", icon: Clapperboard, run: () => go("/watch") },
+      { id: "n-youtube", label: "YouTube", group: "Go to", icon: MonitorPlay, run: () => go("/youtube") },
+      { id: "n-notes", label: "Notes", group: "Go to", icon: NotebookPen, run: () => go("/notes") },
       { id: "n-habits", label: "Habits", group: "Go to", icon: Flame, run: () => go("/habits") },
       { id: "n-salah", label: "Salah", group: "Go to", icon: Moon, run: () => go("/salah") },
       { id: "n-goals", label: "Goals", group: "Go to", icon: Target, run: () => go("/goals") },

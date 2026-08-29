@@ -24,6 +24,7 @@ const LABELS: Record<CollectionKey, string> = {
   tasks: "Tasks",
   books: "Books",
   media: "Films & anime",
+  notes: "Notes",
   habits: "Habits",
   habitLogs: "Habit logs",
   goals: "Goals",
@@ -77,7 +78,8 @@ const VALIDATORS: Record<CollectionKey, (r: AnyRow) => string | null> = {
         : !oneOf(r.status, ["todo", "doing", "done", "dropped"]) ? "unknown status"
           : null,
   books: (r) => (!str(r.title) ? "no title" : r.total_pages != null && typeof r.total_pages !== "number" ? "total_pages is not a number" : null),
-  media: (r) => (!str(r.title) ? "no title" : !oneOf(r.kind, ["film", "anime", "series"]) ? "unknown kind" : null),
+  media: (r) => (!str(r.title) ? "no title" : !oneOf(r.kind, ["film", "anime", "series", "youtube", "playlist"]) ? "unknown kind" : null),
+  notes: (r) => (typeof r.body === "string" || str(r.title) ? null : "no body"),
   habits: (r) => (!str(r.name) ? "no name" : !oneOf(r.cadence, ["daily", "weekly", "custom"]) ? "unknown cadence" : null),
   habitLogs: (r) => (!str(r.habit_id) ? "no habit_id" : !ISO_DATE.test(String(r.date)) ? "date is not yyyy-mm-dd" : null),
   goals: (r) => (!str(r.title) ? "no title" : !oneOf(r.horizon, ["life", "year", "quarter", "month", "week"]) ? "unknown horizon" : null),

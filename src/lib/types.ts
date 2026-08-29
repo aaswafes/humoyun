@@ -123,13 +123,17 @@ export interface Book {
   updated_at: string;
 }
 
-export type MediaKind = "film" | "anime" | "series";
+export type MediaKind = "film" | "anime" | "series" | "youtube" | "playlist";
 
 export const MEDIA_KINDS: MediaKind[] = ["film", "anime", "series"];
+/** The YouTube shelf is the same model, listed separately. */
+export const YOUTUBE_KINDS: MediaKind[] = ["youtube", "playlist"];
 export const MEDIA_KIND_LABELS: Record<MediaKind, string> = {
   film: "Film",
   anime: "Anime",
   series: "Series",
+  youtube: "Video",
+  playlist: "Playlist",
 };
 
 /**
@@ -149,6 +153,8 @@ export interface Media {
   series: string | null;
   color: Tint;
   cover_url: string | null;
+  url: string | null;
+  channel: string | null;
   total_episodes: number;
   current_episode: number;
   episodes_per_day: number | null;
@@ -160,6 +166,45 @@ export interface Media {
   rating: number | null;
   notes: string | null;
   order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type NoteKind = "note" | "highlight" | "thought" | "daily" | "idea" | "summary";
+
+export const NOTE_KINDS: NoteKind[] = ["note", "highlight", "thought", "daily", "idea", "summary"];
+export const NOTE_KIND_LABELS: Record<NoteKind, string> = {
+  note: "Note",
+  highlight: "Highlight",
+  thought: "Thought",
+  daily: "Daily",
+  idea: "Idea",
+  summary: "Summary",
+};
+
+/**
+ * A note stands on its own but usually came from somewhere — a book, a film,
+ * a day. Those links are what let the same note appear on the shelf it belongs
+ * to and in one list of everything written.
+ */
+export interface Note {
+  id: string;
+  user_id: string;
+  title: string | null;
+  body: string;
+  kind: NoteKind;
+  book_id: string | null;
+  media_id: string | null;
+  task_id: string | null;
+  goal_id: string | null;
+  node_id: string | null;
+  /** the day a daily note belongs to */
+  date: string | null;
+  /** page for a book, minutes for a film, episode for a series */
+  locator: number | null;
+  tags: string[];
+  color: Tint | null;
+  pinned: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -358,6 +403,7 @@ export interface Collections {
   tasks: Task;
   books: Book;
   media: Media;
+  notes: Note;
   habits: Habit;
   habitLogs: HabitLog;
   goals: Goal;
@@ -378,6 +424,7 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   tasks: "tasks",
   books: "books",
   media: "media",
+  notes: "notes",
   habits: "habits",
   habitLogs: "habit_logs",
   goals: "goals",

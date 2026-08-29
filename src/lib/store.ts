@@ -7,6 +7,7 @@ import {
   type Accent,
   type Book,
   type Media,
+  type Note,
   type Collections,
   type CollectionKey,
   type DayLog,
@@ -210,7 +211,7 @@ interface StoreState extends CollectionState {
 }
 
 const COLLECTION_KEYS: CollectionKey[] = [
-  "tasks", "books", "media", "habits", "habitLogs", "goals", "boards",
+  "tasks", "books", "media", "notes", "habits", "habitLogs", "goals", "boards",
   "nodes", "edges", "templates", "prayers", "dayLogs",
   "focusSessions", "reviews", "tags",
 ];
@@ -227,7 +228,7 @@ const COLLECTION_KEYS: CollectionKey[] = [
  * it failed.
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
-  tasks: true, books: true, media: true, habits: true, goals: true, boards: true,
+  tasks: true, books: true, media: true, notes: true, habits: true, goals: true, boards: true,
   nodes: true, templates: true, dayLogs: true, reviews: true,
   habitLogs: false, edges: false, prayers: false, focusSessions: false, tags: false,
 };
@@ -262,6 +263,13 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         series: null, color: "violet", cover_url: null, total_episodes: 1, current_episode: 0,
         episodes_per_day: null, runtime_min: null, start_date: null, end_date: null,
         status: "planned", rating: null, notes: null, order_index: 0,
+        url: null, channel: null,
+      };
+    case "notes":
+      return {
+        ...base, title: null, body: "", kind: "note", book_id: null, media_id: null,
+        task_id: null, goal_id: null, node_id: null, date: null, locator: null,
+        tags: [], color: null, pinned: false,
       };
     case "habits":
       return {
@@ -1025,6 +1033,6 @@ export function focusMinutesOn(sessions: FocusSession[], date: string): number {
 }
 
 export type {
-  Task, Book, Media, Habit, HabitLog, Goal, Board, MapNode, MapEdge,
+  Task, Book, Media, Note, Habit, HabitLog, Goal, Board, MapNode, MapEdge,
   Template, Prayer, DayLog, FocusSession, Review, Tag, Profile, Tint,
 };

@@ -1,84 +1,73 @@
 "use client";
 
 import * as React from "react";
-import { Film, Sparkles, Tv } from "lucide-react";
+import { ListVideo, MonitorPlay } from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { Media, MediaKind, Tint } from "@/lib/types";
 import { Button, Input, Segmented } from "@/components/ui/primitives";
 import { Modal, TintPicker } from "@/components/ui/overlays";
-import { MediaCover } from "./media-cover";
-import { mediaFacetValues } from "./facets";
-import { Field, NumberField, SuggestInput } from "./watch-fields";
+import { MediaCover } from "@/components/watch/media-cover";
+import { Field, NumberField, SuggestInput } from "@/components/watch/watch-fields";
+import { youtubeFacetValues } from "./youtube-facets";
+import { normalizeUrl, urlHint } from "./youtube-url";
 
-const KIND_OPTIONS: { value: MediaKind; label: React.ReactNode }[] = [
-  { value: "film", label: <span className="inline-flex items-center gap-1.5"><Film className="size-3.5" />Film</span> },
-  { value: "anime", label: <span className="inline-flex items-center gap-1.5"><Sparkles className="size-3.5" />Anime</span> },
-  { value: "series", label: <span className="inline-flex items-center gap-1.5"><Tv className="size-3.5" />Series</span> },
+type YoutubeKind = Extract<MediaKind, "youtube" | "playlist">;
+
+const KIND_OPTIONS: { value: YoutubeKind; label: React.ReactNode }[] = [
+  { value: "youtube", label: <span className="inline-flex items-center gap-1.5"><MonitorPlay className="size-3.5" />Video</span> },
+  { value: "playlist", label: <span className="inline-flex items-center gap-1.5"><ListVideo className="size-3.5" />Playlist</span> },
 ];
-
-const ADD_LABEL: Record<MediaKind, string> = {
-  film: "Add film",
-  anime: "Add anime",
-  series: "Add series",
-  youtube: "Add video",
-  playlist: "Add playlist",
-};
-
-const CREATOR_PLACEHOLDER: Record<MediaKind, string> = {
-  film: "Christopher Nolan",
-  anime: "Studio Ghibli",
-  series: "HBO",
-  youtube: "Channel name",
-  playlist: "Channel name",
-};
 
 /**
  * Mounted only while open, so each visit starts from a clean sheet.
  *
- * The kind switch at the top is the whole dialog's hinge: a film is a
- * one-episode title, so it asks for a running time and nothing else. Anime and
- * series ask for an episode count and, optionally, the length of one episode.
+ * The kind switch at the top is the whole dialog's hinge: a video is a
+ * one-sitting title, so it asks for a length and nothing else. A playlist asks
+ * how many videos are in it and, optionally, how long one of them runs — the
+ * two numbers a pace is built from.
  */
-export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AddVideoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const media = useStore((s) => s.media);
   const insert = useStore((s) => s.insert);
   const toast = useStore((s) => s.toast);
 
-  const [kind, setKind] = React.useState<MediaKind>("film");
+  const [kind, setKind] = React.useState<YoutubeKind>("youtube");
   const [title, setTitle] = React.useState("");
-  const [creator, setCreator] = React.useState("");
+  const [url, setUrl] = React.useState("");
+  const [channel, setChannel] = React.useState("");
   const [genre, setGenre] = React.useState("");
   const [topic, setTopic] = React.useState("");
   const [series, setSeries] = React.useState("");
-  const [tint, setTint] = React.useState<Tint>("violet");
-  const [episodes, setEpisodes] = React.useState(12);
-  // Two runtimes, not one: a feature film and one episode of a show are
-  // different orders of magnitude, and switching kind should not leave a
-  // 100-minute default sitting in an "each episode" box.
-  const [filmRuntime, setFilmRuntime] = React.useState(100);
-  const [episodeRuntime, setEpisodeRuntime] = React.useState(24);
+  const [tint, setTint] = React.useState<Tint>("red");
+  const [videos, setVideos] = React.useState(10);
+  // Two lengths, not one: a single video and one video inside a playlist are
+  // different guesses, and switching kind should not leave the wrong default
+  // sitting in the box.
+  const [videoRuntime, setVideoRuntime] = React.useState(12);
+  const [perVideoRuntime, setPerVideoRuntime] = React.useState(12);
 
-  const isFilm = kind === "film";
-  const creatorLabel = isFilm ? "Director" : "Studio";
-  const runtime = isFilm ? filmRuntime : episodeRuntime;
-  const totalEpisodes = isFilm ? 1 : Math.max(1, Math.round(episodes));
+  const single = kind === "youtube";
+  const runtime = single ? videoRuntime : perVideoRuntime;
+  const totalVideos = single ? 1 : Math.max(1, Math.round(videos));
   const canSave = title.trim().length > 0;
+  // A link is a convenience, never a gate — this line informs, it never blocks.
+  const linkHint = urlHint(url);
 
   // The cover needs a whole Media to draw; nothing here is ever saved.
   const preview: Media = {
     id: "preview",
     user_id: "",
     title,
-    creator: creator.trim() || null,
-    url: null,
-    channel: null,
+    creator: null,
+    url: normalizeUrl(url),
+    channel: channel.trim() || null,
     kind,
     genre: genre.trim() || null,
     topic: topic.trim() || null,
     series: series.trim() || null,
     color: tint,
     cover_url: null,
-    total_episodes: totalEpisodes,
+    total_episodes: totalVideos,
     current_episode: 0,
     episodes_per_day: null,
     runtime_min: runtime > 0 ? runtime : null,
@@ -96,17 +85,19 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
     if (!canSave) return;
     insert("media", {
       title: title.trim(),
-      creator: creator.trim() || null,
       kind,
+      url: normalizeUrl(url),
+      channel: channel.trim() || null,
+      creator: null,
       genre: genre.trim() || null,
       topic: topic.trim() || null,
       series: series.trim() || null,
       color: tint,
-      total_episodes: totalEpisodes,
+      total_episodes: totalVideos,
       current_episode: 0,
       runtime_min: runtime > 0 ? Math.round(runtime) : null,
-      // Nothing lands on a day until it is dragged there. Adding a title is
-      // shelving it, not committing to a night.
+      // Nothing lands on a day until it is dragged there. Adding a video is
+      // saving it for later, not committing to an evening.
       status: "planned",
       start_date: null,
       end_date: null,
@@ -115,16 +106,16 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
     });
 
     toast({
-      title: "Added to your shelf",
+      title: "Saved for later",
       description: "Drag it onto a day in Calendar when you want to watch it.",
     });
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Add to Films & Anime" width={520}>
+    <Modal open={open} onClose={onClose} title="Add to YouTube" width={520}>
       <div className="max-h-[70vh] overflow-y-auto px-4 py-4">
-        <Segmented<MediaKind>
+        <Segmented<YoutubeKind>
           value={kind}
           onChange={setKind}
           options={KIND_OPTIONS}
@@ -141,30 +132,43 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
               <Input
                 autoFocus
                 aria-label="Title"
-                placeholder={isFilm ? "Arrival" : "Mushishi"}
+                placeholder={single ? "How to read a paper" : "Linear algebra course"}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && canSave) save(); }}
               />
             </Field>
 
+            <Field label="Link" hint="optional">
+              <Input
+                aria-label="YouTube link"
+                type="url"
+                inputMode="url"
+                placeholder="https://youtube.com/watch?v=…"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && canSave) save(); }}
+              />
+            </Field>
+            {linkHint && <p className="-mt-1 text-[11px] text-ink-4">{linkHint}</p>}
+
             <div className="grid grid-cols-2 gap-3">
-              <Field label={creatorLabel}>
+              <Field label="Channel" hint="optional">
                 <SuggestInput
-                  label={creatorLabel}
-                  placeholder={CREATOR_PLACEHOLDER[kind]}
-                  value={creator}
-                  suggestions={mediaFacetValues(media, "creator")}
-                  onChange={setCreator}
-                  onCommit={setCreator}
+                  label="Channel"
+                  placeholder="Veritasium"
+                  value={channel}
+                  suggestions={youtubeFacetValues(media, "channel")}
+                  onChange={setChannel}
+                  onCommit={setChannel}
                 />
               </Field>
               <Field label="Genre" hint="optional">
                 <SuggestInput
                   label="Genre"
-                  placeholder="Science fiction"
+                  placeholder="Lecture"
                   value={genre}
-                  suggestions={mediaFacetValues(media, "genre")}
+                  suggestions={youtubeFacetValues(media, "genre")}
                   onChange={setGenre}
                   onCommit={setGenre}
                 />
@@ -175,9 +179,9 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
               <Field label="Topic" hint="optional">
                 <SuggestInput
                   label="Topic"
-                  placeholder="Memory and language"
+                  placeholder="Linear algebra"
                   value={topic}
-                  suggestions={mediaFacetValues(media, "topic")}
+                  suggestions={youtubeFacetValues(media, "topic")}
                   onChange={setTopic}
                   onCommit={setTopic}
                 />
@@ -185,26 +189,26 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
               <Field label="Series" hint="optional">
                 <SuggestInput
                   label="Series or collection"
-                  placeholder="Ghibli run"
+                  placeholder="Maths refresher"
                   value={series}
-                  suggestions={mediaFacetValues(media, "series")}
+                  suggestions={youtubeFacetValues(media, "series")}
                   onChange={setSeries}
                   onCommit={setSeries}
                 />
               </Field>
             </div>
 
-            {isFilm ? (
+            {single ? (
               <div className="grid grid-cols-[130px_minmax(0,1fr)] items-start gap-3">
-                <Field label="Runtime" hint="optional">
+                <Field label="Length" hint="optional">
                   <NumberField
-                    label="Runtime in minutes"
-                    value={filmRuntime}
+                    label="Length in minutes"
+                    value={videoRuntime}
                     min={0}
                     max={900}
                     step={5}
                     suffix="min"
-                    onChange={setFilmRuntime}
+                    onChange={setVideoRuntime}
                   />
                 </Field>
                 <Field label="Colour" plain>
@@ -216,25 +220,25 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Episodes">
+                  <Field label="Videos">
                     <NumberField
-                      label="Total episodes"
-                      value={episodes}
+                      label="Videos in the playlist"
+                      value={videos}
                       min={1}
                       max={5000}
                       step={1}
-                      onChange={setEpisodes}
+                      onChange={setVideos}
                     />
                   </Field>
-                  <Field label="Each episode" hint="optional">
+                  <Field label="Each video" hint="optional">
                     <NumberField
-                      label="Minutes per episode"
-                      value={episodeRuntime}
+                      label="Minutes per video"
+                      value={perVideoRuntime}
                       min={0}
                       max={600}
                       step={5}
                       suffix="min"
-                      onChange={setEpisodeRuntime}
+                      onChange={setPerVideoRuntime}
                     />
                   </Field>
                 </div>
@@ -249,16 +253,16 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
         </div>
 
         <p className="mt-5 border-t border-line pt-4 text-[12px] leading-relaxed text-ink-3">
-          {isFilm
-            ? "Goes to your shelf unscheduled. Drag it onto a day in Calendar when you want to watch it — a film takes one evening, so it lands as one block."
-            : "Goes to your shelf unscheduled. Drag it onto a day in Calendar, or open it and use Plan, when you want episodes laid out day by day."}
+          {single
+            ? "Goes to your watch-later list unscheduled. Drag it onto a day in Calendar when you want to watch it — one video is one sitting, so it lands as one block."
+            : "Goes to your watch-later list unscheduled. Drag it onto a day in Calendar, or open it and use Plan, when you want the videos laid out day by day."}
         </p>
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
         <Button variant="primary" size="sm" disabled={!canSave} onClick={save}>
-          {ADD_LABEL[kind]}
+          {single ? "Add video" : "Add playlist"}
         </Button>
       </div>
     </Modal>

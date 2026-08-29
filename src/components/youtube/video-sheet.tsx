@@ -2,40 +2,41 @@
 
 import * as React from "react";
 import {
-  ArrowRight, CalendarRange, CalendarX, Check, ChevronDown, Dot, Gauge, Lightbulb,
-  Minus, MoreHorizontal, Palette, Plus, Quote, Trash2, X,
+  ArrowRight, CalendarRange, CalendarX, Check, ChevronDown, Dot, Gauge,
+  Minus, MoreHorizontal, Palette, Plus, Trash2, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { addDays, formatDate, formatDuration, friendlyDate, startOfWeek, todayISO } from "@/lib/date";
-import type { Media, NoteKind, Task } from "@/lib/types";
-import { MEDIA_KIND_LABELS, NOTE_KIND_LABELS } from "@/lib/types";
+import { MEDIA_KIND_LABELS, type Media, type Task } from "@/lib/types";
 import {
   AutoTextarea, Button, Checkbox, IconButton, InlineInput, Input, SectionLabel, Segmented,
 } from "@/components/ui/primitives";
-import { MiniEmpty, Toggle, VisuallyHidden } from "@/components/ui/form";
+import { Toggle, VisuallyHidden } from "@/components/ui/form";
 import {
   ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
 } from "@/components/ui/overlays";
-import { MediaCover } from "./media-cover";
-import { mediaFacetValues } from "./facets";
-import { EpisodeLog } from "./episode-log";
+import { MediaCover } from "@/components/watch/media-cover";
 import {
   DateField, Disclosure, Field, InlineFacet, NumberField, RatingStars,
-} from "./watch-fields";
+} from "@/components/watch/watch-fields";
 import {
-  computeWatchPlan, diffWatchPlan, episodeRangeLabel, projectWatchBlocks, rateLabel,
-  shortDate, skipWeekdaysOf, watchDiffSummary, watchPlanSentence,
-  type WatchDiff, type WatchDiffKind, type WatchDiffRow, type WatchPlanDraft,
-  type WatchPlanMode,
-} from "./watch-plan";
+  computeWatchPlan, diffWatchPlan, projectWatchBlocks, shortDate, skipWeekdaysOf,
+  watchDiffSummary,
+  type WatchDiff, type WatchDiffKind, type WatchDiffRow, type WatchPlanDraft, type WatchPlanMode,
+} from "@/components/watch/watch-plan";
+import { youtubeFacetValues } from "./youtube-facets";
+import { videoRangeLabel, videoRateLabel, youtubePlanSentence } from "./youtube-plan";
+import { VideoLog } from "./video-log";
+import { OpenOnYoutube } from "./youtube-link";
+import { normalizeUrl, urlHint } from "./youtube-url";
 
 type MediaStatus = Media["status"];
 
 const STATUS_ORDER: MediaStatus[] = ["watching", "planned", "paused", "finished", "dropped"];
 
 // A dot never carries the state on its own — the label sits right beside it —
-// so none of these needs to shout. Only the title you are on gets the accent.
+// so none of these needs to shout. Only the video you are on gets the accent.
 const STATUS_DOT: Record<MediaStatus, string> = {
   watching: "var(--accent)",
   planned: "var(--ink-4)",
@@ -44,7 +45,7 @@ const STATUS_DOT: Record<MediaStatus, string> = {
   dropped: "var(--ink-4)",
 };
 
-/** A film is watched, not finished. Everything else reads the same either way. */
+/** A single video is watched, not finished. The rest read the same either way. */
 function statusLabel(status: MediaStatus, single: boolean): string {
   if (status === "finished") return single ? "Watched" : "Finished";
   if (status === "watching") return "Watching";
@@ -100,17 +101,17 @@ function SubGroup({
 }
 
 // =========================================================
-export function MediaSheet({ mediaId, onClose }: { mediaId: string; onClose: () => void }) {
+export function VideoSheet({ mediaId, onClose }: { mediaId: string; onClose: () => void }) {
   const item = useStore((s) => s.media.find((m) => m.id === mediaId) ?? null);
 
   return (
     <Sheet open={!!item} onClose={onClose} width={470}>
-      {item && <MediaSheetBody key={item.id} item={item} onClose={onClose} />}
+      {item && <VideoSheetBody key={item.id} item={item} onClose={onClose} />}
     </Sheet>
   );
 }
 
-function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void }) {
+function VideoSheetBody({ item, onClose }: { item: Media; onClose: () => void }) {
   const media = useStore((s) => s.media);
   const tasks = useStore((s) => s.tasks);
   const patch = useStore((s) => s.patch);
@@ -122,7 +123,6 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
   const logWatch = useStore((s) => s.logWatch);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
-  const noteCount = useStore((s) => s.notes.reduce((n, x) => n + (x.media_id === item.id ? 1 : 0), 0));
 
   const today = todayISO();
   const total = Math.max(1, item.total_episodes);
@@ -134,25 +134,26 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
 
   // ---- local drafts: text commits on blur, numbers follow the store ----
   const [title, setTitle] = React.useState(item.title);
-  const [creator, setCreator] = React.useState(item.creator ?? "");
+  const [channel, setChannel] = React.useState(item.channel ?? "");
+  const [url, setUrl] = React.useState(item.url ?? "");
   const [genre, setGenre] = React.useState(item.genre ?? "");
   const [topic, setTopic] = React.useState(item.topic ?? "");
   const [seriesName, setSeriesName] = React.useState(item.series ?? "");
-  const [episodesField, setEpisodesField] = React.useState(String(item.total_episodes));
+  const [videosField, setVideosField] = React.useState(String(item.total_episodes));
   const [runtimeField, setRuntimeField] = React.useState(
     item.runtime_min == null ? "" : String(item.runtime_min));
   const [cover, setCover] = React.useState(item.cover_url ?? "");
   const [notes, setNotes] = React.useState(item.notes ?? "");
-  const [episodeDraft, setEpisodeDraft] = React.useState(seen);
-  const [seenEpisode, setSeenEpisode] = React.useState(seen);
+  const [videoDraft, setVideoDraft] = React.useState(seen);
+  const [seenVideo, setSeenVideo] = React.useState(seen);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [confirmClear, setConfirmClear] = React.useState(false);
   const [showAllWeeks, setShowAllWeeks] = React.useState(false);
 
-  // Ticking a block advances the bookmark — the "on episode" field has to follow.
-  if (seenEpisode !== seen) {
-    setSeenEpisode(seen);
-    setEpisodeDraft(seen);
+  // Ticking a block advances the bookmark — the "on video" field has to follow.
+  if (seenVideo !== seen) {
+    setSeenVideo(seen);
+    setVideoDraft(seen);
   }
 
   const [plan, setPlan] = React.useState<WatchPlanDraft>(() => ({
@@ -184,7 +185,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
       start,
       items,
       done: items.filter((t) => t.status === "done").length,
-      episodes: items.reduce(
+      videos: items.reduce(
         (n, t) => n + Math.max(0, (t.episode_to ?? 0) - (t.episode_from ?? 0) + 1), 0),
     }));
   }, [blocks, weekStart]);
@@ -197,20 +198,21 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
 
   const pending = blocks.filter((t) => t.status !== "done" && (t.date ?? "") >= today);
   const upcoming = pending.length;
-  // A film hides the whole plan panel, so the sheet has to say somewhere that
-  // an evening is already booked for it.
+  // A single video hides the whole plan panel, so the sheet has to say
+  // somewhere that an evening is already booked for it.
   const nextBlock = pending[0] ?? null;
   const doneBlocks = blocks.filter((t) => t.status === "done").length;
   const visibleWeeks = showAllWeeks ? weeks : weeks.slice(0, 5);
   const watched = seen >= total;
+  const linkHint = urlHint(url);
 
   // ---- the one line each folded group leads with ----
   const progressSummary = single
     ? watched ? "Watched" : "Not watched yet"
-    : `ep. ${seen} of ${total}`;
+    : `video ${seen} of ${total}`;
 
   const planSummary = item.episodes_per_day
-    ? `${rateLabel(item.episodes_per_day)}${item.end_date ? ` · ends ${shortDate(item.end_date)}` : ""}${upcoming ? ` · ${upcoming} ahead` : ""}`
+    ? `${videoRateLabel(item.episodes_per_day)}${item.end_date ? ` · ends ${shortDate(item.end_date)}` : ""}${upcoming ? ` · ${upcoming} ahead` : ""}`
     : upcoming
       ? `${upcoming} unfinished ${upcoming === 1 ? "block" : "blocks"} ahead`
       : "Not on the calendar yet";
@@ -218,16 +220,15 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
   const notesSummary = [
     item.rating ? `${item.rating} of 5` : null,
     item.notes?.trim() ? "your verdict written" : null,
-    noteCount ? `${noteCount} kept` : null,
   ].filter(Boolean).join(" · ") || "Rate it, and say what stayed with you";
 
-  // The film's runtime is already stated, editable, in the header — repeating it
-  // here would be the same number said twice.
+  // The single video's length is already stated, editable, in the header —
+  // repeating it here would be the same number said twice.
   const detailsSummary = single
-    ? item.cover_url ? "Poster set" : "Add a poster image"
+    ? item.cover_url ? "Thumbnail set" : "Add a thumbnail image"
     : [
-        item.runtime_min ? `${formatDuration(item.runtime_min)} an episode` : "No episode length set",
-        item.cover_url ? "poster set" : null,
+        item.runtime_min ? `${formatDuration(item.runtime_min)} a video` : "No video length set",
+        item.cover_url ? "thumbnail set" : null,
       ].filter(Boolean).join(" · ");
 
   function commit<K extends keyof Media>(field: K, value: Media[K]) {
@@ -237,11 +238,11 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
     patch("media", item.id, changes);
   }
 
-  function commitEpisodes() {
-    const n = Math.max(1, Math.round(Number(episodesField) || item.total_episodes));
-    setEpisodesField(String(n));
+  function commitVideos() {
+    const n = Math.max(1, Math.round(Number(videosField) || item.total_episodes));
+    setVideosField(String(n));
     if (n === item.total_episodes) return;
-    // Shrinking the season below the bookmark would leave "ep. 20 of 12" on screen.
+    // Shrinking a playlist below the bookmark would leave "video 20 of 12" on screen.
     patch("media", item.id, {
       total_episodes: n,
       ...(item.current_episode > n ? { current_episode: n } : {}),
@@ -256,6 +257,13 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
     commit("runtime_min", next);
   }
 
+  /** A link never blocks anything — it is tidied on the way in and saved as typed. */
+  function commitUrl() {
+    const next = normalizeUrl(url);
+    setUrl(next ?? "");
+    commit("url", next);
+  }
+
   function apply() {
     if (!planResult.valid) return;
     const created = scheduleMedia(item.id, {
@@ -267,13 +275,13 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
     toast({
       title: created ? "Plan updated" : "Nothing left to schedule",
       description: created
-        ? `${created} ${created === 1 ? "block" : "blocks"} · ${rateLabel(planResult.perDay)} · done by ${shortDate(planResult.endDate)}`
-        : "Every episode is watched.",
+        ? `${created} ${created === 1 ? "block" : "blocks"} · ${videoRateLabel(planResult.perDay)} · done by ${shortDate(planResult.endDate)}`
+        : "Every video is watched.",
       tone: created ? "success" : "default",
     });
   }
 
-  /** A film never gets a pace — it gets an evening. */
+  /** A single video never gets a pace — it gets an evening. */
   function watchToday() {
     const created = scheduleMedia(item.id, { startDate: today, replace: true });
     toast({
@@ -293,7 +301,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
         <Popover
           align="end"
           className="w-[210px]"
-          trigger={<IconButton label="Title options" size="sm"><MoreHorizontal /></IconButton>}
+          trigger={<IconButton label="Video options" size="sm"><MoreHorizontal /></IconButton>}
         >
           {(close) => (
             <>
@@ -306,7 +314,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               </MenuItem>
               <MenuSeparator />
               <MenuItem icon={Trash2} danger onClick={() => { setConfirmDelete(true); close(); }}>
-                Delete {single ? "film" : "title"}
+                Delete {single ? "video" : "playlist"}
               </MenuItem>
             </>
           )}
@@ -319,7 +327,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
         {/* ---- identity ---- */}
         <div className="flex gap-4 px-4 pb-5 pt-4">
           <div className="w-[88px] shrink-0">
-            {/* The draft title, so the poster keeps up while you retype it. */}
+            {/* The draft title, so the thumbnail keeps up while you retype it. */}
             <MediaCover item={{ ...item, title }} />
           </div>
 
@@ -337,16 +345,16 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               className="text-[17px] font-semibold tracking-[-0.01em] text-ink"
             />
             <InlineInput
-              aria-label={single ? "Director" : "Studio"}
-              placeholder={single ? "Director" : "Studio"}
-              value={creator}
-              onChange={(e) => setCreator(e.target.value)}
-              onBlur={() => commit("creator", creator.trim() || null)}
+              aria-label="Channel"
+              placeholder="Channel"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+              onBlur={() => commit("channel", channel.trim() || null)}
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
               className="mt-0.5 text-[13px] text-ink-3"
             />
 
-            {/* How the title is filed, and how long it is. Each commits on blur
+            {/* How the video is filed, and how long it is. Each commits on blur
                 like the title above, so there is nothing extra to save — and
                 nothing editable hidden behind a disclosure. */}
             <div className="mt-2 grid grid-cols-4 gap-2">
@@ -355,25 +363,25 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
                 value={genre}
                 onChange={setGenre}
                 onCommit={() => commit("genre", genre.trim() || null)}
-                suggestions={mediaFacetValues(media, "genre")}
+                suggestions={youtubeFacetValues(media, "genre")}
               />
               <InlineFacet
                 label="Topic"
                 value={topic}
                 onChange={setTopic}
                 onCommit={() => commit("topic", topic.trim() || null)}
-                suggestions={mediaFacetValues(media, "topic")}
+                suggestions={youtubeFacetValues(media, "topic")}
               />
               <InlineFacet
                 label="Series"
                 value={seriesName}
                 onChange={setSeriesName}
                 onCommit={() => commit("series", seriesName.trim() || null)}
-                suggestions={mediaFacetValues(media, "series")}
+                suggestions={youtubeFacetValues(media, "series")}
               />
               {single ? (
                 <InlineFacet
-                  label="Runtime"
+                  label="Length"
                   value={runtimeField}
                   onChange={setRuntimeField}
                   onCommit={commitRuntime}
@@ -382,13 +390,26 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
                 />
               ) : (
                 <InlineFacet
-                  label="Episodes"
-                  value={episodesField}
-                  onChange={setEpisodesField}
-                  onCommit={commitEpisodes}
+                  label="Videos"
+                  value={videosField}
+                  onChange={setVideosField}
+                  onCommit={commitVideos}
                   numeric
                 />
               )}
+            </div>
+
+            {/* The link is the point of a YouTube shelf, so it is editable in
+                plain sight rather than filed under Details. */}
+            <div className="mt-2">
+              <InlineFacet
+                label="Link"
+                value={url}
+                onChange={setUrl}
+                onCommit={commitUrl}
+                placeholder="https://youtube.com/watch?v=…"
+              />
+              {linkHint && <p className="mt-0.5 text-[11px] text-ink-4">{linkHint}</p>}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -444,13 +465,17 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               >
                 <TintPicker value={item.color} onChange={(t) => { if (t) commit("color", t); }} />
               </Popover>
+
+              {item.url && (
+                <OpenOnYoutube url={item.url} title={item.title} tone="pill" className="h-[24px]" />
+              )}
             </div>
           </div>
         </div>
 
-        {/* ---- Progress: a film answers yes or no, a series counts ---- */}
+        {/* ---- Progress: one video answers yes or no, a playlist counts ---- */}
         <Group
-          storageKey="humoyun.watch.sheet.progress"
+          storageKey="humoyun.youtube.sheet.progress"
           label="Progress"
           summary={progressSummary}
           defaultOpen
@@ -493,24 +518,24 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               <p className="display-serif text-[32px] leading-none text-ink tnum">{pct}%</p>
 
               <div className="mt-4 flex items-end gap-2">
-                <Field label="I'm on episode" className="w-[136px]">
+                <Field label="I'm on video" className="w-[136px]">
                   <NumberField
-                    label="Current episode"
-                    value={episodeDraft}
+                    label="Current video"
+                    value={videoDraft}
                     min={0}
                     max={total}
                     step={1}
-                    onChange={setEpisodeDraft}
+                    onChange={setVideoDraft}
                   />
                 </Field>
                 <Button
                   size="sm"
-                  variant={episodeDraft === seen ? "secondary" : "primary"}
-                  disabled={episodeDraft === seen}
+                  variant={videoDraft === seen ? "secondary" : "primary"}
+                  disabled={videoDraft === seen}
                   onClick={() => {
-                    logWatch(item.id, episodeDraft);
+                    logWatch(item.id, videoDraft);
                     toast({
-                      title: episodeDraft >= total ? "Finished — nice." : `Now on ep. ${episodeDraft}`,
+                      title: videoDraft >= total ? "Finished — nice." : `Now on video ${videoDraft}`,
                       tone: "success",
                     });
                   }}
@@ -534,14 +559,14 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
             </>
           )}
 
-          <EpisodeLog item={item} />
+          <VideoLog item={item} />
         </Group>
 
-        {/* ---- Plan: episodes a day, the way a book gets pages a day.
-                A film has one sitting, so there is nothing here to decide. ---- */}
+        {/* ---- Plan: videos a day, the way a series gets episodes a day.
+                A single video is one sitting, so there is nothing to decide. ---- */}
         {!single && (
           <Group
-            storageKey="humoyun.watch.sheet.plan"
+            storageKey="humoyun.youtube.sheet.plan"
             label="Plan"
             summary={planSummary}
           >
@@ -550,7 +575,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
                 value={plan.mode}
                 onChange={(mode) => setPlan((p) => ({ ...p, mode }))}
                 options={[
-                  { value: "perDay", label: <span className="inline-flex items-center gap-1.5"><Gauge className="size-3.5" />Episodes per day</span> },
+                  { value: "perDay", label: <span className="inline-flex items-center gap-1.5"><Gauge className="size-3.5" />Videos per day</span> },
                   { value: "finishBy", label: <span className="inline-flex items-center gap-1.5"><CalendarRange className="size-3.5" />Finish by</span> },
                 ]}
                 className="w-full [&>button]:flex-1"
@@ -569,12 +594,12 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
                 {plan.mode === "perDay" ? (
                   <Field label="Pace">
                     <NumberField
-                      label="Episodes per day"
+                      label="Videos per day"
                       value={plan.perDay}
                       min={1}
                       max={100}
                       step={1}
-                      suffix="ep"
+                      suffix="vid"
                       onChange={(perDay) => setPlan((p) => ({ ...p, perDay }))}
                     />
                   </Field>
@@ -606,7 +631,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
                 )}
                 aria-live="polite"
               >
-                {watchPlanSentence(plan, planResult)}
+                {youtubePlanSentence(plan, planResult)}
               </p>
             </div>
 
@@ -619,12 +644,12 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               {item.episodes_per_day != null && plan.mode === "perDay"
                 && item.episodes_per_day !== plan.perDay && (
                 <QuickChip onClick={() => setPlan((p) => ({ ...p, perDay: item.episodes_per_day as number }))}>
-                  Back to {rateLabel(item.episodes_per_day)}
+                  Back to {videoRateLabel(item.episodes_per_day)}
                 </QuickChip>
               )}
             </div>
 
-            {planResult.valid && <WatchDiffView diff={diff} className="mt-3" />}
+            {planResult.valid && <VideoDiffView diff={diff} className="mt-3" />}
 
             <div className="mt-3 flex items-center gap-2">
               <Button
@@ -647,7 +672,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
             </p>
 
             <SubGroup
-              storageKey="humoyun.watch.sheet.blocks"
+              storageKey="humoyun.youtube.sheet.blocks"
               label="Watch blocks"
               summary={blocks.length
                 ? `${doneBlocks} of ${blocks.length} done · ${weeks.length} ${weeks.length === 1 ? "week" : "weeks"}`
@@ -667,7 +692,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
                           {w.start ? `Week of ${shortDate(w.start)}` : "Unscheduled"}
                         </span>
                         <span className="text-[11px] text-ink-4 tnum">
-                          {w.done}/{w.items.length} · {w.episodes} ep
+                          {w.done}/{w.items.length} · {w.videos} vid
                         </span>
                       </div>
                       <div className="rounded-md border border-line">
@@ -702,7 +727,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
                                 {t.date ? formatDate(t.date) : "No date"}
                               </span>
                               <span className={cn("flex-1 truncate text-[12px] tnum", done ? "text-ink-4 line-through" : "text-ink-3")}>
-                                {range ? episodeRangeLabel(range) : t.title}
+                                {range ? videoRangeLabel(range) : t.title}
                               </span>
                             </div>
                           );
@@ -724,7 +749,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
 
         {/* ---- Notes: the verdict, and the stars ---- */}
         <Group
-          storageKey="humoyun.watch.sheet.notes"
+          storageKey="humoyun.youtube.sheet.notes"
           label="Notes"
           summary={notesSummary}
         >
@@ -736,7 +761,6 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
           </div>
 
           <div className="mt-4">
-            <p className="mb-1 text-[11.5px] font-medium text-ink-3">Your verdict</p>
             <AutoTextarea
               aria-label="Notes"
               value={notes}
@@ -747,20 +771,18 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               className="text-[13px] text-ink placeholder:text-ink-4"
             />
           </div>
-
-          <MediaNotes item={item} single={single} />
         </Group>
 
         {/* ---- Details ---- */}
         <Group
-          storageKey="humoyun.watch.sheet.details"
+          storageKey="humoyun.youtube.sheet.details"
           label="Details"
           summary={detailsSummary}
         >
           {!single && (
-            <Field label="Each episode" hint="optional" className="w-[168px]">
+            <Field label="Each video" hint="optional" className="w-[168px]">
               <NumberField
-                label="Minutes per episode"
+                label="Minutes per video"
                 value={item.runtime_min ?? 0}
                 min={0}
                 max={600}
@@ -770,9 +792,9 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               />
             </Field>
           )}
-          <Field label="Poster image" hint="optional" className={single ? "" : "mt-3"}>
+          <Field label="Thumbnail image" hint="optional" className={single ? "" : "mt-3"}>
             <Input
-              aria-label="Poster image URL"
+              aria-label="Thumbnail image URL"
               placeholder="https://…"
               value={cover}
               onChange={(e) => setCover(e.target.value)}
@@ -802,11 +824,6 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
         onClose={() => setConfirmDelete(false)}
         onConfirm={() => {
           removeWhere("tasks", (t) => t.media_id === item.id);
-          // What you wrote outlives the title: the notes detach rather than
-          // disappear, so a delete never silently takes them with it.
-          for (const n of useStore.getState().notes) {
-            if (n.media_id === item.id) patch("notes", n.id, { media_id: null });
-          }
           remove("media", item.id);
           toast({
             title: "Deleted",
@@ -815,9 +832,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
           onClose();
         }}
         title={`Delete ${item.title}?`}
-        description={`The title and every watch block it put on your calendar will be removed. This cannot be undone.${
-          noteCount ? ` The ${noteCount === 1 ? "note" : `${noteCount} notes`} you kept stay in Notes.` : ""
-        }`}
+        description="The video and every watch block it put on your calendar will be removed. This cannot be undone."
       />
     </>
   );
@@ -840,260 +855,6 @@ function QuickChip({ children, onClick }: { children: React.ReactNode; onClick: 
 }
 
 // =========================================================
-// The trail a title leaves — the same marginalia the books surface keeps, with
-// the mark that fits the medium: an episode for a series, a minute for a film.
-// Every line lands in the `notes` collection, so it also shows up on the Notes
-// page with this title as its source.
-// =========================================================
-type Marginal = "highlight" | "thought";
-
-const MARGINAL_OPTIONS: { value: Marginal; label: React.ReactNode }[] = [
-  { value: "highlight", label: <span className="inline-flex items-center gap-1.5"><Quote className="size-3" />Quote</span> },
-  { value: "thought", label: <span className="inline-flex items-center gap-1.5"><Lightbulb className="size-3" />Thought</span> },
-];
-
-const NOTE_PREVIEW = 5;
-
-const markLabel = (n: number, single: boolean) => (single ? `${n} min` : `ep. ${n}`);
-const markNoun = (single: boolean) => (single ? "minute" : "episode");
-
-/** The chip states the mark and edits it — one control, not two. */
-function MarkChip({
-  mark, max, single, onChange,
-}: {
-  mark: number | null;
-  max: number;
-  single: boolean;
-  onChange: (next: number | null) => void;
-}) {
-  const [draft, setDraft] = React.useState(mark ?? 1);
-  const [seen, setSeen] = React.useState(mark);
-
-  // The mark can change from the list while this popover is mounted.
-  if (seen !== mark) {
-    setSeen(mark);
-    setDraft(mark ?? 1);
-  }
-
-  return (
-    <Popover
-      align="start"
-      className="w-[184px] p-2"
-      trigger={
-        <button
-          type="button"
-          aria-label={mark == null
-            ? `Add the ${markNoun(single)} this note came from`
-            : `${markLabel(mark, single)}. Change it`}
-          className={cn(
-            "inline-flex h-6 shrink-0 cursor-pointer items-center rounded-full border border-line px-2",
-            "text-[11.5px] tnum transition-colors hover:bg-hover",
-            mark == null ? "text-ink-4" : "text-ink-2",
-          )}
-        >
-          {mark == null ? `no ${markNoun(single)}` : markLabel(mark, single)}
-        </button>
-      }
-    >
-      {(close) => (
-        <div className="space-y-2">
-          <NumberField
-            label={single ? "Minute" : "Episode"}
-            value={draft}
-            min={0}
-            max={Math.max(1, max)}
-            step={1}
-            suffix={single ? "min" : undefined}
-            onChange={setDraft}
-          />
-          <div className="flex gap-1.5">
-            <Button size="sm" variant="primary" className="flex-1" onClick={() => { onChange(draft); close(); }}>
-              Set
-            </Button>
-            {mark != null && (
-              <Button size="sm" variant="ghost" onClick={() => { onChange(null); close(); }}>
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-    </Popover>
-  );
-}
-
-function NoteRow({
-  id, kind, mark, body, max, single, tint,
-}: {
-  id: string;
-  kind: NoteKind;
-  mark: number | null;
-  body: string;
-  max: number;
-  single: boolean;
-  tint: Media["color"];
-}) {
-  const patch = useStore((s) => s.patch);
-  const remove = useStore((s) => s.remove);
-  const [text, setText] = React.useState(body);
-  const [seen, setSeen] = React.useState(body);
-
-  // Another edit of the same note (or a reload) has to show through the draft.
-  if (seen !== body) {
-    setSeen(body);
-    setText(body);
-  }
-
-  const quote = kind === "highlight";
-
-  return (
-    <div className={cn(`tint-${tint}`, "group/note flex gap-2 py-2")}>
-      <span
-        aria-hidden
-        className={cn("mt-[3px] w-[3px] shrink-0 rounded-full", quote ? "bg-[var(--tint)]" : "bg-line-strong")}
-      />
-      <div className="min-w-0 flex-1">
-        <AutoTextarea
-          value={text}
-          onChange={setText}
-          aria-label={NOTE_KIND_LABELS[kind]}
-          onBlur={() => {
-            const next = text.trim();
-            if (!next) { setText(body); return; }
-            if (next !== body) patch("notes", id, { body: next });
-          }}
-          className={cn("text-[13px] text-ink placeholder:text-ink-4", quote && "italic")}
-        />
-        <div className="mt-1 flex items-center gap-1.5">
-          <MarkChip
-            mark={mark}
-            max={max}
-            single={single}
-            onChange={(locator) => patch("notes", id, { locator })}
-          />
-          <span className="text-[11px] text-ink-4">{NOTE_KIND_LABELS[kind]}</span>
-          <IconButton
-            label="Delete this note"
-            tone="danger"
-            className="ml-auto opacity-0 transition-opacity focus-visible:opacity-100 group-hover/note:opacity-100"
-            onClick={() => remove("notes", id)}
-          >
-            <Trash2 />
-          </IconButton>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MediaNotes({ item, single }: { item: Media; single: boolean }) {
-  const stored = useStore((s) => s.notes);
-  const insert = useStore((s) => s.insert);
-
-  const total = Math.max(1, item.total_episodes);
-  const max = single ? Math.max(1, item.runtime_min ?? 600) : total;
-
-  const [kind, setKind] = React.useState<Marginal>("thought");
-  const [mark, setMark] = React.useState(() =>
-    single ? 0 : Math.max(1, Math.min(item.current_episode || 1, total)));
-  const [text, setText] = React.useState("");
-  const [expanded, setExpanded] = React.useState(false);
-
-  const rows = React.useMemo(
-    () => stored
-      .filter((n) => n.media_id === item.id)
-      .sort((a, b) =>
-        (a.locator ?? Number.MAX_SAFE_INTEGER) - (b.locator ?? Number.MAX_SAFE_INTEGER)
-        || a.created_at.localeCompare(b.created_at)),
-    [stored, item.id],
-  );
-
-  const visible = expanded ? rows : rows.slice(0, NOTE_PREVIEW);
-  const canAdd = text.trim().length > 0;
-
-  function add() {
-    const body = text.trim();
-    if (!body) return;
-    insert("notes", { media_id: item.id, kind, locator: mark > 0 ? mark : null, body });
-    setText("");
-  }
-
-  return (
-    <SubGroup
-      storageKey="humoyun.watch.sheet.marginalia"
-      label="Quotes & thoughts"
-      summary={rows.length
-        ? `${rows.length} kept from it`
-        : `Keep a line, with the ${markNoun(single)} it came from`}
-    >
-      <div className="rounded-md border border-line p-2">
-        <div className="flex items-center gap-2">
-          <Segmented<Marginal> size="sm" value={kind} onChange={setKind} options={MARGINAL_OPTIONS} />
-          <div className="ml-auto w-[112px]">
-            <NumberField
-              label={single ? "Minute this note came from" : "Episode this note came from"}
-              value={mark}
-              min={0}
-              max={max}
-              step={1}
-              suffix={single ? "min" : "ep"}
-              onChange={setMark}
-              className="h-7"
-            />
-          </div>
-        </div>
-
-        <AutoTextarea
-          value={text}
-          onChange={setText}
-          minRows={2}
-          aria-label={kind === "highlight" ? "A line worth keeping" : "Your thought"}
-          placeholder={kind === "highlight" ? "The line worth keeping…" : "What did it make you think?"}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add(); }
-          }}
-          className="mt-2 text-[13px] text-ink placeholder:text-ink-4"
-        />
-
-        <div className="mt-1.5 flex items-center gap-2">
-          <Button size="sm" variant="primary" disabled={!canAdd} onClick={add}>
-            <Plus className="size-3.5" />
-            Add
-          </Button>
-          <span className="text-[11px] text-ink-4">⌘↵ saves</span>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <MiniEmpty className="mt-1">Nothing kept from this one yet.</MiniEmpty>
-      ) : (
-        <div className="mt-1 divide-y divide-line">
-          {visible.map((n) => (
-            <NoteRow
-              key={n.id}
-              id={n.id}
-              kind={n.kind}
-              mark={n.locator}
-              body={n.body}
-              max={max}
-              single={single}
-              tint={item.color}
-            />
-          ))}
-          {rows.length > NOTE_PREVIEW && (
-            <div className="pt-1.5">
-              <Button size="sm" variant="ghost" className="w-full" onClick={() => setExpanded((v) => !v)}>
-                {expanded ? "Show fewer" : `Show all ${rows.length}`}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </SubGroup>
-  );
-}
-
-// =========================================================
 // The live before/after for a reschedule, rendered under the plan controls so
 // the calendar damage is visible while the pace is still being dialled in.
 // =========================================================
@@ -1106,7 +867,7 @@ const KIND_META: Record<WatchDiffKind, {
 }> = {
   added:   { icon: Plus,       tone: "text-success", verb: "New block" },
   removed: { icon: Minus,      tone: "text-ink-3",   verb: "Block removed" },
-  changed: { icon: ArrowRight, tone: "text-ink-2",   verb: "Episodes change" },
+  changed: { icon: ArrowRight, tone: "text-ink-2",   verb: "Videos change" },
   same:    { icon: Dot,        tone: "text-ink-4",   verb: "Unchanged" },
 };
 
@@ -1133,9 +894,9 @@ function DiffRow({ row, divided }: { row: WatchDiffRow; divided: boolean }) {
       </span>
       {row.kind === "changed" ? (
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] tnum">
-          <span className="truncate text-ink-4 line-through">{episodeRangeLabel(row.before)}</span>
+          <span className="truncate text-ink-4 line-through">{videoRangeLabel(row.before)}</span>
           <ArrowRight className="size-3 shrink-0 text-ink-4" aria-hidden />
-          <span className="truncate text-ink">{episodeRangeLabel(row.after)}</span>
+          <span className="truncate text-ink">{videoRangeLabel(row.after)}</span>
         </span>
       ) : (
         <span
@@ -1144,14 +905,14 @@ function DiffRow({ row, divided }: { row: WatchDiffRow; divided: boolean }) {
             row.kind === "removed" ? "text-ink-4 line-through" : row.kind === "added" ? "text-ink" : "text-ink-4",
           )}
         >
-          {episodeRangeLabel(row.after ?? row.before)}
+          {videoRangeLabel(row.after ?? row.before)}
         </span>
       )}
     </div>
   );
 }
 
-function WatchDiffView({ diff, className }: { diff: WatchDiff; className?: string }) {
+function VideoDiffView({ diff, className }: { diff: WatchDiff; className?: string }) {
   const [expanded, setExpanded] = React.useState(false);
 
   // Unchanged days are noise while scanning a diff — show them only on request.
