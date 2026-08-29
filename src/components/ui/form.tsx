@@ -182,14 +182,17 @@ export function Toggle({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={cn(
-          "relative mt-0.5 h-[22px] w-[38px] shrink-0 rounded-full cursor-pointer",
+          // p-0 matters: a <button> carries default padding, and without it the
+          // knob's static position starts inside that padding, so the translate
+          // pushed it past the right edge of the track.
+          "relative mt-0.5 h-[22px] w-[38px] shrink-0 rounded-full border-0 p-0 cursor-pointer",
           "transition-colors duration-200 ease-[var(--ease-out-apple)]",
           checked ? "bg-accent" : "bg-line-strong",
         )}
       >
         <span
           className={cn(
-            "absolute top-[2px] size-[18px] rounded-full bg-canvas shadow-sm",
+            "absolute left-0 top-[2px] size-[18px] rounded-full bg-canvas shadow-sm",
             "transition-transform duration-200 ease-[var(--ease-out-apple)]",
             checked ? "translate-x-[18px]" : "translate-x-[2px]",
           )}
