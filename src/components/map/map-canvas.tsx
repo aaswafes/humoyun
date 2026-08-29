@@ -686,28 +686,41 @@ export const MapCanvas = React.forwardRef<MapControls, {
         }
       };
 
-      const up = () => {
+      const up = (ev: PointerEvent) => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         gestureRef.current = null;
         if (path) { path.style.display = "none"; path.setAttribute("d", ""); }
         if (g.kind !== "link") return;
         if (g.target) nodeEls.get(g.target)?.removeAttribute("data-link-target");
-        if (!g.target) return;
 
         const { insert, toast } = useStore.getState();
+        const origin = S.current.nodes.find((n) => n.id === g.sourceId);
+
+        // Dropping a link on empty canvas used to do nothing, which read as the
+        // drag having failed. It means "put the next thought here" — so make it.
+        if (!g.target) {
+          const drop = screenToWorld(ev.clientX, ev.clientY);
+          const created = createNode(drop, { color: origin?.color ?? "slate" });
+          insert("edges", {
+            board_id: S.current.board.id,
+            source_id: g.sourceId,
+            target_id: created.id,
+            color: origin?.color ?? "slate",
+          });
+          return;
+        }
         const exists = S.current.edges.some(
           (edge) =>
             (edge.source_id === g.sourceId && edge.target_id === g.target) ||
             (edge.source_id === g.target && edge.target_id === g.sourceId),
         );
         if (exists) { toast({ title: "Those two are already linked" }); return; }
-        const source = S.current.nodes.find((n) => n.id === g.sourceId);
         const edge = insert("edges", {
           board_id: S.current.board.id,
           source_id: g.sourceId,
           target_id: g.target,
-          color: source?.color ?? "slate",
+          color: origin?.color ?? "slate",
         });
         setSel({ nodes: new Set(), edge: edge.id });
       };
@@ -764,7 +777,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
     },
 
     resizeBy,
-  }), [screenToWorld, startNodeDrag, startResize, resizeBy, nodeEls, setSel]);
+  }), [screenToWorld, startNodeDrag, startResize, resizeBy, nodeEls, setSel, createNode]);
 
   const registerNode = React.useCallback((id: string, el: HTMLElement | null) => {
     if (el) nodeEls.set(id, el); else nodeEls.delete(id);
