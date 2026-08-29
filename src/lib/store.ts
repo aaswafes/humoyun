@@ -86,6 +86,27 @@ const EMPTY_TIMER: TimerState = {
 
 const TIMER_KEY = "humoyun.timer";
 
+/**
+ * Every Supabase mutation goes through one FIFO chain.
+ *
+ * Local state is optimistic, so a caller can create a book and eight reading
+ * blocks that reference it in the same tick. Fired in parallel, the tasks
+ * regularly reached Postgres before the book did and were rejected by
+ * tasks_book_id_fkey — leaving a half-scheduled book behind. Serialising the
+ * writes makes "created earlier locally" mean "committed earlier remotely",
+ * which is exactly the guarantee foreign keys need.
+ *
+ * The UI never waits on this; it is already showing the optimistic row.
+ */
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(op: () => PromiseLike<T>): Promise<T> {
+  const run = writeChain.then(op, op);
+  // A failed write must not poison the queue for everything behind it.
+  writeChain = run.then(() => undefined, () => undefined);
+  return run as Promise<T>;
+}
+
 // =========================================================
 // Store
 // =========================================================
@@ -388,7 +409,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (SOLO) { persistSolo(get()); return full; }
 
-    supabase.from(TABLE_OF[key]).insert(full as object).then(({ error }) => {
+    enqueue(() => supabase.from(TABLE_OF[key]).insert(full as object)).then(({ error }) => {
       if (error) {
         set((s) => ({
           [key]: (s[key] as { id: string }[]).filter((r) => r.id !== (full as { id: string }).id),
@@ -415,7 +436,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const payload = { ...changes } as Record<string, unknown>;
     if (stamped) payload.updated_at = (merged as { updated_at: string }).updated_at;
-    supabase.from(TABLE_OF[key]).update(payload).eq("id", id).then(({ error }) => {
+    enqueue(() => supabase.from(TABLE_OF[key]).update(payload).eq("id", id)).then(({ error }) => {
       if (error) {
         set((s) => ({
           [key]: (s[key] as { id: string }[]).map((r) => (r.id === id ? prev : r)),
@@ -435,7 +456,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (SOLO) { persistSolo(get()); return; }
 
-    supabase.from(TABLE_OF[key]).delete().eq("id", id).then(({ error }) => {
+    enqueue(() => supabase.from(TABLE_OF[key]).delete().eq("id", id)).then(({ error }) => {
       if (error) {
         set((s) => ({ [key]: [...(s[key] as unknown[]), prev] } as unknown as Partial<StoreState>));
         get().toast({ title: "Couldn't delete", description: error.message, tone: "danger" });
@@ -483,7 +504,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const merged = { ...profile, ...changes };
     set({ profile: merged });
     if (SOLO) { persistSolo(get()); return; }
-    supabase.from("profiles").update(changes as object).eq("id", profile.id).then(({ error }) => {
+    enqueue(() => supabase.from("profiles").update(changes as object).eq("id", profile.id)).then(({ error }) => {
       if (error) set({ profile });
     });
   },
