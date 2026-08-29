@@ -184,6 +184,23 @@ const COLLECTION_KEYS: CollectionKey[] = [
   "focusSessions", "reviews", "tags",
 ];
 
+/**
+ * Which collections actually carry an `updated_at` column. Five of them do not
+ * — they timestamp with `logged_at`, `started_at` or `created_at` instead — and
+ * stamping one anyway made Postgres reject the write with "could not find the
+ * 'updated_at' column ... in the schema cache".
+ *
+ * This has to be a stated fact rather than something inferred from the cached
+ * row: the old code checked `"updated_at" in prev`, but it had already written
+ * that key into local state, so the first edit succeeded and every edit after
+ * it failed.
+ */
+const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
+  tasks: true, books: true, habits: true, goals: true, boards: true,
+  nodes: true, templates: true, dayLogs: true, reviews: true,
+  habitLogs: false, edges: false, prayers: false, focusSessions: false, tags: false,
+};
+
 const emptyCollections = () =>
   Object.fromEntries(COLLECTION_KEYS.map((k) => [k, []])) as unknown as CollectionState;
 
@@ -386,7 +403,10 @@ export const useStore = create<StoreState>((set, get) => ({
     const list = get()[key] as { id: string }[];
     const prev = list.find((r) => r.id === id);
     if (!prev) return;
-    const merged = { ...prev, ...changes, updated_at: nowIso() };
+    const stamped = HAS_UPDATED_AT[key];
+    const merged = stamped
+      ? { ...prev, ...changes, updated_at: nowIso() }
+      : { ...prev, ...changes };
     set((s) => ({
       [key]: (s[key] as { id: string }[]).map((r) => (r.id === id ? merged : r)),
     } as unknown as Partial<StoreState>));
@@ -394,7 +414,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (SOLO) { persistSolo(get()); return; }
 
     const payload = { ...changes } as Record<string, unknown>;
-    if ("updated_at" in (prev as object)) payload.updated_at = merged.updated_at;
+    if (stamped) payload.updated_at = (merged as { updated_at: string }).updated_at;
     supabase.from(TABLE_OF[key]).update(payload).eq("id", id).then(({ error }) => {
       if (error) {
         set((s) => ({
