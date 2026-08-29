@@ -43,11 +43,11 @@ export function AddBookModal({
   const [series, setSeriesDraft] = React.useState("");
   const [genre, setGenre] = React.useState("");
   const [topic, setTopic] = React.useState("");
-  const [schedule, setSchedule] = React.useState(true);
+
   const [draft, setDraft] = React.useState<PlanDraft>(freshDraft);
 
   const plan = computePlan(draft, totalPages, 0);
-  const canSave = title.trim().length > 0 && totalPages >= 1 && (!schedule || plan.valid);
+  const canSave = title.trim().length > 0 && totalPages >= 1;
 
   function save() {
     if (!canSave) return;
@@ -60,9 +60,11 @@ export function AddBookModal({
       total_pages: Math.max(1, Math.round(totalPages)),
       current_page: 0,
       color: tint,
-      status: schedule ? "reading" : "planned",
-      start_date: schedule ? draft.startDate : null,
-      pages_per_day: schedule ? plan.perDay : null,
+      // A new book is unplanned. Nothing lands on a day until it is dragged
+      // there, or scheduled from the book's own Plan section.
+      status: "planned",
+      start_date: null,
+      pages_per_day: null,
       order_index: books.length ? Math.max(...books.map((b) => b.order_index)) + 1 : 0,
     });
 
@@ -70,26 +72,10 @@ export function AddBookModal({
     // grouping consistently.
     if (series.trim()) setSeries(book.id, series);
 
-    if (schedule) {
-      // Pass the rate we previewed rather than the end date: scheduleBook prefers
-      // an explicit pagesPerDay, and this keeps the plan the user read on screen.
-      const created = scheduleBook(book.id, {
-        startDate: draft.startDate,
-        pagesPerDay: plan.perDay,
-        skipWeekdays: skipWeekdaysOf(draft.skipWeekends),
-        replace: true,
-      });
-      toast({
-        title: `${book.title} is on the calendar`,
-        description: `${created} reading ${created === 1 ? "block" : "blocks"} · ${plan.perDay} pages a day`,
-        tone: "success",
-      });
-    } else {
-      toast({
-        title: "Added to your shelf",
-        description: `${book.title} is waiting in your Up next queue.`,
-      });
-    }
+    toast({
+      title: "Added to your shelf",
+      description: "Drag it onto a day in Calendar when you want to start it.",
+    });
 
     onAdded?.(book);
     onClose();
@@ -179,26 +165,10 @@ export function AddBookModal({
           </div>
         </div>
 
-        <div className="mt-5 border-t border-line pt-4">
-          <Toggle
-            label="Schedule it on my calendar"
-            description="Humoyun drops a reading block on every day until the last page."
-            checked={schedule}
-            onChange={setSchedule}
-          />
-
-          {schedule && (
-            <div className="mt-3 anim-fade">
-              <PlanEditor
-                draft={draft}
-                onChange={setDraft}
-                totalPages={totalPages}
-                currentPage={0}
-                weekStart={weekStart}
-              />
-            </div>
-          )}
-        </div>
+        <p className="mt-5 border-t border-line pt-4 text-[12px] leading-relaxed text-ink-3">
+          Goes to your shelf unscheduled. Drag it onto a day in Calendar, or open
+          it and use Plan, when you want reading blocks.
+        </p>
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">

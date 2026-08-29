@@ -140,6 +140,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
   const [genre, setGenre] = React.useState(book.genre ?? "");
   const [topic, setTopic] = React.useState(book.topic ?? "");
   const [seriesName, setSeriesName] = React.useState(book.series ?? "");
+  const [pages, setPages] = React.useState(String(book.total_pages));
   const [cover, setCover] = React.useState(book.cover_url ?? "");
   const [notes, setNotes] = React.useState(book.notes ?? "");
   const [series, setSeriesDraft] = React.useState(library.series[book.id] ?? "");
@@ -378,7 +379,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
 
             {/* How the book is filed. Each commits on blur like the title above,
                 so there is nothing extra to save. */}
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-4 gap-2">
               {([
                 ["Genre", genre, setGenre, "genre"],
                 ["Topic", topic, setTopic, "topic"],
@@ -403,6 +404,29 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                   </datalist>
                 </label>
               ))}
+
+              {/* Page count lived at the bottom of the sheet behind a disclosure,
+                  which made it read as uneditable. It belongs with the other
+                  facts about the book. */}
+              <label className="min-w-0">
+                <span className="mb-0.5 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-4">
+                  Pages
+                </span>
+                <input
+                  aria-label="Total pages"
+                  type="number"
+                  min={1}
+                  value={pages}
+                  onChange={(e) => setPages(e.target.value)}
+                  onBlur={() => {
+                    const n = Math.max(1, Math.round(Number(pages) || book.total_pages));
+                    setPages(String(n));
+                    if (n !== book.total_pages) commit("total_pages", n);
+                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                  className="w-full rounded-sm bg-transparent px-1 -mx-1 py-0.5 text-[12.5px] text-ink-2 tnum outline-none hover:bg-hover focus:bg-hover transition-colors"
+                />
+              </label>
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-1.5">

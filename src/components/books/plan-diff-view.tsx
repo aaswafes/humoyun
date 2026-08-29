@@ -94,8 +94,11 @@ export function PlanDiffView({
         </span>
       </div>
 
+      {/* No inner scroll here: the sheet already scrolls, and nesting a second
+          scroll region inside it traps the wheel. "Show more/fewer days" is
+          what governs how long this list gets. */}
       {visible.length > 0 && (
-        <div className="max-h-[232px] overflow-y-auto">
+        <div>
           {visible.map((row, i) => <Row key={row.date} row={row} divided={i > 0} />)}
         </div>
       )}
