@@ -1,8 +1,8 @@
 "use client";
 
-import { addDays, formatDate, friendlyDate, weekNumber } from "@/lib/date";
+import { addDays, formatDate, formatDuration, friendlyDate, weekNumber } from "@/lib/date";
 import { useStore } from "@/lib/store";
-import type { Book, Profile, Task, Template } from "@/lib/types";
+import type { Book, Media, Profile, Task, Template } from "@/lib/types";
 
 // =========================================================
 // Geometry — one hour is 48px everywhere the timeline appears.
@@ -252,13 +252,14 @@ export function layoutTimed(tasks: Task[]): Placed[] {
 // =========================================================
 export type DragPayload =
   | { type: "book"; id: string }
+  | { type: "media"; id: string }
   | { type: "template"; id: string }
   | { type: "task"; taskId: string };
 
 export function readPayload(data: Record<string, unknown> | null | undefined): DragPayload | null {
   if (!data) return null;
   const { type } = data;
-  if (type === "book" || type === "template") {
+  if (type === "book" || type === "media" || type === "template") {
     return typeof data.id === "string" ? { type, id: data.id } : null;
   }
   if (type === "task") {
@@ -279,6 +280,12 @@ export interface DropPreview {
   dates: string[];
   headline: string;
   detail: string;
+  /**
+   * The same sentence on one line, for the rail card, where the two-line
+   * headline/detail split has no room. Optional so a preview built anywhere
+   * else still satisfies the type; every preview built here fills it in.
+   */
+  line?: string;
 }
 
 const PREVIEW_CAP = 120; // enough to paint the month; the scheduler itself is unbounded
@@ -286,31 +293,89 @@ const PREVIEW_CAP = 120; // enough to paint the month; the scheduler itself is u
 export function bookPreview(book: Book, startDate: string): DropPreview {
   const remaining = Math.max(0, book.total_pages - book.current_page);
   if (!remaining) {
-    return { dates: [], headline: "Already finished", detail: `${book.total_pages} pages read` };
+    return {
+      dates: [],
+      headline: "Already finished",
+      detail: `${book.total_pages} pages read`,
+      line: "Finished — nothing left to schedule",
+    };
   }
   const perDay = Math.max(1, book.pages_per_day ?? 30);
   const days = Math.max(1, Math.ceil(remaining / perDay));
-  const end = addDays(startDate, days - 1);
+  const finishes = formatDate(addDays(startDate, days - 1), { weekday: false });
   return {
     dates: Array.from({ length: Math.min(days, PREVIEW_CAP) }, (_, i) => addDays(startDate, i)),
     headline: `${perDay} pages/day → ${days} ${days === 1 ? "day" : "days"}`,
-    detail: `finishes ${formatDate(end, { weekday: false })}`,
+    detail: `finishes ${finishes}`,
+    line: `${perDay} pages/day → ${days} ${days === 1 ? "day" : "days"}, finishes ${finishes}`,
+  };
+}
+
+/**
+ * What dropping a title on a day will do, said before it happens.
+ *
+ * A film is a one-episode title: it takes one evening, so there is no rate, no
+ * span and no finish date to promise — the running time is the only number
+ * worth showing. Anything longer than one episode gets the full pacing
+ * sentence, exactly like pages per day for a book.
+ */
+export function mediaPreview(item: Media, startDate: string): DropPreview {
+  const single = item.total_episodes <= 1;
+  const remaining = Math.max(0, item.total_episodes - item.current_episode);
+
+  if (!remaining) {
+    return {
+      dates: [],
+      headline: single ? "Already watched" : "Already finished",
+      detail: single ? "Nothing left to schedule" : `${item.total_episodes} episodes watched`,
+      line: single ? "Already watched" : "Finished — nothing left to schedule",
+    };
+  }
+
+  if (single) {
+    const runtime = item.runtime_min ? formatDuration(item.runtime_min) : null;
+    const day = formatDate(startDate, { weekday: false });
+    return {
+      dates: [startDate],
+      headline: "One evening",
+      detail: runtime ? `${runtime} on ${day}` : `on ${day}`,
+      line: runtime ? `One evening · ${runtime}` : "One evening",
+    };
+  }
+
+  // Matches the scheduler's own fallback: with no rate set it paces one episode a day.
+  const perDay = Math.max(1, item.episodes_per_day ?? 1);
+  const days = Math.max(1, Math.ceil(remaining / perDay));
+  const finishes = formatDate(addDays(startDate, days - 1), { weekday: false });
+  return {
+    dates: Array.from({ length: Math.min(days, PREVIEW_CAP) }, (_, i) => addDays(startDate, i)),
+    headline: `${perDay} ep/day → ${days} ${days === 1 ? "day" : "days"}`,
+    detail: `finishes ${finishes}`,
+    line: `${perDay} ep/day → ${days} ${days === 1 ? "day" : "days"}, finishes ${finishes}`,
   };
 }
 
 export function templatePreview(template: Template, date: string): DropPreview {
   const count = template.items.length;
   if (!count) {
-    return { dates: [date], headline: "No items yet", detail: "Add items on the Templates page" };
+    return {
+      dates: [date],
+      headline: "No items yet",
+      detail: "Add items on the Templates page",
+      line: "Empty — add items on the Templates page",
+    };
   }
   const offsets = template.items.map((i) => i.day_offset ?? 0);
   const min = Math.min(0, ...offsets);
   const max = Math.max(0, ...offsets);
   const span = max - min + 1;
+  const headline = `${count} ${count === 1 ? "item" : "items"}${span > 1 ? ` → ${span} days` : ""}`;
+  const detail = `from ${formatDate(date, { weekday: false })}`;
   return {
     dates: Array.from({ length: Math.min(span, PREVIEW_CAP) }, (_, i) => addDays(date, min + i)),
-    headline: `${count} ${count === 1 ? "item" : "items"}${span > 1 ? ` → ${span} days` : ""}`,
-    detail: `from ${formatDate(date, { weekday: false })}`,
+    headline,
+    detail,
+    line: `${headline}, ${detail}`,
   };
 }
 
@@ -318,26 +383,74 @@ export function templatePreview(template: Template, date: string): DropPreview {
 // Drop actions — every one is also reachable from a button, so no
 // feature is locked behind a mouse gesture.
 // =========================================================
+/**
+ * `scheduleBook` and `scheduleMedia` both clear the existing plan before they
+ * write the new one, so an honest Undo has two halves: the blocks the scheduler
+ * deleted, and the pacing fields it overwrote. Removing only what was created
+ * puts the calendar back but leaves the title itself rewritten — a start date,
+ * an end date, a per-day rate and a status the reader never chose. This
+ * snapshots both halves before the scheduler runs, and hands back one `undo`.
+ */
+function scheduleWithUndo({ link, ownerId, from, restorePlan, run }: {
+  /** the task column that ties a scheduled block to the title it came from */
+  link: "book_id" | "media_id";
+  ownerId: string;
+  from: string;
+  /** puts the title's own pacing fields back exactly as they were */
+  restorePlan: () => void;
+  run: () => number;
+}): { created: number; replaced: number; undo: () => void } {
+  const before = useStore.getState();
+  // The same predicate unscheduleBook / unscheduleMedia use, so the snapshot is
+  // precisely the set of rows the scheduler is about to drop.
+  const removed = before.tasks.filter(
+    (t) => t[link] === ownerId && t.status !== "done" && (t.date ?? "") >= from,
+  );
+  const existing = new Set(before.tasks.map((t) => t.id));
+
+  const created = run();
+  // Both schedulers bail before touching anything when there is nothing left to
+  // plan, so a zero here also means nothing was removed.
+  if (!created) return { created: 0, replaced: 0, undo: () => {} };
+
+  const addedIds = useStore.getState().tasks
+    .filter((t) => !existing.has(t.id))
+    .map((t) => t.id);
+
+  return {
+    created,
+    replaced: removed.length,
+    undo: () => {
+      const s = useStore.getState();
+      addedIds.forEach((id) => s.remove("tasks", id));
+      // insert() keeps an id it is handed, so a restored block comes back as the
+      // row the calendar had rather than as a duplicate of it.
+      removed.forEach((t) => s.insert("tasks", t));
+      restorePlan();
+    },
+  };
+}
+
 export function scheduleBookOnDay(bookId: string, date: string) {
   const store = useStore.getState();
   const book = store.books.find((b) => b.id === bookId);
   if (!book) return;
 
-  // `scheduleBook` clears the previous plan before writing the new one, so Undo
-  // has to restore both halves: the blocks it deleted and the fields it rewrote.
-  // Deleting only what was created would leave the shelf worse than before.
-  const removed = store.tasks.filter(
-    (t) => t.book_id === bookId && t.status !== "done" && (t.date ?? "") >= date,
-  );
   const prevPlan = {
     pages_per_day: book.pages_per_day,
     start_date: book.start_date,
     end_date: book.end_date,
     status: book.status,
   };
-  const before = new Set(store.tasks.map((t) => t.id));
 
-  const created = store.scheduleBook(bookId, { startDate: date });
+  const { created, replaced, undo } = scheduleWithUndo({
+    link: "book_id",
+    ownerId: bookId,
+    from: date,
+    restorePlan: () => useStore.getState().patch("books", bookId, prevPlan),
+    run: () => useStore.getState().scheduleBook(bookId, { startDate: date }),
+  });
+
   if (!created) {
     store.toast({
       title: `${book.title} needs no blocks`,
@@ -345,8 +458,6 @@ export function scheduleBookOnDay(bookId: string, date: string) {
     });
     return;
   }
-  const addedIds = useStore.getState().tasks.filter((t) => !before.has(t.id)).map((t) => t.id);
-  const replaced = removed.length;
 
   store.toast({
     title: `${book.title} scheduled`,
@@ -354,15 +465,54 @@ export function scheduleBookOnDay(bookId: string, date: string) {
       `${created} reading ${created === 1 ? "block" : "blocks"} from ${formatDate(date)}` +
       (replaced ? `, replacing ${replaced} older ${replaced === 1 ? "block" : "blocks"}.` : "."),
     tone: "success",
-    action: {
-      label: "Undo",
-      run: () => {
-        const s = useStore.getState();
-        addedIds.forEach((id) => s.remove("tasks", id));
-        removed.forEach((t) => s.insert("tasks", t));
-        s.patch("books", bookId, prevPlan);
-      },
-    },
+    action: { label: "Undo", run: undo },
+  });
+}
+
+/**
+ * A film is a one-episode title, so it lands as a single block on the day it was
+ * dropped on and the toast talks about an evening, never about a rate.
+ */
+export function scheduleMediaOnDay(mediaId: string, date: string) {
+  const store = useStore.getState();
+  const item = store.media.find((m) => m.id === mediaId);
+  if (!item) return;
+  const single = item.total_episodes <= 1;
+
+  const prevPlan = {
+    episodes_per_day: item.episodes_per_day,
+    start_date: item.start_date,
+    end_date: item.end_date,
+    status: item.status,
+  };
+
+  const { created, replaced, undo } = scheduleWithUndo({
+    link: "media_id",
+    ownerId: mediaId,
+    from: date,
+    restorePlan: () => useStore.getState().patch("media", mediaId, prevPlan),
+    run: () => useStore.getState().scheduleMedia(mediaId, { startDate: date }),
+  });
+
+  if (!created) {
+    store.toast({
+      title: `${item.title} needs no blocks`,
+      description: single
+        ? "Already watched — nothing left to schedule."
+        : `Episode ${item.current_episode} of ${item.total_episodes} — nothing left to schedule.`,
+    });
+    return;
+  }
+
+  store.toast({
+    title: `${item.title} scheduled`,
+    description: single
+      ? `One evening on ${formatDate(date)}` +
+        (item.runtime_min ? ` · ${formatDuration(item.runtime_min)}.` : ".")
+      : `${created} watch ${created === 1 ? "block" : "blocks"} from ${formatDate(date)}` +
+        (replaced ? `, replacing ${replaced} older ${replaced === 1 ? "block" : "blocks"}.` : "."),
+    tone: "success",
+    action: { label: "Undo", run: undo },
   });
 }
 

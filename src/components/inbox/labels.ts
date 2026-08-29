@@ -42,8 +42,8 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 };
 
 export const KIND_LABELS: Record<TaskKind, string> = {
-  task: "Tasks", event: "Events", reading: "Reading", habit: "Habits",
-  prayer: "Prayer", block: "Blocks", milestone: "Milestones",
+  task: "Tasks", event: "Events", reading: "Reading", watching: "Watching",
+  habit: "Habits", prayer: "Prayer", block: "Blocks", milestone: "Milestones",
 };
 
 export const STATUS_ORDER: TaskStatus[] = ["todo", "doing", "done", "dropped"];

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
 import {
-  BookOpen, CalendarPlus, Clock, Flag, Inbox, LayoutTemplate, Maximize2,
+  BookOpen, CalendarPlus, Clapperboard, Clock, Flag, Inbox, LayoutTemplate, Maximize2,
   PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -12,22 +12,27 @@ import {
   addDays, dayName, formatDate, formatDuration, formatTime, friendlyDate,
 } from "@/lib/date";
 import { inboxTasks, useStore } from "@/lib/store";
-import type { Book, Task, Template } from "@/lib/types";
+import { MEDIA_KIND_LABELS, type Book, type Media, type Task, type Template } from "@/lib/types";
 import { Button, IconButton, Progress } from "@/components/ui/primitives";
 import { MiniEmpty } from "@/components/ui/form";
 import { openQuickAdd } from "@/components/shell/quick-add";
+import { MediaCover } from "@/components/watch/media-cover";
 import { Fold, useStickyFlag } from "./view-prefs";
-import { applyTemplateOnDay, moveTaskToDay, scheduleBookOnDay } from "./calendar-utils";
+import {
+  applyTemplateOnDay, mediaPreview, moveTaskToDay, scheduleBookOnDay, scheduleMediaOnDay,
+} from "./calendar-utils";
 
-type Section = "books" | "templates" | "unscheduled";
+type Section = "books" | "watch" | "templates" | "unscheduled";
 
 const STATUS_LABEL: Record<string, string> = {
   reading: "Reading",
+  watching: "Watching",
   planned: "Planned",
 };
 
 const OPEN_KEY: Record<Section, string> = {
   books: "humoyun.calendar.rail.books",
+  watch: "humoyun.calendar.rail.watch",
   templates: "humoyun.calendar.rail.templates",
   unscheduled: "humoyun.calendar.rail.unscheduled",
 };
@@ -46,6 +51,12 @@ function uniqueById<T extends { id: string }>(rows: T[]): T[] {
     out.push(row);
   }
   return out;
+}
+
+/** Reading and watching shelves both put what is in progress above what is queued. */
+function shelfOrder<T extends { status: string; order_index: number }>(active: string) {
+  return (a: T, b: T) =>
+    a.status === b.status ? a.order_index - b.order_index : a.status === active ? -1 : 1;
 }
 
 // ---------------------------------------------------------
@@ -192,7 +203,7 @@ function BooksPane({ date }: { date: string }) {
 
   const shelf = React.useMemo(
     () => uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned"))
-      .sort((a, b) => (a.status === b.status ? a.order_index - b.order_index : a.status === "reading" ? -1 : 1)),
+      .sort(shelfOrder("reading")),
     [books],
   );
 
@@ -208,6 +219,107 @@ function BooksPane({ date }: { date: string }) {
   return (
     <div className="flex flex-col gap-0.5 pb-1">
       {shelf.map((book) => <BookCard key={book.id} book={book} date={date} />)}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------
+// Watch — films and anime, the same shelf treatment as books
+//
+// The whole difference between the two is the episode count. A film is a
+// one-episode title: no rate, no span, no progress bar to fill in — it takes an
+// evening, and its running time is the one number worth printing. Anything
+// longer paces itself exactly the way a book paces pages.
+// ---------------------------------------------------------
+function MediaCard({ item, date }: { item: Media; date: string }) {
+  const single = item.total_episodes <= 1;
+  const preview = mediaPreview(item, date);
+  const status = STATUS_LABEL[item.status] ?? item.status;
+
+  return (
+    <RailCard
+      dragId={`media:${item.id}`}
+      payload={{ type: "media", id: item.id }}
+      actionLabel={
+        single
+          ? `Schedule ${item.title} on ${friendlyDate(date)}`
+          : `Schedule ${item.title} from ${friendlyDate(date)}`
+      }
+      onAction={() => scheduleMediaOnDay(item.id, date)}
+      cover={
+        // The poster is the shelf's own component, so a cover change over there
+        // lands here too; the rail only decides how much room it gets. At 34px
+        // the drawn title can only smudge, so the thumbnail keeps what actually
+        // reads at this size — the tint, the spine bar and the kind glyph.
+        // Real artwork is untouched: there is no drawn title to hide.
+        <div className="h-[46px] w-[34px] shrink-0 overflow-hidden rounded-[5px]">
+          <MediaCover
+            item={item}
+            className="size-full rounded-[5px] shadow-none [&_.display-serif]:hidden"
+          />
+        </div>
+      }
+      title={item.title}
+      subtitle={item.creator}
+      meta={
+        single ? undefined : (
+          <Progress
+            value={item.current_episode}
+            max={Math.max(1, item.total_episodes)}
+            tint={item.color}
+            height={3}
+            className="mt-1.5"
+          />
+        )
+      }
+      footer={
+        <p className="mt-1 text-[11px] leading-snug text-ink-4 tnum">
+          {single ? (
+            <>
+              {MEDIA_KIND_LABELS[item.kind]}
+              {item.runtime_min ? (
+                <><span className="mx-1">·</span>{formatDuration(item.runtime_min)}</>
+              ) : null}
+            </>
+          ) : (
+            <>
+              ep. {item.current_episode} of {item.total_episodes}
+              {item.episodes_per_day ? (
+                <><span className="mx-1">·</span>{item.episodes_per_day} ep/day</>
+              ) : null}
+            </>
+          )}
+          <span className="mx-1">·</span>
+          {status}
+        </p>
+      }
+      preview={preview.line ?? `${preview.headline} · ${preview.detail}`}
+    />
+  );
+}
+
+function WatchPane({ date }: { date: string }) {
+  const media = useStore((s) => s.media);
+  const router = useRouter();
+
+  const shelf = React.useMemo(
+    () => uniqueById(media.filter((m) => m.status === "watching" || m.status === "planned"))
+      .sort(shelfOrder("watching")),
+    [media],
+  );
+
+  if (!shelf.length) {
+    return (
+      <MiniEmpty action={<Button size="sm" onClick={() => router.push("/watch")}>Add a film</Button>}>
+        Films and anime you are watching or planning live here. A film drops onto
+        one evening; an anime fills the days after it, episode by episode.
+      </MiniEmpty>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5 pb-1">
+      {shelf.map((item) => <MediaCard key={item.id} item={item} date={date} />)}
     </div>
   );
 }
@@ -382,7 +494,7 @@ function UnscheduledPane({ date }: { date: string }) {
 // Rail
 //
 // Collapsed it is a 44px edge that still says what is behind it; open it is an
-// accordion, so one shelf is on screen at a time instead of three tabs and a
+// accordion, so one shelf is on screen at a time instead of four tabs and a
 // scrolling list. Both states, and which pane is open, are remembered.
 // ---------------------------------------------------------
 export function RightRail({
@@ -393,27 +505,32 @@ export function RightRail({
   onOpenChange: (next: boolean) => void;
 }) {
   const books = useStore((s) => s.books);
+  const media = useStore((s) => s.media);
   const templates = useStore((s) => s.templates);
   const tasks = useStore((s) => s.tasks);
 
   const [booksOpen, setBooksOpen] = useStickyFlag(OPEN_KEY.books, true);
+  const [watchOpen, setWatchOpen] = useStickyFlag(OPEN_KEY.watch, false);
   const [templatesOpen, setTemplatesOpen] = useStickyFlag(OPEN_KEY.templates, false);
   const [inboxOpen, setInboxOpen] = useStickyFlag(OPEN_KEY.unscheduled, false);
 
   const counts = React.useMemo(() => ({
     books: uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned")).length,
+    watch: uniqueById(media.filter((m) => m.status === "watching" || m.status === "planned")).length,
     templates: uniqueById(templates).length,
     unscheduled: inboxTasks(tasks).length,
-  }), [books, templates, tasks]);
+  }), [books, media, templates, tasks]);
 
   const setSectionOpen: Record<Section, (next: boolean) => void> = {
     books: setBooksOpen,
+    watch: setWatchOpen,
     templates: setTemplatesOpen,
     unscheduled: setInboxOpen,
   };
 
   const EDGE: { key: Section; icon: React.ComponentType<{ className?: string }>; noun: (n: number) => string }[] = [
     { key: "books", icon: BookOpen, noun: (n) => `${n} ${n === 1 ? "book" : "books"} on the shelf` },
+    { key: "watch", icon: Clapperboard, noun: (n) => `${n} ${n === 1 ? "title" : "titles"} on the watchlist` },
     { key: "templates", icon: LayoutTemplate, noun: (n) => `${n} ${n === 1 ? "template" : "templates"} saved` },
     { key: "unscheduled", icon: Inbox, noun: (n) => `${n} ${n === 1 ? "task" : "tasks"} without a date` },
   ];
@@ -421,10 +538,10 @@ export function RightRail({
   if (!open) {
     return (
       <aside
-        aria-label="Books, templates and unscheduled"
+        aria-label="Books, films, templates and unscheduled"
         className="flex w-11 shrink-0 flex-col items-center gap-1 border-l border-line pl-1 pt-0.5"
       >
-        <IconButton label="Show books and templates" size="md" onClick={() => onOpenChange(true)}>
+        <IconButton label="Show books, films and templates" size="md" onClick={() => onOpenChange(true)}>
           <PanelRightOpen />
         </IconButton>
 
@@ -469,6 +586,15 @@ export function RightRail({
           onOpenChange={setBooksOpen}
         >
           <BooksPane date={date} />
+        </Fold>
+
+        <Fold
+          label="Watch"
+          summary={`${counts.watch} on the watchlist`}
+          open={watchOpen}
+          onOpenChange={setWatchOpen}
+        >
+          <WatchPane date={date} />
         </Fold>
 
         <Fold

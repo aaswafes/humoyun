@@ -34,8 +34,9 @@ import { RightRail } from "@/components/calendar/right-rail";
 import { ChipBody, DENSITIES, type ChipDensity } from "@/components/calendar/task-chip";
 import { useStickyChoice, useStickyFlag } from "@/components/calendar/view-prefs";
 import {
-  applyTemplateOnDay, bookPreview, readDropDate, readPayload, scheduleBookOnDay,
-  templatePreview, type DragPayload, type DropPreview,
+  applyTemplateOnDay, bookPreview, mediaPreview, readDropDate, readPayload,
+  scheduleBookOnDay, scheduleMediaOnDay, templatePreview,
+  type DragPayload, type DropPreview,
 } from "@/components/calendar/calendar-utils";
 
 /**
@@ -89,6 +90,7 @@ export default function CalendarPage() {
   const hour12 = useStore((s) => s.hour12);
   const tasks = useStore((s) => s.tasks);
   const books = useStore((s) => s.books);
+  const media = useStore((s) => s.media);
   const templates = useStore((s) => s.templates);
   const moveTask = useStore((s) => s.moveTask);
   const inspectorOpen = useStore((s) => s.inspectorTaskId !== null);
@@ -228,17 +230,22 @@ export default function CalendarPage() {
       const book = books.find((b) => b.id === active.id);
       return book ? bookPreview(book, overDate) : null;
     }
+    if (active.type === "media") {
+      const item = media.find((m) => m.id === active.id);
+      return item ? mediaPreview(item, overDate) : null;
+    }
     if (active.type === "template") {
       const template = templates.find((t) => t.id === active.id);
       return template ? templatePreview(template, overDate) : null;
     }
     return null;
-  }, [active, overDate, books, templates]);
+  }, [active, overDate, books, media, templates]);
 
   const activeTask = active?.type === "task"
     ? tasks.find((t) => t.id === active.taskId) ?? null
     : null;
   const activeBook = active?.type === "book" ? books.find((b) => b.id === active.id) ?? null : null;
+  const activeMedia = active?.type === "media" ? media.find((m) => m.id === active.id) ?? null : null;
   const activeTemplate = active?.type === "template"
     ? templates.find((t) => t.id === active.id) ?? null
     : null;
@@ -260,6 +267,7 @@ export default function CalendarPage() {
     if (!payload || !date) return;
 
     if (payload.type === "book") { scheduleBookOnDay(payload.id, date); return; }
+    if (payload.type === "media") { scheduleMediaOnDay(payload.id, date); return; }
     if (payload.type === "template") { applyTemplateOnDay(payload.id, date); return; }
 
     const task = tasks.find((t) => t.id === payload.taskId);
@@ -425,10 +433,10 @@ export default function CalendarPage() {
                 <ChipBody task={activeTask} hour12={hour12} floating />
               </div>
             )}
-            {(activeBook || activeTemplate) && (
+            {(activeBook || activeMedia || activeTemplate) && (
               <div className="w-[248px] cursor-grabbing rounded-lg border border-line bg-raised p-2.5 shadow-lg">
                 <p className="truncate text-[12.5px] font-medium text-ink">
-                  {activeBook?.title ?? activeTemplate?.name}
+                  {activeBook?.title ?? activeMedia?.title ?? activeTemplate?.name}
                 </p>
                 {preview ? (
                   <>

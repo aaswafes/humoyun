@@ -6,6 +6,7 @@ import {
   TABLE_OF,
   type Accent,
   type Book,
+  type Media,
   type Collections,
   type CollectionKey,
   type DayLog,
@@ -185,6 +186,15 @@ interface StoreState extends CollectionState {
     replace?: boolean;
   }) => number;
   unscheduleBook: (bookId: string, fromDate?: string) => void;
+  scheduleMedia: (mediaId: string, opts?: {
+    startDate?: string;
+    episodesPerDay?: number;
+    endDate?: string;
+    skipWeekdays?: number[];
+    replace?: boolean;
+  }) => number;
+  unscheduleMedia: (mediaId: string, fromDate?: string) => void;
+  logWatch: (mediaId: string, episode: number) => void;
   logReading: (bookId: string, page: number) => void;
 
   // ---- templates ----
@@ -200,7 +210,7 @@ interface StoreState extends CollectionState {
 }
 
 const COLLECTION_KEYS: CollectionKey[] = [
-  "tasks", "books", "habits", "habitLogs", "goals", "boards",
+  "tasks", "books", "media", "habits", "habitLogs", "goals", "boards",
   "nodes", "edges", "templates", "prayers", "dayLogs",
   "focusSessions", "reviews", "tags",
 ];
@@ -217,7 +227,7 @@ const COLLECTION_KEYS: CollectionKey[] = [
  * it failed.
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
-  tasks: true, books: true, habits: true, goals: true, boards: true,
+  tasks: true, books: true, media: true, habits: true, goals: true, boards: true,
   nodes: true, templates: true, dayLogs: true, reviews: true,
   habitLogs: false, edges: false, prayers: false, focusSessions: false, tags: false,
 };
@@ -236,6 +246,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         actual_min: 0, completed_at: null, color: null, icon: null, tags: [], checklist: [],
         order_index: 0, parent_id: null, book_id: null, habit_id: null, goal_id: null,
         node_id: null, template_id: null, page_from: null, page_to: null,
+        media_id: null, episode_from: null, episode_to: null,
         recurrence: null, series_id: null,
       };
     case "books":
@@ -244,6 +255,13 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         cover_url: null, color: "amber",
         total_pages: 100, current_page: 0, pages_per_day: null, start_date: null,
         end_date: null, status: "reading", rating: null, notes: null, order_index: 0,
+      };
+    case "media":
+      return {
+        ...base, title: "Untitled", creator: null, kind: "film", genre: null, topic: null,
+        series: null, color: "violet", cover_url: null, total_episodes: 1, current_episode: 0,
+        episodes_per_day: null, runtime_min: null, start_date: null, end_date: null,
+        status: "planned", rating: null, notes: null, order_index: 0,
       };
     case "habits":
       return {
@@ -539,6 +557,15 @@ export const useStore = create<StoreState>((set, get) => ({
         });
       }
     }
+    if (!done && task.media_id && task.episode_to) {
+      const item = get().media.find((m) => m.id === task.media_id);
+      if (item && task.episode_to > item.current_episode) {
+        get().patch("media", item.id, {
+          current_episode: Math.min(task.episode_to, item.total_episodes),
+          status: task.episode_to >= item.total_episodes ? "finished" : item.status,
+        });
+      }
+    }
     // A habit block completing writes the habit log.
     if (!done && task.habit_id && task.date) get().logHabit(task.habit_id, task.date);
   },
@@ -714,6 +741,91 @@ export const useStore = create<StoreState>((set, get) => ({
       status: "reading",
     });
     return created;
+  },
+
+  scheduleMedia(mediaId, opts = {}) {
+    const item = get().media.find((m) => m.id === mediaId);
+    if (!item) return 0;
+
+    const start = opts.startDate ?? item.start_date ?? todayISO();
+    const skip = opts.skipWeekdays ?? [];
+    const remaining = Math.max(0, item.total_episodes - item.current_episode);
+    if (!remaining) return 0;
+
+    // A film is one sitting: one block, no rate, whatever the caller passed.
+    const single = item.total_episodes <= 1;
+    let perDay = single ? 1 : (opts.episodesPerDay ?? item.episodes_per_day ?? 0);
+
+    const endDate = opts.endDate ?? null;
+    if (!single && !perDay && endDate) {
+      let days = 0;
+      let cur = start;
+      let guard = 0;
+      while (cur <= endDate && guard++ < 2000) {
+        if (!skip.includes(weekday(cur))) days++;
+        cur = addDays(cur, 1);
+      }
+      perDay = Math.max(1, Math.ceil(remaining / Math.max(1, days)));
+    }
+    if (!perDay) perDay = 1;
+
+    if (opts.replace !== false) get().unscheduleMedia(mediaId, start);
+
+    let episode = item.current_episode;
+    let cursor = start;
+    let created = 0;
+    let guard = 0;
+
+    while (episode < item.total_episodes && guard++ < 1200) {
+      if (skip.includes(weekday(cursor))) { cursor = addDays(cursor, 1); continue; }
+      const from = episode + 1;
+      const to = Math.min(item.total_episodes, episode + perDay);
+      const count = to - from + 1;
+      get().addTask({
+        title: single
+          ? item.title
+          : `${item.title} — ${count > 1 ? `ep. ${from}–${to}` : `ep. ${from}`}`,
+        kind: "watching",
+        date: cursor,
+        media_id: item.id,
+        episode_from: from,
+        episode_to: to,
+        color: item.color,
+        duration_min: item.runtime_min ? item.runtime_min * count : null,
+        tags: [item.kind],
+      });
+      episode = to;
+      cursor = addDays(cursor, 1);
+      created++;
+    }
+
+    get().patch("media", mediaId, {
+      episodes_per_day: single ? null : perDay,
+      start_date: start,
+      end_date: addDays(cursor, -1),
+      status: "watching",
+    });
+    return created;
+  },
+
+  unscheduleMedia(mediaId, fromDate) {
+    const cut = fromDate ?? todayISO();
+    get().removeWhere("tasks", (t) => {
+      const task = t as Task;
+      return task.media_id === mediaId && task.status !== "done" && (task.date ?? "") >= cut;
+    });
+  },
+
+  logWatch(mediaId, episode) {
+    const item = get().media.find((m) => m.id === mediaId);
+    if (!item) return;
+    const next = Math.max(0, Math.min(episode, item.total_episodes));
+    get().patch("media", mediaId, {
+      current_episode: next,
+      status: next >= item.total_episodes
+        ? "finished"
+        : item.status === "finished" ? "watching" : item.status,
+    });
   },
 
   unscheduleBook(bookId, fromDate) {
@@ -913,6 +1025,6 @@ export function focusMinutesOn(sessions: FocusSession[], date: string): number {
 }
 
 export type {
-  Task, Book, Habit, HabitLog, Goal, Board, MapNode, MapEdge,
+  Task, Book, Media, Habit, HabitLog, Goal, Board, MapNode, MapEdge,
   Template, Prayer, DayLog, FocusSession, Review, Tag, Profile, Tint,
 };

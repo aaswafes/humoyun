@@ -21,6 +21,7 @@ export const KIND_LABELS: Record<TaskKind, string> = {
   task: "Task",
   event: "Event",
   reading: "Reading",
+  watching: "Watching",
   habit: "Habit",
   prayer: "Prayer",
   block: "Block",

@@ -16,7 +16,9 @@ export type Accent = "blue" | "violet" | "emerald" | "amber" | "rose" | "graphit
 export const ACCENTS: Accent[] = ["blue", "violet", "emerald", "amber", "rose", "graphite"];
 
 export type TaskStatus = "todo" | "doing" | "done" | "dropped";
-export type TaskKind = "task" | "event" | "reading" | "habit" | "prayer" | "block" | "milestone";
+export type TaskKind =
+  | "task" | "event" | "reading" | "watching"
+  | "habit" | "prayer" | "block" | "milestone";
 export type Horizon = "life" | "year" | "quarter" | "month" | "week";
 export type PrayerName = "fajr" | "dhuhr" | "asr" | "maghrib" | "isha";
 export type PrayerStatus = "none" | "prayed" | "jamaah" | "late" | "qadha" | "missed";
@@ -80,12 +82,15 @@ export interface Task {
   order_index: number;
   parent_id: string | null;
   book_id: string | null;
+  media_id: string | null;
   habit_id: string | null;
   goal_id: string | null;
   node_id: string | null;
   template_id: string | null;
   page_from: number | null;
   page_to: number | null;
+  episode_from: number | null;
+  episode_to: number | null;
   recurrence: Recurrence | null;
   series_id: string | null;
   created_at: string;
@@ -111,6 +116,47 @@ export interface Book {
   start_date: string | null;
   end_date: string | null;
   status: "planned" | "reading" | "finished" | "paused" | "dropped";
+  rating: number | null;
+  notes: string | null;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MediaKind = "film" | "anime" | "series";
+
+export const MEDIA_KINDS: MediaKind[] = ["film", "anime", "series"];
+export const MEDIA_KIND_LABELS: Record<MediaKind, string> = {
+  film: "Film",
+  anime: "Anime",
+  series: "Series",
+};
+
+/**
+ * A film is a one-episode title. Keeping films and series in one shape means
+ * the shelf, the scheduler and the calendar do not need to know the difference
+ * — only the UI hides the pacing controls when there is a single episode.
+ */
+export interface Media {
+  id: string;
+  user_id: string;
+  title: string;
+  /** Director for a film, studio for a series. */
+  creator: string | null;
+  kind: MediaKind;
+  genre: string | null;
+  topic: string | null;
+  series: string | null;
+  color: Tint;
+  cover_url: string | null;
+  total_episodes: number;
+  current_episode: number;
+  episodes_per_day: number | null;
+  /** Minutes per episode, or the film's running time. */
+  runtime_min: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: "planned" | "watching" | "finished" | "paused" | "dropped";
   rating: number | null;
   notes: string | null;
   order_index: number;
@@ -311,6 +357,7 @@ export interface Tag {
 export interface Collections {
   tasks: Task;
   books: Book;
+  media: Media;
   habits: Habit;
   habitLogs: HabitLog;
   goals: Goal;
@@ -330,6 +377,7 @@ export type CollectionKey = keyof Collections;
 export const TABLE_OF: Record<CollectionKey, string> = {
   tasks: "tasks",
   books: "books",
+  media: "media",
   habits: "habits",
   habitLogs: "habit_logs",
   goals: "goals",

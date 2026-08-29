@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon, Target,
-  Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings, Search,
+  Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings, Search, Clapperboard,
   Plus, ChevronDown, ChevronRight, LogOut, Monitor, SunMedium, MoonStar, Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -69,6 +69,7 @@ export function Sidebar() {
         { href: "/habits", label: "Habits", icon: Flame },
         { href: "/salah", label: "Salah", icon: Moon },
         { href: "/books", label: "Books", icon: BookOpen },
+        { href: "/watch", label: "Films & Anime", icon: Clapperboard },
         { href: "/focus", label: "Focus", icon: Timer },
       ],
     },
