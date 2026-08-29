@@ -265,7 +265,11 @@ export function Segmented<T extends string>({
             title={opt.title}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "relative rounded-[7px] font-medium cursor-pointer whitespace-nowrap",
+              // inline-flex, not the default inline: Tailwind's preflight sets
+              // svg { display: block }, so an icon inside a non-flex button
+              // pushes its label onto a second line and overflows the pill.
+              "relative inline-flex items-center justify-center rounded-[7px]",
+              "font-medium cursor-pointer whitespace-nowrap",
               "transition-[color,background-color,box-shadow] duration-200 ease-[var(--ease-out-apple)]",
               size === "sm" ? "h-6 px-2 text-[12px]" : "h-7 px-2.5 text-[13px]",
               active
