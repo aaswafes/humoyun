@@ -97,15 +97,23 @@ export function ReadingCard({ date }: { date: string }) {
 
   const doneBlocks = blocks.filter((b) => b.status === "done").length;
 
+  const summary = totals.planned > 0
+    ? (pagesLeft ? `${pagesLeft} pages left today` : "today's pages are done")
+    : groups.length || loose.length
+      ? `${groups.length + loose.length} on the list`
+      : "nothing scheduled";
+
   return (
     <RailCard
       icon={BookOpen}
       title="Reading"
+      foldKey="rail.reading"
+      summary={summary}
       href="/books"
       hrefLabel="Open Books"
       accessory={
         blocks.length > 0 ? (
-          <span className="text-[11.5px] font-medium text-ink-2 tnum">
+          <span className="text-[11.5px] font-medium text-ink-3 tnum">
             {doneBlocks}/{blocks.length}
           </span>
         ) : undefined
@@ -116,7 +124,7 @@ export function ReadingCard({ date }: { date: string }) {
             <RailMeta value={`${totals.read}/${totals.planned}`}>
               {pagesLeft ? `${pagesLeft} pages left today` : "Today's pages are done"}
             </RailMeta>
-            <Progress value={totals.read} max={totals.planned} height={3} className="mt-1.5" />
+            <Progress value={totals.read} max={totals.planned} tint="slate" height={3} className="mt-1.5" />
           </div>
         ) : undefined
       }

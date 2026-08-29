@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { addDays, daysBetween, formatDuration, formatTime } from "@/lib/date";
 import { PRAYER_LABELS, type PrayerName } from "@/lib/types";
@@ -18,7 +17,8 @@ const SPANS = [
 
 /**
  * Which prayer slips, and when in the day it happens. Written to be read
- * once and acted on — never to hand out a score.
+ * once and acted on — never to hand out a score, and never in a warning
+ * colour: this is information, not an emergency.
  */
 export function PrayerInsights({ today, t }: { today: string; t: TimesTriple }) {
   const prayers = useStore((s) => s.prayers);
@@ -51,16 +51,15 @@ export function PrayerInsights({ today, t }: { today: string; t: TimesTriple }) 
   const { weakest, strongest } = extremes(insights);
 
   return (
-    <section className="surface p-5">
-      <header className="flex flex-wrap items-center gap-2">
-        <h2 className="flex-1 text-[13px] font-semibold text-ink">Per prayer</h2>
+    <div>
+      <div className="flex justify-end">
         <Segmented
           size="sm"
           value={span}
           onChange={setSpan}
           options={SPANS.map((s) => ({ value: s.value, label: s.label }))}
         />
-      </header>
+      </div>
 
       {!anyRecords ? (
         <MiniEmpty className="py-8">
@@ -86,9 +85,10 @@ export function PrayerInsights({ today, t }: { today: string; t: TimesTriple }) 
             </p>
           )}
 
-          <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
+          {/* Five rows on hairlines rather than five bordered tiles. */}
+          <ul className="mt-4">
             {insights.map((insight) => (
-              <InsightCard
+              <InsightRow
                 key={insight.name}
                 name={insight.name}
                 start={windows[insight.name].start}
@@ -100,7 +100,6 @@ export function PrayerInsights({ today, t }: { today: string; t: TimesTriple }) 
                 lagSamples={insight.lag.samples}
                 lateInWindow={insight.lag.lateInWindow}
                 hour12={hour12}
-                highlight={insight.name === weakest.name}
               />
             ))}
           </ul>
@@ -112,12 +111,12 @@ export function PrayerInsights({ today, t }: { today: string; t: TimesTriple }) 
           </p>
         </>
       )}
-    </section>
+    </div>
   );
 }
 
-function InsightCard({
-  name, start, end, length, counts, handledRate, lagMedian, lagSamples, lateInWindow, hour12, highlight,
+function InsightRow({
+  name, start, end, length, counts, handledRate, lagMedian, lagSamples, lateInWindow, hour12,
 }: {
   name: PrayerName;
   start: number;
@@ -129,18 +128,12 @@ function InsightCard({
   lagSamples: number;
   lateInWindow: number;
   hour12: boolean;
-  highlight: boolean;
 }) {
   return (
-    <li
-      className={cn(
-        "rounded-lg border p-3",
-        highlight ? "border-line bg-warn-soft" : "border-line",
-      )}
-    >
+    <li className="hairline-t py-3">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[13px] font-medium text-ink">{PRAYER_LABELS[name]}</span>
-        <span className="tnum text-[11.5px] text-ink-3">
+        <span className="tnum text-[11.5px] text-ink-4">
           {formatTime(start, hour12)} – {formatTime(end, hour12)}
         </span>
       </div>

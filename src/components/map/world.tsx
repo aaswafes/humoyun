@@ -109,6 +109,8 @@ function WorldLayerImpl({
         aria-label={`${drawn.length} connections`}
       >
         {timeline && (
+          // Guides, not content. They only have to be findable when you are
+          // aiming a node at a row — the nodes are what the eye should land on.
           <g aria-hidden>
             {/* lane bands first — rows you can aim a node at */}
             {Array.from({ length: Math.max(timeline.laneCount, 1) }, (_, i) => (
@@ -120,23 +122,24 @@ function WorldLayerImpl({
                 height={LANE_H}
                 rx={10}
                 fill="var(--hover)"
-                opacity={i % 2 === 0 ? 0.55 : 0.25}
+                opacity={i % 2 === 0 ? 0.34 : 0.1}
               />
             ))}
             {timeline.ticks.map((t) => (
               <line
                 key={t.iso}
                 x1={t.x} y1={0} x2={t.x} y2={timeline.height}
-                stroke={t.major ? "var(--line-strong)" : "var(--line)"}
-                strokeWidth={t.major ? 1.5 : 1}
+                stroke="var(--line)"
+                strokeWidth={1}
+                opacity={t.major ? 0.85 : 0.4}
               />
             ))}
             <line
               x1={timeline.todayX} y1={0} x2={timeline.todayX} y2={timeline.height}
               stroke="var(--accent)"
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-              opacity={0.7}
+              strokeWidth={1}
+              strokeDasharray="3 5"
+              opacity={0.34}
             />
           </g>
         )}

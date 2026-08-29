@@ -76,10 +76,12 @@ export function PlanEditor({
         onChange={(skipWeekends) => set({ skipWeekends })}
       />
 
+      {/* A working plan is information, not an announcement — only a plan that
+          cannot be scheduled earns a colour. */}
       <p
         className={cn(
-          "rounded-md px-2.5 py-2 text-[12.5px] leading-relaxed tnum",
-          plan.valid ? "bg-accent-soft text-accent" : "bg-warn-soft text-warn",
+          "rounded-md bg-hover px-2.5 py-2 text-[12.5px] leading-relaxed tnum",
+          plan.valid ? "text-ink-2" : "text-warn",
         )}
         aria-live="polite"
       >

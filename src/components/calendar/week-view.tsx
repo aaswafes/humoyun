@@ -35,7 +35,10 @@ function WeekBar({ dates }: { dates: string[] }) {
   const description =
     `Week ${summary.week}: ${summary.done} of ${summary.total} done, ` +
     `${formatDuration(summary.minutes)} scheduled, about ${formatDuration(free * 60)} free ` +
-    `inside working hours.`;
+    `inside working hours` +
+    (summary.busiest && summary.busiest.total > 0
+      ? `, busiest on ${dayNameOf(weekday(summary.busiest.date), "long")}.`
+      : ".");
 
   return (
     <div className="flex items-center gap-3 px-1 pb-2" aria-describedby="week-bar-summary">
@@ -71,22 +74,13 @@ function WeekBar({ dates }: { dates: string[] }) {
         })}
       </div>
 
+      {/* Two facts the bars cannot show. The done count is already in the page
+          header and the busiest day is the tallest bar, so both left the line
+          and stayed in the spoken description. */}
       <p className="text-[12px] text-ink-3 tnum">
-        <span className="font-medium text-ink-2">{formatDuration(summary.minutes)}</span> scheduled
+        <span className="text-ink-2">{formatDuration(summary.minutes)}</span> scheduled
         <span className="mx-1.5 text-ink-4">·</span>
-        <span className="font-medium text-ink-2">{formatDuration(free * 60)}</span> free
-        {summary.total > 0 && (
-          <>
-            <span className="mx-1.5 text-ink-4">·</span>
-            {summary.done}/{summary.total} done
-          </>
-        )}
-        {summary.busiest && summary.busiest.total > 0 && (
-          <>
-            <span className="mx-1.5 text-ink-4">·</span>
-            busiest {dayNameOf(weekday(summary.busiest.date), "short")}
-          </>
-        )}
+        <span className="text-ink-2">{formatDuration(free * 60)}</span> free
       </p>
     </div>
   );

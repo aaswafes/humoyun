@@ -150,7 +150,7 @@ function DayColumn({
   return (
     <div className="flex min-w-[136px] flex-1 flex-col">
       <div className="mb-1.5 flex items-baseline gap-1.5 px-0.5">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</span>
+        <span className="text-[11.5px] font-semibold text-ink-2">{label}</span>
         <span className="text-[11px] text-ink-4 tnum">{rows.length || ""}</span>
         <div className="flex-1" />
         {minutes > 0 && <span className="text-[11px] text-ink-4 tnum">{formatDuration(minutes)}</span>}
@@ -162,9 +162,9 @@ function DayColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "flex min-h-[96px] flex-1 flex-col gap-1.5 rounded-lg border border-dashed p-1.5",
+          "flex min-h-[96px] flex-1 flex-col gap-1.5 rounded-lg p-1.5",
           "transition-colors duration-150",
-          isOver ? "border-accent bg-accent-soft" : "border-line bg-sunken",
+          isOver ? "bg-accent-soft ring-1 ring-accent-line" : "bg-sunken",
         )}
       >
         <SortableContext items={rows.map((r) => r.key)} strategy={verticalListSortingStrategy}>

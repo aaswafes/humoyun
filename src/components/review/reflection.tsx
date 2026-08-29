@@ -133,7 +133,6 @@ export function Reflection({ period }: { period: Period }) {
     <Section
       id="review-reflection"
       label="Reflection"
-      note="Saves itself as you type"
       action={
         <>
           <span className="text-[11.5px] text-ink-4 tnum">
@@ -145,7 +144,7 @@ export function Reflection({ period }: { period: Period }) {
               Saving…
             </span>
           ) : status === "saved" ? (
-            <span className="anim-fade inline-flex items-center gap-1 text-[11.5px] text-ink-3">
+            <span className="anim-fade inline-flex items-center gap-1 text-[11.5px] text-ink-4">
               <Check className="size-3" strokeWidth={2.5} />
               Saved
             </span>
@@ -154,10 +153,10 @@ export function Reflection({ period }: { period: Period }) {
       }
     >
       {carried && (
-        <div className="mb-4 flex items-start gap-2.5 rounded-lg bg-hover px-3 py-2.5">
+        <div className="mb-6 flex items-start gap-2.5 rounded-lg bg-hover px-3 py-2.5">
           <Quote className="mt-0.5 size-3.5 shrink-0 text-ink-4" />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+            <p className="text-[11.5px] text-ink-4">
               Last {SCOPE_NOUN[period.scope]} you promised
             </p>
             <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-ink-2">{carried}</p>
@@ -186,38 +185,41 @@ export function Reflection({ period }: { period: Period }) {
         onChange={(n) => apply({ ...draft, rating: n }, true)}
       />
 
-      {fields.map((field) => {
-        const words = wordCount(draft[field.key]);
-        return (
-          <div key={field.key} className="hairline-t py-4">
-            <div className="flex items-baseline gap-2">
-              <label
-                htmlFor={field.id}
-                className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3"
-              >
-                {field.label}
-              </label>
-              {words > 0 && (
-                <span className="ml-auto text-[11px] text-ink-4 tnum">
-                  {words} {words === 1 ? "word" : "words"}
-                </span>
-              )}
+      {/* Space instead of rules: six prompts, nothing between them but room. */}
+      <div className="mt-2 space-y-7">
+        {fields.map((field) => {
+          const words = wordCount(draft[field.key]);
+          return (
+            <div key={field.key}>
+              <div className="flex items-baseline gap-2">
+                <label
+                  htmlFor={field.id}
+                  className="cursor-pointer text-[12.5px] font-medium text-ink-2"
+                >
+                  {field.label}
+                </label>
+                {words > 0 && (
+                  <span className="ml-auto text-[11px] text-ink-4 tnum">
+                    {words} {words === 1 ? "word" : "words"}
+                  </span>
+                )}
+              </div>
+              <AutoTextarea
+                id={field.id}
+                minRows={3}
+                value={draft[field.key]}
+                onChange={(v) => apply(withField(draft, field.key, v))}
+                onBlur={() => { if (pending.current) { commit(); setStatus("saved"); } }}
+                placeholder={field.hint}
+                className={cn(
+                  "mt-2 -mx-2 rounded-md px-2 py-1.5 text-[13.5px] leading-relaxed text-ink",
+                  "placeholder:text-ink-4 hover:bg-hover focus:bg-hover transition-colors duration-150",
+                )}
+              />
             </div>
-            <AutoTextarea
-              id={field.id}
-              minRows={2}
-              value={draft[field.key]}
-              onChange={(v) => apply(withField(draft, field.key, v))}
-              onBlur={() => { if (pending.current) { commit(); setStatus("saved"); } }}
-              placeholder={field.hint}
-              className={cn(
-                "mt-1.5 -mx-1.5 rounded-md px-1.5 py-1 text-[13.5px] text-ink",
-                "placeholder:text-ink-4 hover:bg-hover focus:bg-hover transition-colors duration-150",
-              )}
-            />
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </Section>
   );
 }
@@ -243,8 +245,8 @@ function RatingRow({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-      <span className="text-[13.5px] text-ink-2">How was the {SCOPE_NOUN[scope]}?</span>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <span className="text-[13px] text-ink-2">How was the {SCOPE_NOUN[scope]}?</span>
       <div
         role="radiogroup"
         aria-label={`${SCOPE_NOUN[scope]} rating`}
@@ -280,7 +282,7 @@ function RatingRow({
           );
         })}
       </div>
-      <span className="text-[12.5px] text-ink-3">
+      <span className="text-[12.5px] text-ink-4">
         {value ? RATING_LABELS[value - 1] : "Pick a number, then write."}
       </span>
     </div>

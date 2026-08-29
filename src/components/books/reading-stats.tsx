@@ -3,13 +3,11 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import { addMonths, monthName, todayISO, yearOf } from "@/lib/date";
-import type { Book, Task } from "@/lib/types";
 import { VisuallyHidden } from "@/components/ui/form";
-import { finishedInYear } from "./metrics";
-import { monthTotals, paceStats, streaks, type ReadDay } from "./pace";
+import { monthTotals, type PaceStats, type ReadDay } from "./pace";
 
 function Stat({
-  label, display, positive, unit, footnote, delta, className,
+  label, display, positive, unit, footnote, delta,
 }: {
   label: string;
   display: string;
@@ -18,22 +16,22 @@ function Stat({
   unit: string;
   footnote: string;
   delta?: { value: number; suffix: string } | null;
-  className?: string;
 }) {
   return (
-    <div className={cn("px-4 first:pl-0 last:pr-0", className)}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</p>
-      <p className="mt-1.5 flex items-baseline gap-1.5">
-        <span className={cn("display-serif text-[32px] leading-none tnum", positive ? "text-ink" : "text-ink-4")}>
+    <div className="min-w-0">
+      <p className="text-[11.5px] text-ink-3">{label}</p>
+      <p className="mt-1 flex items-baseline gap-1.5">
+        <span className={cn("display-serif text-[22px] leading-none tnum", positive ? "text-ink" : "text-ink-4")}>
           {display}
         </span>
-        <span className="text-[12px] text-ink-3">{unit}</span>
+        <span className="text-[11.5px] text-ink-4">{unit}</span>
       </p>
-      <p className="mt-1 flex items-baseline gap-1.5 text-[11.5px] text-ink-4 tnum">
+      <p className="mt-0.5 flex items-baseline gap-1.5 text-[11px] text-ink-4 tnum">
         <span className="truncate">{footnote}</span>
         {delta && delta.value !== 0 && (
-          <span className={cn("shrink-0 font-medium", delta.value > 0 ? "text-success" : "text-warn")}>
-            {delta.value > 0 ? "+" : ""}{delta.value}{delta.suffix}
+          // A slower month is information, not a failure — it stays grey.
+          <span className="shrink-0">
+            {delta.value > 0 ? "+" : "−"}{Math.abs(delta.value)}{delta.suffix}
           </span>
         )}
       </p>
@@ -47,12 +45,13 @@ function Stat({
  * the habit alive.
  */
 export function ReadingStats({
-  books, tasks, days, className,
+  days, finished, pace, streak, className,
 }: {
-  books: Book[];
-  tasks: Task[];
   /** merged read history for the whole library */
   days: ReadDay[];
+  finished: number;
+  pace: PaceStats;
+  streak: { current: number; best: number };
   className?: string;
 }) {
   const today = todayISO();
@@ -61,10 +60,7 @@ export function ReadingStats({
 
   const thisMonth = React.useMemo(() => monthTotals(days, month), [days, month]);
   const lastMonth = React.useMemo(() => monthTotals(days, prevMonth), [days, prevMonth]);
-  const pace = React.useMemo(() => paceStats(days, 28, today), [days, today]);
-  const streak = React.useMemo(() => streaks(days, today), [days, today]);
 
-  const finished = finishedInYear(books, tasks).length;
   const rate = pace.perDay >= 10 ? Math.round(pace.perDay) : Math.round(pace.perDay * 10) / 10;
 
   const pctChange = lastMonth.pages > 0
@@ -74,7 +70,7 @@ export function ReadingStats({
   const hours = Math.round(thisMonth.minutes / 60 * 10) / 10;
 
   return (
-    <div className={cn("grid grid-cols-2 gap-y-4 sm:grid-cols-4 sm:gap-y-0 sm:divide-x sm:divide-line", className)}>
+    <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4", className)}>
       <VisuallyHidden>
         {`${finished} books finished in ${yearOf(today)}. `}
         {`${thisMonth.pages} pages this month. `}

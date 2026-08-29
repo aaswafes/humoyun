@@ -92,20 +92,16 @@ export function ReadingGoal({
       </VisuallyHidden>
 
       <div className="flex items-baseline gap-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{year} goal</h3>
-        <span className="text-[12px] text-ink-2 tnum">
+        <h3 className="shrink-0 text-[11.5px] text-ink-3">{year} goal</h3>
+        <span className="text-[12px] text-ink-3 tnum">
           <span className="font-medium text-ink">{finished}</span> / {goal} books
         </span>
         <span className="ml-auto flex items-center gap-1">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 text-[11.5px] font-medium tnum",
-              pace.daysAhead >= 0 ? "text-success" : "text-warn",
-            )}
-          >
+          {/* Off the pace of a yearly goal is information, not an alarm. */}
+          <span className="inline-flex items-center gap-1 text-[11.5px] text-ink-3 tnum">
             {pace.daysAhead >= 0
-              ? <TrendingUp className="size-3" aria-hidden />
-              : <TrendingDown className="size-3" aria-hidden />}
+              ? <TrendingUp className="size-3 text-ink-4" aria-hidden />
+              : <TrendingDown className="size-3 text-ink-4" aria-hidden />}
             {verdict}
           </span>
           {editor}
@@ -124,7 +120,7 @@ export function ReadingGoal({
             />
           ))}
           {finished > goal && (
-            <span className="ml-1 self-center text-[11px] font-medium text-accent tnum">
+            <span className="ml-1 self-center text-[11px] font-medium text-ink-2 tnum">
               +{finished - goal}
             </span>
           )}
@@ -133,9 +129,9 @@ export function ReadingGoal({
         <Progress value={finished} max={goal} height={5} className="mt-2.5" />
       )}
 
-      <p className="mt-1.5 text-[11.5px] text-ink-4 tnum">
+      <p className="mt-1.5 text-[11px] text-ink-4 tnum">
         {pace.remaining > 0
-          ? `${pace.remaining} to go · ${Math.round(pace.expected * 10) / 10} was the pace by today · ${pace.daysLeftInYear} days left in the year`
+          ? `${pace.remaining} to go · ${pace.daysLeftInYear} days left in the year`
           : `Goal met with ${pace.daysLeftInYear} days to spare.`}
       </p>
     </div>

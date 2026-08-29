@@ -14,7 +14,7 @@ import { Button, EmptyState, IconButton, Segmented } from "@/components/ui/primi
 import { ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Popover } from "@/components/ui/overlays";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 import { TaskRow } from "@/components/tasks/task-row";
-import { Section } from "./section";
+import { Fold } from "./section";
 import { plural } from "./metrics";
 import { dayEntries, type DayEntry } from "./derive";
 import { SCOPE_NOUN, shiftDateByScope, shiftPeriod, type Period } from "./period";
@@ -120,20 +120,14 @@ export function PeriodLog({ period, weekStartDay }: { period: Period; weekStartD
 
   return (
     <>
-      <Section
+      <Fold
         id="review-happened"
-        label="What actually happened"
-        note={
+        storageKey="log"
+        label="What happened"
+        summary={
           done
             ? `${done} ${plural(done, "task")} closed across ${entries.length} ${plural(entries.length, "day")}`
-            : undefined
-        }
-        action={
-          entries.length > 1 && busiest ? (
-            <span className="hidden text-[11.5px] text-ink-4 tnum sm:block">
-              Best day: {formatDate(busiest.date, { weekday: true })} · {busiest.done.length}
-            </span>
-          ) : undefined
+            : `nothing closed this ${noun} yet`
         }
       >
         {done === 0 ? (
@@ -159,26 +153,45 @@ export function PeriodLog({ period, weekStartDay }: { period: Period; weekStartD
                 </Button>
               </div>
             )}
-            {quietest && quietest.done.length === 0 && period.phase !== "future" && (
-              <p className="mt-3 text-[11.5px] text-ink-4">
-                {formatDate(quietest.date)} closed nothing at all.
-              </p>
-            )}
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-ink-4 tnum">
+              {entries.length > 1 && busiest && (
+                <span>
+                  Best day: {formatDate(busiest.date, { weekday: true })} · {busiest.done.length}
+                </span>
+              )}
+              {quietest && quietest.done.length === 0 && period.phase !== "future" && (
+                <span>{formatDate(quietest.date)} closed nothing at all.</span>
+              )}
+            </div>
           </div>
         )}
-      </Section>
+      </Fold>
 
-      <Section
+      <Fold
         id="review-slipped"
+        storageKey="slipped"
         label={over ? "What slipped" : period.phase === "future" ? "Booked ahead" : "Still open"}
-        note={
+        summary={
           slipped.length
             ? `${slipped.length} ${plural(slipped.length, "task")} dated this ${noun}, ${period.phase === "future" ? "not started" : "unfinished"}`
-            : undefined
+            : over
+              ? "nothing slipped"
+              : "nothing outstanding"
         }
-        action={
-          slipped.length > 0 ? (
-            <>
+      >
+        {slipped.length === 0 ? (
+          <div className="flex items-center gap-2 py-1 text-[13px] text-ink-3">
+            <Check className="size-3.5 shrink-0 text-success" strokeWidth={2.5} />
+            {over
+              ? `Nothing slipped. Every task dated this ${noun} was closed.`
+              : period.phase === "future"
+                ? `Nothing is booked for this ${noun} yet.`
+                : `Nothing outstanding so far this ${noun}.`}
+          </div>
+        ) : (
+          <div>
+            {/* The bulk tools live with the list they act on, not in the page chrome. */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <Segmented
                 size="sm"
                 value={sort}
@@ -230,23 +243,8 @@ export function PeriodLog({ period, weekStartDay }: { period: Period; weekStartD
                   </>
                 )}
               </Popover>
-            </>
-          ) : undefined
-        }
-      >
-        {slipped.length === 0 ? (
-          <div className="flex items-center gap-2.5 px-1.5 py-3 text-[13px] text-ink-2">
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-success-soft text-success">
-              <Check className="size-3.5" strokeWidth={2.5} />
-            </span>
-            {over
-              ? `Nothing slipped. Every task dated this ${noun} was closed.`
-              : period.phase === "future"
-                ? `Nothing is booked for this ${noun} yet.`
-                : `Nothing outstanding so far this ${noun}.`}
-          </div>
-        ) : (
-          <div>
+            </div>
+
             {visibleSlipped.map((task) => (
               <SlippedRow
                 key={task.id}
@@ -269,7 +267,7 @@ export function PeriodLog({ period, weekStartDay }: { period: Period; weekStartD
             )}
           </div>
         )}
-      </Section>
+      </Fold>
 
       <ConfirmDialog
         open={confirmDrop}
@@ -303,7 +301,7 @@ function DayGroup({ entry, divided, defaultOpen }: { entry: DayEntry; divided: b
             open && "rotate-90",
           )}
         />
-        <span className="display-serif w-6 shrink-0 text-[17px] leading-none text-ink tnum">
+        <span className="w-5 shrink-0 text-[13px] font-medium text-ink-3 tnum">
           {dayNumber(entry.date)}
         </span>
         <span className="text-[13px] font-medium text-ink-2">{dayName(entry.date, "long")}</span>

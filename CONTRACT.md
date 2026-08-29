@@ -263,3 +263,68 @@ the `custom` cadence. Anything that answers "is this habit due today" imports
   and a visible button that performs the same action on the current selection.
 - Charts and heatmaps: focusable data or a `VisuallyHidden` summary, plus `<title>`
   on meaningful SVG shapes.
+
+---
+
+# The calm pass — density rules
+
+The owner's words: *"too dense … simplify the UI … now it seems too much stuff on
+display … but don't cut any feature, just make it look less overwhelming."*
+
+So: **nothing is deleted. Things are folded, quietened, and given room.** If you find
+yourself removing a capability, you have misread the brief — collapse it instead.
+
+## The nine rules
+
+1. **One hero per screen.** Exactly one element may use `display-serif` at 44px or 64px.
+   Everything else steps down to 32/22. Two big serif numbers on one screen fight.
+
+2. **Card budget: four.** At most four bordered surfaces visible without scrolling.
+   Prefer whitespace and a hairline over a border. **A bordered card inside a bordered
+   card is banned** — pick one level and let the inner content breathe.
+
+3. **Collapsed by default.** Anything not needed the second the page opens starts folded
+   behind a one-line summary that states its own value ("5h 20m planned · 1 unscheduled").
+   Planning tools, analysis strips, secondary rails, option rows. Expansion state persists
+   in localStorage per surface. The feature stays; only its resting state changes.
+
+4. **Label diet.** Uppercase micro-labels are for true section headers only — **three per
+   screen, maximum**. If the content explains itself, the label is noise. Delete it.
+
+5. **One number per idea.** "1 of 6 done · 5 still open" states the same fact twice, next
+   to a ring that states it a third time. Choose the single clearest expression and drop
+   the rest.
+
+6. **Quiet by default.** Warning and danger colours are for things the user must act on
+   *now*. Planning more than fits in a day is information, not an emergency — state it in
+   `text-ink-3`, not in orange with a triangle. Reserve `--warn` and `--danger` for real
+   failure.
+
+7. **Room to breathe.** Section gap 32px (`space-y-8`). Card padding 16–20px. Between a
+   heading and its content, 8–12px. Density lives in the rows, not in the chrome.
+
+8. **Push text down a step.** Supporting copy that is `text-ink-2` today should mostly be
+   `text-ink-3`; hints and units go to `text-ink-4`. Only what the user came for stays at
+   `text-ink`.
+
+9. **Two accents, visible.** At most two accent-coloured elements on screen at once. The
+   accent marks *the* action or *the* selection — a screen where six things are blue has
+   told the user nothing.
+
+## What "folded" looks like
+
+A folded section is a single row: a quiet label, its summary in `text-ink-3`, and a
+chevron. It is a real `<button>` with `aria-expanded`, it animates open in 200ms, and it
+remembers. It is never a dead end — the summary line always says what is inside.
+
+## Applying this
+
+Work surface by surface. For each one ask, in order:
+- What did the user come to this screen to do? That is the hero. Everything else is
+  support and should look like it.
+- What is on screen that they did not ask for? Fold it.
+- What is stated more than once? Say it once.
+- What is bordered that could just be spaced?
+- What is coloured that could be grey?
+
+Then check your work against the nine rules literally, one by one.

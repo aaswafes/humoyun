@@ -97,11 +97,11 @@ export function TimesCalendar({ today, hijriOffset }: { today: string; hijriOffs
   }
 
   return (
-    <section className="surface p-4">
+    <div>
       <header className="flex flex-wrap items-center gap-2">
-        <h2 className="flex-1 text-[13px] font-semibold text-ink">
+        <p className="flex-1 text-[12.5px] font-medium text-ink-2">
           {monthName(month)} <span className="tnum text-ink-3">{yearOf(month)}</span>
-        </h2>
+        </p>
         {!isCurrentMonth && (
           <Button size="sm" variant="ghost" onClick={() => setMonth(startOfMonth(today))}>
             This month
@@ -127,17 +127,17 @@ export function TimesCalendar({ today, hijriOffset }: { today: string; hijriOffs
         <table className="w-full min-w-[520px] border-collapse text-[12px]">
           <thead>
             <tr className="hairline-b">
-              <th scope="col" className="py-1.5 pr-2 text-left text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+              <th scope="col" className="py-1.5 pr-2 text-left text-[11px] font-medium text-ink-4">
                 Day
               </th>
-              <th scope="col" className="py-1.5 pr-2 text-left text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+              <th scope="col" className="py-1.5 pr-2 text-left text-[11px] font-medium text-ink-4">
                 Hijri
               </th>
               {COLUMNS.map((c) => (
                 <th
                   key={c}
                   scope="col"
-                  className="py-1.5 text-right text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3"
+                  className="py-1.5 text-right text-[11px] font-medium text-ink-4"
                 >
                   {c}
                 </th>
@@ -159,7 +159,7 @@ export function TimesCalendar({ today, hijriOffset }: { today: string; hijriOffs
                     scope="row"
                     className={cn(
                       "whitespace-nowrap py-1 pr-2 text-left font-medium",
-                      isToday ? "text-accent" : row.friday ? "text-ink" : "text-ink-2",
+                      isToday ? "text-ink" : row.friday ? "text-ink-2" : "text-ink-3",
                     )}
                   >
                     <span className="tnum">{String(dayNumber(row.date)).padStart(2, "0")}</span>{" "}
@@ -219,6 +219,6 @@ export function TimesCalendar({ today, hijriOffset }: { today: string; hijriOffs
           </div>
         </div>
       </Modal>
-    </section>
+    </div>
   );
 }

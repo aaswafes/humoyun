@@ -3,7 +3,6 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import { dayName, formatDate, formatDuration, isToday, monthName, todayISO } from "@/lib/date";
-import { SectionLabel } from "@/components/ui/primitives";
 import { VisuallyHidden } from "@/components/ui/form";
 import { heatmapWeeks, type DayGroup, type HeatCell } from "./focus-data";
 
@@ -85,13 +84,10 @@ export const FocusHeatmap = React.memo(function FocusHeatmap({
 
   return (
     <section>
-      <div className="mb-2.5 flex items-baseline justify-between gap-3">
-        <SectionLabel>Last six months</SectionLabel>
-        <p className="text-[11.5px] text-ink-3 tnum">
-          {formatDuration(totals.minutes)} over {totals.days} {totals.days === 1 ? "day" : "days"}
-          {totals.hit > 0 && ` · ${totals.hit} at target`}
-        </p>
-      </div>
+      <p className="mb-3 text-[11.5px] text-ink-4 tnum">
+        {formatDuration(totals.minutes)} over {totals.days} {totals.days === 1 ? "day" : "days"}
+        {totals.hit > 0 && ` · ${totals.hit} at target`}
+      </p>
 
       <div className="overflow-x-auto pb-1">
         <div style={{ width: WEEKS * STEP + GUTTER }}>
@@ -204,7 +200,7 @@ export const FocusHeatmap = React.memo(function FocusHeatmap({
               )}
             </>
           ) : (
-            "Pick a day to pull it up in history."
+            "Pick a day to open it under History."
           )}
         </p>
 

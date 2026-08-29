@@ -10,19 +10,25 @@ import { useStore } from "@/lib/store";
 import { addDays, dayNameOf, formatDate } from "@/lib/date";
 import type { Habit, HabitLog } from "@/lib/types";
 import { AutoTextarea, Button, IconButton, Tooltip } from "@/components/ui/primitives";
+import { VisuallyHidden } from "@/components/ui/form";
 import { Popover, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/overlays";
 import { HabitIcon } from "./habit-icons";
 import { Heatmap } from "./heatmap";
-import { DayControl, WeekDots } from "./day-control";
+import { DayControl } from "./day-control";
 import { useHabitLogging } from "./habit-logging";
 import { SLOT_ICON, SLOT_LABEL, type HabitMeta } from "./habit-meta";
 import {
-  bestStreak, cadenceLabel, completionRate, currentStreak, DAY_STATE_LABEL,
-  targetLabel, weekDays, weekQuota, weekWindow, type Counts, type Skips,
+  cadenceLabel, currentStreak, DAY_STATE_LABEL, targetLabel, weekDays,
+  weekQuota, weekWindow, type Counts, type Skips,
 } from "./habit-utils";
 
 const ROW_WEEKS = 20;
 
+/**
+ * One habit, one line: its name, what it asks of you, today's control and the
+ * run you are on. Best streak, the 30-day rate and the full year live in the
+ * detail sheet — they are worth reading one habit at a time, not six.
+ */
 export function HabitCard({
   habit, counts, logs, skips, meta, stackedAfter, weekStart, today,
   expanded, onExpand, onEdit, onOpenDetail, onArchive, onDelete,
@@ -57,19 +63,20 @@ export function HabitCard({
   const count = counts.get(today) ?? 0;
   const skippedToday = skips.has(today);
   const streak = currentStreak(habit, counts, skips, today, weekStart);
-  const best = Math.max(streak, bestStreak(habit, counts, skips, today, weekStart));
-  const rate = completionRate(habit, counts, today, 30, skips);
   const lit = streak > 3;
 
-  const days = React.useMemo(
-    () => weekDays(habit, counts, skips, today, today, weekStart),
-    [habit, counts, skips, today, weekStart],
-  );
+  // A weekly quota already says "3× a week", so it is stated as progress
+  // instead of twice — once as the rule and once as the count.
   const quota = habit.cadence === "custom" ? weekQuota(habit, counts, today, weekStart) : null;
+  const summary = [
+    quota ? `${quota.done} of ${quota.target} this week` : cadenceLabel(habit, weekStart),
+    targetLabel(habit),
+  ].filter(Boolean).join(" · ");
+
   const SlotIcon = SLOT_ICON[meta.slot];
 
   return (
-    <div className={cn(`tint-${habit.color}`, "group/habit rounded-lg px-2 py-3 transition-colors duration-150 hover:bg-hover")}>
+    <div className={cn(`tint-${habit.color}`, "group/habit rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover")}>
       <div className="flex items-center gap-3">
         {/* Hover-revealed on a pointer, always there on touch, where there is
             no hover to reveal them with. */}
@@ -84,11 +91,11 @@ export function HabitCard({
             </Tooltip>
           )}
           <span
-            className="grid size-8 shrink-0 place-items-center rounded-md"
+            className="grid size-7 shrink-0 place-items-center rounded-md"
             style={{ background: "var(--tint-soft)" }}
             aria-hidden
           >
-            <HabitIcon name={habit.icon} className="size-4 text-[var(--tint)]" />
+            <HabitIcon name={habit.icon} className="size-[15px] text-[var(--tint)]" />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -105,45 +112,13 @@ export function HabitCard({
                 </Tooltip>
               )}
             </div>
-            <p className="mt-0.5 truncate text-[11.5px] text-ink-3">
-              {cadenceLabel(habit, weekStart)}
-              {targetLabel(habit) && ` · ${targetLabel(habit)}`}
-              {quota && ` · ${quota.done} of ${quota.target} this week`}
-              {stackedAfter && ` · after ${stackedAfter.name}`}
-            </p>
+            <p className="mt-0.5 truncate text-[11.5px] text-ink-4">{summary}</p>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {quota && (
-            <WeekDots habit={habit} days={days} weekStart={weekStart} className="hidden sm:inline-flex" />
-          )}
-          <DayControl
-            habit={habit}
-            date={today}
-            count={count}
-            skipped={skippedToday}
-            onCount={(next) => setCount(habit.id, today, next)}
-            onUnskip={() => onSkip(today, null)}
-            size="sm"
-            className="w-[92px] justify-center"
-          />
-        </div>
-
-        <div className="hidden shrink-0 items-center gap-5 lg:flex">
-          <Metric label="Streak" hint={`${streak} scheduled days in a row`}>
-            <Flame
-              className={cn("size-3.5 shrink-0", lit ? "text-[var(--tint)]" : "text-ink-4")}
-              fill={lit ? "currentColor" : "none"}
-              aria-hidden
-            />
-            {streak}
-          </Metric>
-          <Metric label="Best" hint="Longest run so far">{best}</Metric>
-          <Metric label="30 days" hint={`${rate.done} of ${rate.expected} expected`}>{rate.pct}%</Metric>
-        </div>
-
-        <div className="hidden shrink-0 xl:block">
+        {/* The last twenty weeks sit behind the row rather than beside it:
+            texture at rest, a full-contrast grid the moment you reach for it. */}
+        <div className="hidden shrink-0 opacity-50 transition-opacity duration-200 ease-[var(--ease-out-apple)] focus-within:opacity-100 group-hover/habit:opacity-100 xl:block">
           <Heatmap
             habit={habit}
             counts={counts}
@@ -151,9 +126,34 @@ export function HabitCard({
             startWeek={weekWindow(today, ROW_WEEKS, weekStart)}
             weeks={ROW_WEEKS}
             weekStart={weekStart}
+            cellSize={9}
+            gap={2}
             onToggle={(date) => toggleHabit(habit.id, date)}
           />
         </div>
+
+        <Tooltip content={streak === 1 ? "1 scheduled day in a row" : `${streak} scheduled days in a row`}>
+          <span className="flex w-[40px] items-center justify-end gap-1 text-[12.5px] tnum">
+            <Flame
+              className={cn("size-3.5 shrink-0", lit ? "text-[var(--tint)]" : "text-ink-4")}
+              fill={lit ? "currentColor" : "none"}
+              aria-hidden
+            />
+            <span className={lit ? "text-ink-2" : "text-ink-3"}>{streak}</span>
+            <VisuallyHidden>{" scheduled days in a row"}</VisuallyHidden>
+          </span>
+        </Tooltip>
+
+        <DayControl
+          habit={habit}
+          date={today}
+          count={count}
+          skipped={skippedToday}
+          onCount={(next) => setCount(habit.id, today, next)}
+          onUnskip={() => onSkip(today, null)}
+          size="sm"
+          className="w-[92px] justify-center"
+        />
 
         <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-150 md:opacity-0 md:focus-within:opacity-100 md:group-hover/habit:opacity-100">
           <IconButton
@@ -230,22 +230,10 @@ export function HabitCard({
   );
 }
 
-function Metric({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
-  return (
-    <Tooltip content={hint}>
-      <span className="block w-[58px] text-right">
-        <span className="flex items-center justify-end gap-1 text-[13.5px] font-medium leading-none text-ink tnum">
-          {children}
-        </span>
-        <span className="mt-1 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-4">{label}</span>
-      </span>
-    </Tooltip>
-  );
-}
-
 /**
  * The in-place panel: this week day by day, today's note, and the rest-day
- * switch. Everything that needs a year of context lives in the detail sheet.
+ * switch. It sits on spacing rather than inside a second card — the row is
+ * already a surface. Everything that needs a year of context is in the sheet.
  */
 function WeekPanel({
   habit, counts, logs, skips, weekStart, today, onSkip, onOpenDetail,
@@ -272,11 +260,14 @@ function WeekPanel({
   const quota = habit.cadence === "custom" ? weekQuota(habit, counts, today, weekStart) : null;
 
   return (
-    <div className="mt-3 rounded-lg bg-sunken px-3.5 py-3 anim-slide">
-      <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+    <div
+      className="mb-1 ml-10 mr-2 mt-3"
+      style={{ animation: "hm-slide-up 200ms var(--ease-out-apple) both" }}
+    >
+      <div className="flex flex-wrap items-start gap-x-8 gap-y-5">
         <div>
           <div className="mb-2 flex items-baseline gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">This week</p>
+            <p className="text-[11.5px] font-medium text-ink-3">This week</p>
             {quota && (
               <p className="text-[11.5px] text-ink-4 tnum">
                 <span className="text-ink-2">{quota.done}</span> of {quota.target}
@@ -290,7 +281,7 @@ function WeekPanel({
               const locked = day.date > today;
               return (
                 <div key={day.date} className="flex w-9 flex-col items-center gap-1">
-                  <span className={cn("text-[10.5px] font-medium", day.date === today ? "text-ink-2" : "text-ink-4")}>
+                  <span className={cn("text-[10.5px] font-medium", day.date === today ? "text-ink-3" : "text-ink-4")}>
                     {label}
                   </span>
                   <button
@@ -329,7 +320,7 @@ function WeekPanel({
 
         <div className="min-w-[220px] flex-1">
           <div className="mb-2 flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+            <p className="text-[11.5px] font-medium text-ink-3">
               Note for {formatDate(today, { weekday: false })}
             </p>
             <div className="flex-1" />
@@ -343,7 +334,7 @@ function WeekPanel({
             </Button>
           </div>
 
-          <div className="rounded-md border border-line bg-raised px-2.5 py-2">
+          <div className="rounded-md bg-sunken px-2.5 py-2">
             <AutoTextarea
               value={note}
               onChange={setNoteDraft}

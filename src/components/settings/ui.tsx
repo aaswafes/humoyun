@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Info, TriangleAlert } from "lucide-react";
+import { ChevronRight, Info, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatTime, parseTime } from "@/lib/date";
-import { Input, SectionLabel } from "@/components/ui/primitives";
+import { Input } from "@/components/ui/primitives";
 import { Select, Toggle } from "@/components/ui/form";
 
 /**
@@ -42,11 +42,129 @@ export function Group({
 }) {
   return (
     <div className={cn("mt-8 first:mt-0", className)}>
-      <SectionLabel>{title}</SectionLabel>
+      <h3 className="text-[12.5px] font-semibold text-ink-2">{title}</h3>
       {description && (
         <p className="mt-1.5 max-w-[54ch] text-[12.5px] leading-relaxed text-ink-3">{description}</p>
       )}
       <div className="mt-2">{children}</div>
+    </div>
+  );
+}
+
+// =========================================================
+// Folded groups.
+//
+// Which groups you left open lives in localStorage, which is an external store:
+// reading it during render would not survive hydration, and copying it into
+// state from an effect costs a second render for every group on the page.
+// =========================================================
+const foldListeners = new Set<() => void>();
+const foldCache = new Map<string, boolean>();
+
+function subscribeFold(fn: () => void) {
+  foldListeners.add(fn);
+  return () => { foldListeners.delete(fn); };
+}
+
+function readFold(key: string, fallback: boolean): boolean {
+  const hit = foldCache.get(key);
+  if (hit !== undefined) return hit;
+  let value = fallback;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved === "1") value = true;
+    else if (saved === "0") value = false;
+  } catch { /* private mode */ }
+  foldCache.set(key, value);
+  return value;
+}
+
+function writeFold(key: string, next: boolean) {
+  foldCache.set(key, next);
+  try { localStorage.setItem(key, next ? "1" : "0"); } catch { /* private mode */ }
+  foldListeners.forEach((fn) => fn());
+}
+
+/** Remembered open state for one folded group on this surface. */
+export function useFold(key: string, fallback = false) {
+  const open = React.useSyncExternalStore(
+    subscribeFold,
+    () => readFold(key, fallback),
+    () => fallback,
+  );
+  const setOpen = React.useCallback((next: boolean) => writeFold(key, next), [key]);
+  return [open, setOpen] as const;
+}
+
+/** The animated half on its own. `-m-1 p-1` keeps focus rings out of the clip. */
+export function FoldRegion({
+  open, children,
+}: {
+  open: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="grid transition-[grid-template-rows] duration-200 ease-[var(--ease-out-apple)]"
+      style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+    >
+      <div className="overflow-hidden" inert={open ? undefined : true}>
+        <div className="-m-1 p-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A `Group` that rests as one line — title, what is inside, chevron — and
+ * remembers whether you opened it. Nothing here is removed by folding it.
+ */
+export function FoldGroup({
+  title, summary, storageKey, description, defaultOpen = false, children, className,
+}: {
+  title: string;
+  /** Says what opening it gets you, so the row is never a dead end. */
+  summary?: React.ReactNode;
+  /** localStorage key, namespaced to this surface. */
+  storageKey: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useFold(storageKey, defaultOpen);
+
+  return (
+    <div className={cn("mt-8 first:mt-0", className)}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "-mx-1.5 flex min-h-[28px] w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left",
+          "transition-colors duration-150 hover:bg-hover",
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            "size-3.5 shrink-0 text-ink-4 transition-transform duration-200 ease-[var(--ease-out-apple)]",
+            open && "rotate-90",
+          )}
+          aria-hidden
+        />
+        <span className="shrink-0 text-[12.5px] font-semibold text-ink-2">{title}</span>
+        {summary && (
+          <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3 tnum">{summary}</span>
+        )}
+      </button>
+      <FoldRegion open={open}>
+        <div className="pl-[22px]">
+          {description && (
+            <p className="mt-1.5 max-w-[54ch] text-[12.5px] leading-relaxed text-ink-3">{description}</p>
+          )}
+          <div className="mt-2">{children}</div>
+        </div>
+      </FoldRegion>
     </div>
   );
 }

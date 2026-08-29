@@ -1,26 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownUp, Inbox as InboxIcon, ListChecks, Plus } from "lucide-react";
+import { Inbox as InboxIcon, Plus } from "lucide-react";
 import { useStore, inboxTasks, orderBetween } from "@/lib/store";
 import type { Task } from "@/lib/types";
 import { InlineComposer } from "@/components/tasks/task-list";
 import { Button, EmptyState } from "@/components/ui/primitives";
-import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { openQuickAdd } from "@/components/shell/quick-add";
-import { useTriage, useRegisterRows, useRegisterRowDrop, type SortKey } from "./triage-context";
+import {
+  useTriage, useRegisterRows, useRegisterRowDrop, useRegisterSummary, type SortKey,
+} from "./triage-context";
 import { TriageRow } from "./triage-dnd";
 import { QuickSchedule } from "./quick-schedule";
-
-const SORT_LABELS: Record<SortKey, string> = {
-  manual: "My order",
-  date: "Date added",
-  priority: "Priority",
-  created: "Newest first",
-  alpha: "A–Z",
-};
-
-const INBOX_SORTS: SortKey[] = ["manual", "priority", "created", "alpha"];
 
 function sortInbox(list: Task[], sort: SortKey): Task[] {
   const copy = [...list];
@@ -39,12 +30,17 @@ function sortInbox(list: Task[], sort: SortKey): Task[] {
 export function InboxView() {
   const tasks = useStore((s) => s.tasks);
   const patch = useStore((s) => s.patch);
-  const { selecting, setSelecting, setSelected, count, announce } = useTriage();
-  const [sort, setSort] = React.useState<SortKey>("manual");
+  // The order picker and the select-all button moved to the surface's one
+  // control row; the choice itself still lives here, in the list it orders.
+  const { selecting, announce, inboxSort: sort } = useTriage();
 
   const items = React.useMemo(() => sortInbox(inboxTasks(tasks), sort), [tasks, sort]);
   const order = React.useMemo(() => items.map((t) => t.id), [items]);
   useRegisterRows(order);
+
+  // The page header already says "N unscheduled". Saying it again here was the
+  // same fact twice.
+  useRegisterSummary("");
 
   const manual = sort === "manual";
 
@@ -96,55 +92,6 @@ export function InboxView() {
 
   return (
     <div>
-      <div className="mb-1 flex items-center gap-2 px-1.5">
-        <p className="text-[12.5px] text-ink-3">
-          <span className="tnum text-ink-2">{items.length}</span> waiting
-        </p>
-        <div className="flex-1" />
-
-        <button
-          type="button"
-          onClick={() => {
-            if (!selecting) setSelecting(true);
-            setSelected(order, true);
-            announce(`Selected all ${order.length} tasks`);
-          }}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
-        >
-          <ListChecks aria-hidden className="size-3.5" />
-          {count ? "Select all" : "Select"}
-        </button>
-
-        <Popover
-          align="end"
-          className="w-[180px]"
-          trigger={
-            <button
-              type="button"
-              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
-            >
-              <ArrowDownUp aria-hidden className="size-3.5" />
-              {SORT_LABELS[sort]}
-            </button>
-          }
-        >
-          {(close) => (
-            <>
-              <MenuLabel>Order</MenuLabel>
-              {INBOX_SORTS.map((key) => (
-                <MenuItem
-                  key={key}
-                  checked={sort === key}
-                  onClick={() => { setSort(key); close(); }}
-                >
-                  {SORT_LABELS[key]}
-                </MenuItem>
-              ))}
-            </>
-          )}
-        </Popover>
-      </div>
-
       <div role="group" aria-label={`${items.length} unscheduled tasks`}>
         {items.map((task) => (
           <TriageRow
@@ -157,7 +104,7 @@ export function InboxView() {
       </div>
 
       {!selecting && (
-        <div className="mt-1 border-t border-line pt-1">
+        <div className="mt-4 pt-3 hairline-t">
           <InlineComposer autoFocus date={null} placeholder="Capture a task" />
         </div>
       )}

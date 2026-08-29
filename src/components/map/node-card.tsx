@@ -129,7 +129,7 @@ function DateChip({
       onPointerDown={(e) => e.stopPropagation()}
       aria-label={`Date: ${formatDate(node.date as string, { year: true })}. Change it`}
       className={cn(
-        "-m-1 inline-flex shrink-0 items-center gap-1 rounded-[7px] p-1",
+        "-m-1.5 inline-flex shrink-0 items-center gap-1 rounded-[7px] p-1.5",
         "cursor-pointer transition-transform active:scale-[0.94]",
       )}
     >
@@ -175,6 +175,33 @@ function NodeCardImpl({
   const blocks = React.useMemo(() => parseBody(node.body), [node.body]);
   const checks = React.useMemo(() => checklistStats(blocks), [blocks]);
   const showBody = !round && !pill && !compact;
+
+  // At rest a node is a title and one quiet line, so forty of them read as a
+  // diagram. Hovering or selecting one brings back its type, its date chip and
+  // its body — the same controls, one intention away.
+  const open = selected || editing !== null;
+  const reveal = cn(
+    "transition-opacity duration-200 ease-[var(--ease-out-apple)]",
+    open
+      ? "opacity-100"
+      : "opacity-0 pointer-events-none group-hover/node:opacity-100 group-hover/node:pointer-events-auto",
+  );
+  const atRest = cn(
+    "pointer-events-none transition-opacity duration-200 ease-[var(--ease-out-apple)]",
+    open ? "opacity-0" : "opacity-100 group-hover/node:opacity-0",
+  );
+  // …but an untitled node has nothing else to show, so its body is the title.
+  const bodyReveal = node.title.trim() ? reveal : "";
+
+  // The timeline states the date by where the node sits, so the resting line
+  // does not repeat it there.
+  const restMeta = [
+    node.date && !compact ? formatDate(node.date, { weekday: false }) : null,
+    checks.total ? `${checks.done}/${checks.total}` : null,
+  ].filter(Boolean).join(" · ");
+
+  const hasMeta = node.kind !== "note" || !!node.date || !!goalLabel || checks.total > 0;
+  const metaRow = !pill && !round && hasMeta;
 
   const label = [
     KIND_META[node.kind].label,
@@ -232,27 +259,40 @@ function NodeCardImpl({
           node.shape === "diamond" && "px-[22%]",
         )}
       >
-        {/* the header row only earns its space when it has something to say */}
-        {!pill && !round && (node.kind !== "note" || !!node.date || !!goalLabel) && (
-          <div className="flex items-center gap-1.5">
-            {node.kind !== "note" && (
-              <>
-                <Kind className="size-3 shrink-0 text-[var(--tint)]" aria-hidden />
-                <span className="truncate text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                  {KIND_META[node.kind].label}
-                </span>
-              </>
-            )}
-            {goalLabel && node.kind === "note" && (
-              <>
-                <Target className="size-3 shrink-0 text-[var(--tint)]" aria-hidden />
-                <span className="truncate text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                  {goalLabel}
-                </span>
-              </>
-            )}
-            <div className="flex-1" />
-            {node.date && <DateChip node={node} api={api} />}
+        {/* One reserved strip, two readings of it: the quiet line at rest and
+            the full type + date chip once you reach for the node. Fixed height
+            so nothing below it moves when they cross-fade. */}
+        {metaRow && (
+          <div className="relative h-[18px] shrink-0">
+            <div className={cn("absolute inset-0 flex items-center gap-1.5", reveal)}>
+              {node.kind !== "note" && (
+                <>
+                  <Kind className="size-3 shrink-0 text-[var(--tint)]" aria-hidden />
+                  <span className="truncate text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+                    {KIND_META[node.kind].label}
+                  </span>
+                </>
+              )}
+              {goalLabel && node.kind === "note" && (
+                <>
+                  <Target className="size-3 shrink-0 text-[var(--tint)]" aria-hidden />
+                  <span className="truncate text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+                    {goalLabel}
+                  </span>
+                </>
+              )}
+              <div className="flex-1" />
+              {node.date && <DateChip node={node} api={api} />}
+            </div>
+
+            <div className={cn("absolute inset-0 flex items-center gap-1", atRest)} aria-hidden>
+              {node.kind !== "note" && (
+                <Kind className="size-3 shrink-0 text-[var(--tint)]" />
+              )}
+              {restMeta && (
+                <span className="truncate text-[10.5px] text-ink-4 tnum">{restMeta}</span>
+              )}
+            </div>
           </div>
         )}
 
@@ -290,7 +330,7 @@ function NodeCardImpl({
         ) : showBody && blocks.length ? (
           <div
             onDoubleClick={(e) => { e.stopPropagation(); api.edit(node.id, "body"); }}
-            className="min-h-0 flex-1 overflow-hidden"
+            className={cn("min-h-0 flex-1 overflow-hidden", bodyReveal)}
           >
             <BodyView
               blocks={blocks}
@@ -300,9 +340,9 @@ function NodeCardImpl({
           </div>
         ) : null}
 
-        {/* a compact node still admits it has a checklist */}
-        {(!showBody || editing === "body") && checks.total > 0 && (
-          <span className="shrink-0 text-[10.5px] font-medium text-ink-3 tnum">
+        {/* pills and circles have no strip to carry it, so they say it here */}
+        {!metaRow && checks.total > 0 && (
+          <span className="shrink-0 text-[10.5px] font-medium text-ink-4 tnum">
             {checks.done}/{checks.total}
           </span>
         )}
@@ -327,15 +367,14 @@ function NodeCardImpl({
               <ListPlus className="size-3" aria-hidden />
               {checks.total ? "Item" : "Checklist"}
             </button>
-            {checks.total > 0 && (
-              <span className="ml-auto text-[10.5px] font-medium text-ink-3 tnum">
-                {checks.done}/{checks.total}
-              </span>
-            )}
           </div>
         )}
 
-        {(pill || round) && node.date && <DateChip node={node} api={api} compact />}
+        {(pill || round) && node.date && (
+          <span className={cn("shrink-0", reveal)}>
+            <DateChip node={node} api={api} compact />
+          </span>
+        )}
       </div>
 
       {/* options — floats just outside the corner so every shape keeps it.

@@ -7,11 +7,12 @@ import { useStore } from "@/lib/store";
 import { formatDate, isPast, todayISO } from "@/lib/date";
 import type { Goal } from "@/lib/types";
 import {
-  Button, Checkbox, IconButton, InlineInput, SectionLabel,
+  Button, Checkbox, IconButton, InlineInput,
 } from "@/components/ui/primitives";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 import { Popover } from "@/components/ui/overlays";
 import { MiniEmpty } from "@/components/ui/form";
+import { SubLabel } from "./goal-fold";
 import { sortMilestones, type Milestone } from "./goal-meta";
 import type { GoalStats } from "./goal-model";
 import { useGoalMeta } from "./use-goal-actions";
@@ -39,7 +40,7 @@ export function GoalMilestones({ goal, stats }: { goal: Goal; stats: GoalStats }
   return (
     <section>
       <div className="flex items-center gap-2">
-        <SectionLabel>Milestones</SectionLabel>
+        <SubLabel>Milestones</SubLabel>
         <span className="text-[11px] text-ink-4 tnum">
           {stats.milestoneTotal ? `${stats.milestoneDone}/${stats.milestoneTotal}` : "0"}
         </span>

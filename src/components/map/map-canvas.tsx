@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { addDays, formatDate, todayISO } from "@/lib/date";
 import type { Board, MapEdge, MapNode } from "@/lib/types";
-import { Button, IconButton, Kbd, SectionLabel } from "@/components/ui/primitives";
+import { Button, IconButton, Kbd } from "@/components/ui/primitives";
 import {
   DEFAULT_CURVE, boundsOf, boxOf, clamp, edgeGeometry, normalizeRect, pendingPath,
   rectsIntersect, resizeTo, sizeOf, type Box, type Pos, type Rect, type Size,
@@ -89,6 +89,9 @@ export const MapCanvas = React.forwardRef<MapControls, {
   const [spacePan, setSpacePan] = React.useState(false);
   const [size, setSize] = React.useState({ w: 1200, h: 800 });
   const [query, setQuery] = React.useState("");
+  // The search field rests as an icon so the toolbar is three buttons wide.
+  // "/" still opens it — see the key handler, which unfolds before it focuses.
+  const [searchOpen, setSearchOpen] = React.useState(false);
   const [activeGroups, setActiveGroups] = React.useState<Set<string>>(() => new Set());
 
   // Selection is mirrored into a ref: a pointer sequence reads it several times
@@ -352,6 +355,14 @@ export const MapCanvas = React.forwardRef<MapControls, {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Unfolding the search field and putting the caret in it are the same act,
+  // whether it was "/" or the magnifier that asked for it.
+  React.useEffect(() => {
+    if (!searchOpen) return;
+    searchRef.current?.focus();
+    searchRef.current?.select();
+  }, [searchOpen]);
 
   // ---------------------------------------------------------
   // Mutations
@@ -935,12 +946,16 @@ export const MapCanvas = React.forwardRef<MapControls, {
       stop();
       if (menu) setMenu(null);
       else if (editingEdge) setEditingEdge(null);
-      else if (matches) { setQuery(""); setActiveGroups(new Set()); }
+      else if (matches) { setQuery(""); setActiveGroups(new Set()); setSearchOpen(false); }
+      else if (searchOpen) setSearchOpen(false);
       else setSel({ nodes: new Set(), edge: null });
       return;
     }
     if (e.key === "/" && !mod) {
       stop();
+      // already unfolded: focus now. Folded: the effect above focuses it the
+      // moment it mounts, so the shortcut never lands on a missing field.
+      setSearchOpen(true);
       searchRef.current?.focus();
       searchRef.current?.select();
       return;
@@ -1184,22 +1199,18 @@ export const MapCanvas = React.forwardRef<MapControls, {
                 <div
                   key={t.iso}
                   className={cn(
-                    "absolute top-0 flex h-full items-center gap-1.5 pl-2",
-                    t.major && "border-l border-line-strong",
+                    "absolute top-0 flex h-full items-center gap-1 pl-2",
+                    t.major && "border-l border-line",
                   )}
                   style={{ left: sx }}
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                    {t.label}
-                  </span>
-                  {t.sub && (
-                    <span className="display-serif text-[13px] leading-none text-ink-2 tnum">{t.sub}</span>
-                  )}
+                  <span className="text-[10.5px] font-medium text-ink-4">{t.label}</span>
+                  {t.sub && <span className="text-[10.5px] text-ink-4 tnum">{t.sub}</span>}
                 </div>
               );
             })}
             <div
-              className="absolute top-1/2 h-[18px] rounded-full bg-accent px-1.5 text-[10.5px] font-semibold leading-[18px] text-accent-ink"
+              className="absolute top-1/2 rounded-full bg-accent-soft px-1.5 text-[10.5px] font-medium leading-[17px] text-accent"
               style={{ left: tl.todayX * vp.k + vp.x, transform: "translate(-50%, -50%)" }}
             >
               Today
@@ -1221,14 +1232,29 @@ export const MapCanvas = React.forwardRef<MapControls, {
           query={query}
           onQuery={setQuery}
           searchRef={searchRef}
+          searchOpen={searchOpen}
+          onSearchOpen={(open) => {
+            setSearchOpen(open);
+            if (!open) containerRef.current?.focus();
+          }}
           matchCount={matches ? matches.size : nodes.length}
           total={nodes.length}
           colorBy={prefs.colorBy}
           onColorBy={(colorBy) => { setMapPrefs({ colorBy }); setActiveGroups(new Set()); }}
+          groupLabel={group.label}
+          groupCount={group.groups.length}
           outlineOpen={prefs.outline}
           onToggleOutline={() => setMapPrefs({ outline: !prefs.outline })}
           legendOpen={prefs.legend}
-          onToggleLegend={() => setMapPrefs({ legend: !prefs.legend })}
+          onToggleLegend={() => {
+            // the legend is the only control for the group filter, so folding it
+            // away takes the filter with it rather than leaving the board dimmed
+            // with nothing on screen to undo it
+            if (prefs.legend) setActiveGroups(new Set());
+            setMapPrefs({ legend: !prefs.legend });
+          }}
+          minimapOpen={prefs.minimap}
+          onToggleMinimap={() => setMapPrefs({ minimap: !prefs.minimap })}
           onLayout={applyLayout}
           timelineMode={!!tl}
           onFitDated={fitDated}
@@ -1303,13 +1329,17 @@ export const MapCanvas = React.forwardRef<MapControls, {
       <div
         onPointerDown={(e) => e.stopPropagation()}
         data-no-zoom
-        className="absolute z-20 flex items-center gap-0.5 rounded-lg border border-line p-0.5 material shadow-[var(--shadow-md)]"
+        className={cn(
+          "absolute z-20 flex items-center gap-0.5 rounded-lg p-0.5 material shadow-[var(--shadow-md)]",
+          "transition-opacity duration-200 ease-[var(--ease-out-apple)]",
+          "opacity-60 hover:opacity-100 focus-within:opacity-100",
+        )}
         style={{ bottom: (tl ? TRAY_H : 0) + 12, left: chromeLeft + 12 }}
       >
         <IconButton label="Zoom out" size="sm" onClick={() => zoomCentre(1 / 1.25)}>
           <Minus />
         </IconButton>
-        <span className="w-11 text-center text-[11.5px] font-medium text-ink-2 tnum">
+        <span className="w-11 text-center text-[11.5px] font-medium text-ink-3 tnum">
           {Math.round(vp.k * 100)}%
         </span>
         <IconButton label="Zoom in" size="sm" onClick={() => zoomCentre(1.25)}>
@@ -1339,18 +1369,22 @@ export const MapCanvas = React.forwardRef<MapControls, {
                 return next;
               })}
             onClear={() => setActiveGroups(new Set())}
-            onClose={() => setMapPrefs({ legend: false })}
+            onClose={() => { setActiveGroups(new Set()); setMapPrefs({ legend: false }); }}
           />
         )}
-        {visible.length > 0 && (
-          <Minimap
-            nodes={visible}
-            boxes={boxes}
-            view={view}
-            onCenter={centerOnWorld}
-            onPan={panBy}
-            tintOf={group.tintOf}
-          />
+        {prefs.minimap && visible.length > 0 && (
+          // the wrapper carries the 200ms open so the minimap's own resting
+          // opacity is not pinned to 1 by the animation's fill mode
+          <div className="anim-pop">
+            <Minimap
+              nodes={visible}
+              boxes={boxes}
+              view={view}
+              onCenter={centerOnWorld}
+              onPan={panBy}
+              tintOf={group.tintOf}
+            />
+          </div>
         )}
       </div>
 
@@ -1363,7 +1397,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
           style={{ height: TRAY_H }}
         >
           <div className="flex items-baseline gap-2">
-            <SectionLabel>Undated</SectionLabel>
+            <span className="text-[11px] font-medium text-ink-3">Undated</span>
             <span className="text-[11px] text-ink-4 tnum">{undated.length}</span>
             <span className="truncate text-[11.5px] text-ink-4">
               {undated.length
@@ -1371,8 +1405,9 @@ export const MapCanvas = React.forwardRef<MapControls, {
                 : "Every node on this board sits on the timeline"}
             </span>
             <div className="flex-1" />
+            {/* the ruler already names the unit — this only says how deep the board got */}
             <span className="shrink-0 text-[11px] text-ink-4 tnum">
-              {tl.laneCount} row{tl.laneCount === 1 ? "" : "s"} · {tl.tickUnit}s
+              {tl.laneCount} row{tl.laneCount === 1 ? "" : "s"}
             </span>
           </div>
           <div className="flex min-h-0 flex-1 items-start gap-1.5 overflow-x-auto no-scrollbar">
@@ -1389,9 +1424,11 @@ export const MapCanvas = React.forwardRef<MapControls, {
                   }}
                   className={cn(
                     `tint-${group.tintOf(n)}`,
-                    "group/chip flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-line bg-raised px-2.5",
+                    // no border: the tray is already a surface, and a bordered
+                    // chip inside a bordered bar is one frame too many
+                    "group/chip flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-hover px-2.5",
                     "max-w-[200px] cursor-grab text-[12.5px] text-ink transition-[transform,background-color] duration-150",
-                    "hover:bg-hover active:scale-[0.97] active:cursor-grabbing",
+                    "hover:bg-active active:scale-[0.97] active:cursor-grabbing",
                     matches && !matches.has(n.id) && "opacity-40",
                   )}
                 >
@@ -1408,8 +1445,8 @@ export const MapCanvas = React.forwardRef<MapControls, {
       {/* nothing matched */}
       {!!matches && matches.size === 0 && nodes.length > 0 && (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-          <div className="pointer-events-auto rounded-lg border border-line px-4 py-3 text-center material shadow-[var(--shadow-md)]">
-            <p className="text-[13px] text-ink-2">
+          <div className="pointer-events-auto rounded-lg px-4 py-3 text-center material shadow-[var(--shadow-md)] anim-pop">
+            <p className="text-[13px] text-ink-3">
               Nothing on this board matches{trimmed ? ` “${query.trim()}”` : " that filter"}.
             </p>
             <Button

@@ -39,6 +39,8 @@ export const CHIP_METRICS: Record<ChipDensity, ChipMetrics> = {
   spacious: { body: 24, hit: 30, text: "text-[12.5px]", bar: 14 },
 };
 
+export const DENSITIES: readonly ChipDensity[] = ["compact", "comfortable", "spacious"];
+
 // ---------------------------------------------------------
 // Kind glyphs — a task's kind is otherwise invisible on a chip, and colour
 // alone can't carry it (a red chip is a red task, not an event).
@@ -91,6 +93,13 @@ export function ChipBody({
   const KindIcon = KIND_ICON[task.kind];
   // Low priority is noise at this size; medium and high earn the glyph.
   const flagged = task.priority >= 2 && !done;
+  /**
+   * Four marks — bar, kind, time, flag — cannot all be loud in an 18px chip.
+   * At Compact the tint bar and the title carry it alone; the rest come back
+   * at Comfortable and Spacious. Every one of them is in the aria-label at
+   * every density, so nothing is hidden from a reader who cannot see the bar.
+   */
+  const detailed = density !== "compact";
 
   return (
     <span
@@ -111,14 +120,11 @@ export function ChipBody({
         style={{ width: 2.5, height: metrics.bar, background: "var(--tint)", opacity: done ? 0.4 : 1 }}
       />
 
-      {KindIcon && (
-        <KindIcon
-          aria-hidden
-          className={cn("size-3 shrink-0", done ? "text-ink-4" : "text-[var(--tint-ink)]")}
-        />
+      {detailed && KindIcon && (
+        <KindIcon aria-hidden className="size-3 shrink-0 text-ink-4" />
       )}
 
-      {timed && (
+      {detailed && timed && (
         <span className={cn("shrink-0 tnum", done ? "text-ink-4" : "text-ink-3")}>
           {formatTime(task.start_min, hour12)}
         </span>
@@ -133,12 +139,13 @@ export function ChipBody({
         {task.title || "Untitled"}
       </span>
 
-      {flagged && (
+      {detailed && flagged && (
         // Filled for high, hollow for medium — the two levels differ in shape,
-        // not only in colour.
+        // not in colour. A priority is a fact about a task, not an alarm, so it
+        // is drawn in ink rather than in warn or danger.
         <Flag
           aria-hidden
-          className={cn("size-[11px] shrink-0", task.priority === 3 ? "text-danger" : "text-warn")}
+          className="size-[11px] shrink-0 text-ink-3"
           fill={task.priority === 3 ? "currentColor" : "none"}
         />
       )}

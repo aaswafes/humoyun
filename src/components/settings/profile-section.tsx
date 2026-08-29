@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase/client";
 import { diffDays, formatDate, toISO, todayISO } from "@/lib/date";
 import { Button, Input, Progress } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
-import { Callout, Group, Pane, Row, StaticField } from "./ui";
+import { Callout, FoldGroup, Group, Pane, Row, StaticField } from "./ui";
 
 const AVATAR_PRESETS = ["H", "🌙", "📓", "🕌", "☕", "🏔", "✍️", "🌿"];
 
@@ -199,7 +199,7 @@ export function ProfileSection() {
       title="Account"
       description="Who this workspace belongs to, and the key that opens it. Your name shows on the account chip in the sidebar."
     >
-      <div className="mb-5 flex items-center gap-3.5 rounded-lg border border-line bg-sunken px-4 py-3.5">
+      <div className="mb-6 flex items-center gap-3.5 rounded-lg bg-sunken px-4 py-3.5">
         <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-ink text-canvas">
           <span className="display-serif text-[22px] leading-none">{initial.toUpperCase()}</span>
         </div>
@@ -287,8 +287,10 @@ export function ProfileSection() {
         )}
       </Group>
 
-      <Group
+      <FoldGroup
         title="Security"
+        storageKey="humoyun.settings.securityOpen"
+        summary={SOLO ? "No password on a local preview" : email ? "Change your password" : "Sign in to change your password"}
         description="Changing this signs you back in everywhere with the new password. Nothing else about the account moves."
       >
         {SOLO ? (
@@ -305,7 +307,7 @@ export function ProfileSection() {
             The password can only be changed while you are signed in. Sign in, then come back to this pane.
           </Callout>
         )}
-      </Group>
+      </FoldGroup>
     </Pane>
   );
 }

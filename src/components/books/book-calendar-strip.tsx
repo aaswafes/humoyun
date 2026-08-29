@@ -121,7 +121,7 @@ export function BookCalendarStrip({
       <div className="flex flex-wrap gap-x-5 gap-y-4">
         {visible.map((monthStart) => (
           <div key={monthStart} className="w-[196px]">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+            <p className="mb-1 text-[11px] font-medium text-ink-3">
               {monthName(monthStart, true)}
               {yearOf(monthStart) !== yearOf(today) && (
                 <span className="ml-1 text-ink-4 tnum">{yearOf(monthStart)}</span>
@@ -159,7 +159,7 @@ export function BookCalendarStrip({
         </Button>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-3">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-4">
         <Legend swatch="done" label={`${counts.done + counts.logged} read`} />
         {counts.missed > 0 && <Legend swatch="missed" label={`${counts.missed} missed`} />}
         {counts.planned > 0 && <Legend swatch="planned" label={`${counts.planned} ahead`} />}
@@ -175,7 +175,7 @@ function Legend({ swatch, label }: { swatch: "done" | "missed" | "planned"; labe
         aria-hidden
         className={cn(
           "size-2.5 rounded-[3px]",
-          swatch === "missed" && "border border-dashed border-warn",
+          swatch === "missed" && "border border-dashed border-line-strong",
           swatch === "planned" && "border border-line-strong",
         )}
         style={swatch === "done"
@@ -202,7 +202,9 @@ function DayCell({
     "grid size-7 place-items-center rounded-[6px] text-[11.5px] tnum",
     "transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out-apple)]",
     isToday && "ring-1 ring-accent ring-offset-1 ring-offset-[var(--canvas)]",
-    state === "missed" && "border border-dashed border-warn text-warn",
+    // A missed reading day is a fact, not a failure: the dashed edge tells it
+    // apart from a planned day without shouting in orange.
+    state === "missed" && "border border-dashed border-line-strong text-ink-4",
     (state === "planned" || state === "today") && "border border-line-strong text-ink-2",
     state === "idle" && "text-ink-4",
   );

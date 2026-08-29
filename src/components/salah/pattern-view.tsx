@@ -24,6 +24,7 @@ type Range = "week" | "month";
 /**
  * The shape of a stretch of days: how much was jamaah, how much was alone,
  * how much was made up afterwards. No target, no grade — just the pattern.
+ * Borderless: the fold above it is the only frame it needs.
  */
 export function PatternView({ today }: { today: string }) {
   const prayers = useStore((s) => s.prayers);
@@ -64,9 +65,9 @@ export function PatternView({ today }: { today: string }) {
   const summaryId = "salah-pattern-summary";
 
   return (
-    <section className="surface p-5">
+    <div>
       <header className="flex flex-wrap items-center gap-2">
-        <h2 className="flex-1 text-[13px] font-semibold text-ink">Rhythm</h2>
+        <p className="flex-1 text-[12.5px] text-ink-3">{label}</p>
         <Segmented
           size="sm"
           value={range}
@@ -85,16 +86,12 @@ export function PatternView({ today }: { today: string }) {
             <ChevronRight />
           </IconButton>
         </div>
-      </header>
-
-      <div className="mt-1 flex items-baseline gap-2">
-        <p className="text-[12.5px] text-ink-3">{label}</p>
         {offset !== 0 && (
           <Button size="sm" variant="ghost" onClick={() => setOffset(0)}>
             {range === "week" ? "This week" : "This month"}
           </Button>
         )}
-      </div>
+      </header>
 
       {elapsed.length === 0 ? (
         <MiniEmpty className="py-8">Nothing has happened in this stretch yet.</MiniEmpty>
@@ -103,13 +100,11 @@ export function PatternView({ today }: { today: string }) {
           <div className="mt-4 flex items-end gap-4">
             <div>
               <p className="display-serif tnum text-[32px] leading-none text-ink">{rate}%</p>
-              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Recorded</p>
+              <p className="mt-2 text-[12px] text-ink-3">recorded</p>
             </div>
-            <p className="flex-1 pb-1 text-[12px] leading-relaxed text-ink-3">
-              <span className="tnum text-ink-2">{handled}</span> of{" "}
-              <span className="tnum text-ink-2">{total}</span> prayers across{" "}
-              <span className="tnum text-ink-2">{elapsed.length}</span>{" "}
-              {elapsed.length === 1 ? "day" : "days"}.
+            <p className="flex-1 pb-1 text-[11.5px] leading-relaxed text-ink-3">
+              <span className="tnum">{handled}</span> of <span className="tnum">{total}</span> prayers across{" "}
+              <span className="tnum">{elapsed.length}</span> {elapsed.length === 1 ? "day" : "days"}.
             </p>
           </div>
 
@@ -121,7 +116,7 @@ export function PatternView({ today }: { today: string }) {
           </VisuallyHidden>
 
           {/* Day by day — the height is what was recorded, the darker foot is jamaah. */}
-          <div className="hairline-t mt-5 pt-4">
+          <div className="hairline-t mt-6 pt-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Day by day</p>
             <div
               role="group"
@@ -159,7 +154,7 @@ export function PatternView({ today }: { today: string }) {
                   key={day.date}
                   className={cn(
                     "tnum flex-1 text-center text-[10.5px]",
-                    day.date === today ? "font-semibold text-accent" : "text-ink-4",
+                    day.date === today ? "font-semibold text-ink-2" : "text-ink-4",
                   )}
                 >
                   {range === "week"
@@ -175,7 +170,7 @@ export function PatternView({ today }: { today: string }) {
           {selected && <DayDetail date={selected} index={index} onCycle={cyclePrayer} />}
 
           {/* Per prayer — the row that shows which one carries the qadha. */}
-          <div className="hairline-t mt-5 pt-4">
+          <div className="hairline-t mt-6 pt-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">By prayer</p>
             <ul className="mt-2.5 space-y-2.5">
               {PRAYER_NAMES.map((name) => {
@@ -183,7 +178,7 @@ export function PatternView({ today }: { today: string }) {
                 const t = countsTotal(c);
                 return (
                   <li key={name} className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-3">
-                    <span className="text-[12.5px] font-medium text-ink">{PRAYER_LABELS[name]}</span>
+                    <span className="text-[12.5px] font-medium text-ink-2">{PRAYER_LABELS[name]}</span>
                     <span>
                       <CompositionBar counts={c} order={COMPOSITION} height={8} />
                       <span className="mt-1 block text-[11px] text-ink-4">
@@ -200,7 +195,7 @@ export function PatternView({ today }: { today: string }) {
           </div>
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -214,7 +209,7 @@ function DayDetail({
 }) {
   return (
     <div className="anim-fade mt-3 rounded-lg bg-sunken p-3">
-      <p className="text-[12px] font-medium text-ink">{formatDate(date, { year: true })}</p>
+      <p className="text-[12px] font-medium text-ink-2">{formatDate(date, { year: true })}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {PRAYER_NAMES.map((name) => {
           const status = statusAt(index, date, name);

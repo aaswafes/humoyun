@@ -60,25 +60,27 @@ export function NextPrayerSubtitle({ name, at }: { name: PrayerName; at: number 
 }
 
 /**
- * Both numbers, in the order they matter: what is still open, then what is
- * coming. Sits in the page header, so it survives scrolling.
+ * The sticky header carries the number the card is not already showing.
+ * The card's hero is the open window, so this is what comes next — until the
+ * window is nearly out, when the closing time is the thing worth following
+ * down the page.
  */
 export function HeaderStatus({ open, next }: { open: OpenWindow | null; next: NextPrayer }) {
+  // Between Isha closing and Fajr there is no open window, so the hook still has
+  // to run — it just has nothing to be urgent about.
+  const windowUrgent = useWindowUrgent(open?.window.end ?? -1, 20);
+  const urgent = open ? windowUrgent : false;
   return (
     <span className="tnum">
-      {open ? (
+      {urgent && open ? (
         <>
-          {PRAYER_LABELS[open.name]} <WindowCountdown end={open.window.end} /> left
+          {PRAYER_LABELS[open.name]} closes in <WindowCountdown end={open.window.end} />
         </>
       ) : (
-        <>No window open</>
+        <>
+          {PRAYER_LABELS[next.name]} in <Countdown at={next.at % 1440} />
+        </>
       )}
-      <span className="hidden md:inline">
-        <span aria-hidden className="px-1.5 text-ink-4">
-          ·
-        </span>
-        {PRAYER_LABELS[next.name]} in <Countdown at={next.at % 1440} />
-      </span>
     </span>
   );
 }

@@ -3,7 +3,6 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import { formatDuration } from "@/lib/date";
-import { SectionLabel } from "@/components/ui/primitives";
 import { MiniEmpty, VisuallyHidden } from "@/components/ui/form";
 import { hourLabel, hourStats, type DayGroup } from "./focus-data";
 
@@ -30,19 +29,13 @@ export const TimeOfDay = React.memo(function TimeOfDay({
 
   return (
     <section>
-      <div className="mb-2.5 flex items-baseline justify-between gap-3">
-        <SectionLabel>Time of day</SectionLabel>
-        {stats.totalMinutes > 0 && (
-          <p className="text-[11.5px] text-ink-3 tnum">{formatDuration(stats.totalMinutes)} placed</p>
-        )}
-      </div>
-
       {stats.totalMinutes === 0 ? (
         <MiniEmpty>Finish a session and your best hours start showing up here.</MiniEmpty>
       ) : (
         <>
-          <p className="text-[13px] text-ink-2">
-            Your best stretch is <span className="font-medium text-ink">{windowLabel}</span>
+          <p className="mb-3 text-[11.5px] text-ink-4 tnum">{formatDuration(stats.totalMinutes)} placed</p>
+          <p className="text-[13px] text-ink-3">
+            Your best stretch is <span className="font-medium text-ink-2">{windowLabel}</span>
           </p>
           <p className="display-serif tnum mt-1 text-[22px] leading-none text-ink">
             {formatDuration(Math.round(stats.peakMinutes))}
@@ -62,7 +55,7 @@ export const TimeOfDay = React.memo(function TimeOfDay({
                   {stats.interruptions[hour] > 0 && (
                     <span
                       aria-hidden
-                      className="mx-auto mb-[3px] block size-1 shrink-0 rounded-full bg-warn"
+                      className="mx-auto mb-[3px] block size-1 shrink-0 rounded-full bg-line-strong"
                       title={`${stats.interruptions[hour]} interruptions`}
                     />
                   )}

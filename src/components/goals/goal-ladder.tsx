@@ -289,7 +289,9 @@ export function GoalLadder({
       }}
     >
       <div className="overflow-x-auto pb-3 pl-7">
-        <div ref={hostRef} className="relative flex min-w-max gap-6">
+        {/* The columns are the ladder's rungs — they need to read as five
+            separate places, not one block, so the gutter between them is wide. */}
+        <div ref={hostRef} className="relative flex min-w-max gap-10">
           <svg
             className={cn(
               "pointer-events-none absolute inset-0 size-full transition-opacity duration-200",
@@ -394,9 +396,11 @@ function LadderColumn({
   const columnHinted = !!hint && "horizon" in hint && hint.horizon === horizon;
 
   return (
-    <section className="relative z-10 w-[240px] shrink-0">
-      <div className="mb-2 flex items-center gap-1.5 px-0.5">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+    <section className="group/col relative z-10 w-[240px] shrink-0">
+      {/* The column header is the only place the horizon needs saying — every
+          card below it inherits the answer, so none of them repeats it. */}
+      <div className="mb-3 flex items-center gap-1.5 px-0.5">
+        <h2 className="text-[12.5px] font-medium text-ink-2">
           {HORIZON_LABEL[horizon]}
         </h2>
         <span className="text-[11px] text-ink-4 tnum">{goals.length}</span>
@@ -404,6 +408,7 @@ function LadderColumn({
         <IconButton
           label={`New ${HORIZON_LABEL[horizon].toLowerCase()} goal`}
           size="sm"
+          className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100"
           onClick={() => onCreate(horizon)}
         >
           <Plus />
@@ -436,13 +441,17 @@ function LadderColumn({
           ))}
         </SortableContext>
 
+        {/* A column that already has cards does not need a dashed box to say
+            "more goes here" — the row alone is enough. */}
         <button
           onClick={() => onCreate(horizon)}
           className={cn(
-            "flex w-full cursor-pointer items-center gap-2 rounded-lg border border-dashed border-line",
+            "flex w-full cursor-pointer items-center gap-2 rounded-lg",
             "px-2.5 text-left text-[12.5px] text-ink-4 transition-colors duration-150",
-            "hover:border-line-strong hover:bg-hover hover:text-ink-3",
-            goals.length ? "h-8" : "min-h-[76px] py-2.5",
+            "hover:bg-hover hover:text-ink-3",
+            goals.length
+              ? "h-8"
+              : "min-h-[76px] border border-dashed border-line py-2.5 hover:border-line-strong",
           )}
         >
           <Plus className="size-3.5 shrink-0" />

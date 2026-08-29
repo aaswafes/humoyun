@@ -12,6 +12,7 @@ import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { GoalFinished } from "@/components/goals/goal-finished";
+import { Fold, useFold } from "@/components/goals/goal-fold";
 import { GoalLadder } from "@/components/goals/goal-ladder";
 import { GoalReview } from "@/components/goals/goal-review";
 import { GoalSheet } from "@/components/goals/goal-sheet";
@@ -30,6 +31,13 @@ const HINT: Record<View, string> = {
   finished: "",
 };
 
+const HINT_LABEL: Record<View, string> = {
+  ladder: "How the ladder works",
+  timeline: "How to read the timeline",
+  review: "",
+  finished: "",
+};
+
 export default function GoalsPage() {
   const goals = useStore((s) => s.goals);
   const tasks = useStore((s) => s.tasks);
@@ -41,6 +49,9 @@ export default function GoalsPage() {
   const [view, setView] = React.useState<View>("ladder");
   const [includeDone, setIncludeDone] = React.useState(false);
   const [openId, setOpenId] = React.useState<string | null>(null);
+
+  // How the surface works is worth reading once, not on every visit.
+  const hint = useFold(`hint.${view}`, false);
 
   // Habit logs and books feed the "has anything actually moved" signal, so a
   // goal held up by a reading plan does not read as stalled.
@@ -81,14 +92,15 @@ export default function GoalsPage() {
         <>
           <Radar className="size-3.5" />
           <span className="ml-1.5 hidden sm:inline">Review</span>
+          {/* How many goals want something is a fact, not an alarm. */}
           {needing > 0 && (
-            <span className="ml-1.5 rounded-full bg-warn-soft px-1 text-[10.5px] font-semibold text-warn tnum">
+            <span className="ml-1.5 rounded-full bg-hover px-1 text-[10.5px] font-medium text-ink-3 tnum">
               {needing}
             </span>
           )}
         </>
       ),
-      title: "Goals that need attention",
+      title: `Goals that need attention${needing > 0 ? ` — ${needing} right now` : ""}`,
     },
     {
       value: "finished" as const,
@@ -102,8 +114,10 @@ export default function GoalsPage() {
     setOpenId(goal.id);
   }, [createGoal]);
 
+  // Two facts, not four — how many are running, and how they are doing. What
+  // needs attention is already counted on the Review tab.
   const subtitle = goals.length
-    ? `${active.length} active · ${pct(average)} average progress${needing ? ` · ${needing} need${needing === 1 ? "s" : ""} attention` : ""}`
+    ? `${active.length} active · ${pct(average)} average`
     : "Life · Year · Quarter · Month · Week";
 
   return (
@@ -169,19 +183,28 @@ export default function GoalsPage() {
         ) : (
           <>
             {(view === "ladder" || view === "timeline") && (
-              <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <p className="max-w-[640px] text-[12.5px] text-ink-3">{HINT[view]}</p>
-                <div className="flex-1" />
-                <Button
-                  size="xs"
-                  variant={includeDone ? "subtle" : "ghost"}
-                  onClick={() => setIncludeDone((v) => !v)}
-                  aria-pressed={includeDone}
-                >
-                  <Check className={cn("size-3.5", !includeDone && "opacity-0")} />
-                  Show finished
-                </Button>
-              </div>
+              <Fold
+                id="goals-hint-panel"
+                className="mb-5"
+                label={HINT_LABEL[view]}
+                open={hint.open}
+                onToggle={hint.toggle}
+                actions={
+                  <Button
+                    size="xs"
+                    variant={includeDone ? "subtle" : "ghost"}
+                    onClick={() => setIncludeDone((v) => !v)}
+                    aria-pressed={includeDone}
+                  >
+                    <Check className={cn("size-3.5", !includeDone && "opacity-0")} />
+                    Show finished
+                  </Button>
+                }
+              >
+                <p className="max-w-[640px] pb-1 text-[12.5px] leading-relaxed text-ink-3">
+                  {HINT[view]}
+                </p>
+              </Fold>
             )}
 
             {view === "ladder" && (
@@ -230,12 +253,12 @@ export default function GoalsPage() {
 
 function LadderSkeleton() {
   return (
-    <div className="flex gap-6 overflow-hidden">
+    <div className="flex gap-10 overflow-hidden">
       {HORIZONS.map((horizon, column) => (
         <div key={horizon} className="w-[240px] shrink-0 space-y-2">
           <Skeleton className="h-3 w-16" />
           {Array.from({ length: 3 - (column % 2) }, (_, i) => (
-            <Skeleton key={i} className="h-[104px] w-full rounded-lg" />
+            <Skeleton key={i} className="h-[92px] w-full rounded-lg" />
           ))}
         </div>
       ))}

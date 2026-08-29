@@ -83,8 +83,9 @@ export function Sparkline({
 }
 
 /**
- * Change against the previous period. Up is good for every metric on this page,
- * and the arrow carries the direction so the colour is never doing it alone.
+ * Change against the previous period. A quieter week is information, not a
+ * failure, so the chip stays grey and the arrow carries the direction on its
+ * own — no soft fill, no warning colour for a number that simply went down.
  */
 export function Delta({
   value, previous, format, className,
@@ -103,7 +104,7 @@ export function Delta({
       <span
         title="No change from the period before"
         className={cn(
-          "inline-flex items-center gap-0.5 rounded-full bg-hover px-1.5 py-px text-[11px] font-medium text-ink-3",
+          "inline-flex items-center gap-0.5 text-[11px] font-medium text-ink-4",
           className,
         )}
       >
@@ -124,12 +125,11 @@ export function Delta({
           : `${up ? "Up" : "Down"} ${fmt(Math.abs(value))} on the period before`
       }
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[11px] font-medium tnum",
-        up ? "bg-success-soft text-success" : "bg-warn-soft text-warn",
+        "inline-flex items-center gap-0.5 text-[11px] font-medium text-ink-3 tnum",
         className,
       )}
     >
-      <Icon className="size-2.5" strokeWidth={3} />
+      <Icon className="size-2.5" strokeWidth={2.5} />
       {fmt(Math.abs(value))}
     </span>
   );

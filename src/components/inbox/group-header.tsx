@@ -20,8 +20,8 @@ export function StickyHeader({
   return (
     <div
       className={cn(
-        "-mx-3 mb-1 flex items-center gap-2.5 px-3 py-2 hairline-b",
-        sticky ? "sticky top-0 z-10 material" : "bg-canvas",
+        "-mx-3 mb-1.5 flex items-center gap-2.5 px-3 py-2",
+        sticky ? "sticky top-0 z-10 material hairline-b" : "bg-canvas",
         className,
       )}
     >
@@ -100,7 +100,13 @@ function DayLabel({ iso, label, today }: { iso: string; label: string; today: bo
   );
 }
 
-/** Uppercase label header for the overdue pin and the done weeks. */
+/**
+ * Plain label header — the overdue pin and the grouped lists.
+ *
+ * It used to shout in uppercase. A list grouped by date can carry ten of these
+ * at once, and ten shouts is a wall; sentence case at 12px reads as structure
+ * without competing with the rows underneath it.
+ */
 export function LabelHeader({
   title, count, tone = "default", action, sticky = true, meta,
 }: {
@@ -115,13 +121,13 @@ export function LabelHeader({
     <StickyHeader sticky={sticky}>
       <span
         className={cn(
-          "text-[11px] font-semibold uppercase tracking-[0.06em]",
-          tone === "danger" ? "text-danger" : "text-ink-3",
+          "truncate text-[12px] font-semibold",
+          tone === "danger" ? "text-danger" : "text-ink-2",
         )}
       >
         {title}
       </span>
-      {count !== undefined && <span className="text-[11px] text-ink-4 tnum">{count}</span>}
+      {count !== undefined && <span className="shrink-0 text-[11px] text-ink-4 tnum">{count}</span>}
       {meta}
       <div className="flex-1" />
       {action}
@@ -158,13 +164,13 @@ export function CollapsibleHeader({
         />
         <span
           className={cn(
-            "truncate text-[11px] font-semibold uppercase tracking-[0.06em]",
-            tone === "danger" ? "text-danger" : "text-ink-3",
+            "truncate text-[12px] font-semibold",
+            tone === "danger" ? "text-danger" : "text-ink-2",
           )}
         >
           {title}
         </span>
-        {count !== undefined && <span className="text-[11px] text-ink-4 tnum">{count}</span>}
+        {count !== undefined && <span className="shrink-0 text-[11px] text-ink-4 tnum">{count}</span>}
       </button>
       {meta}
       <div className="flex-1" />

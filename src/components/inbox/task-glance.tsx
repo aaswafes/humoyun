@@ -48,7 +48,7 @@ export function TaskGlance({
     task.tags.length > 0;
 
   return (
-    <div className={cn("min-w-0 flex-1", dense ? "py-1" : "py-[5px]")}>
+    <div className={cn("min-w-0 flex-1", dense ? "py-1" : "py-1.5")}>
       <div className="flex min-w-0 items-baseline gap-1.5">
         <span
           aria-hidden
@@ -102,7 +102,7 @@ export function TaskGlance({
             </span>
           )}
           {task.actual_min > 0 && (
-            <span className="inline-flex items-center gap-1 text-[11.5px] text-success tnum">
+            <span className="inline-flex items-center gap-1 text-[11.5px] text-ink-3 tnum">
               <TimerIcon aria-hidden className="size-3" />
               {formatDuration(task.actual_min)} spent
             </span>

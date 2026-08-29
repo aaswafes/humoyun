@@ -69,15 +69,23 @@ export function HabitsCard({ date }: { date: string }) {
     { hit: 0, target: 0 },
   );
 
+  const summary = due.length
+    ? `${completed}/${due.length} done${weekTotals.target ? ` · ${weekTotals.hit}/${weekTotals.target} this week` : ""}`
+    : habits.length
+      ? `none due on ${dayName(date)}`
+      : "no habits yet";
+
   return (
     <RailCard
       icon={Flame}
       title="Habits"
+      foldKey="rail.habits"
+      summary={summary}
       href="/habits"
       hrefLabel="Open Habits"
       accessory={
         due.length > 0 ? (
-          <span className="text-[11.5px] font-medium text-ink-2 tnum">
+          <span className="text-[11.5px] font-medium text-ink-3 tnum">
             {completed}/{due.length}
           </span>
         ) : undefined
@@ -86,7 +94,7 @@ export function HabitsCard({ date }: { date: string }) {
         live.length > 0 ? (
           <div>
             <RailMeta value={`${weekTotals.hit}/${weekTotals.target}`}>This week</RailMeta>
-            <Progress value={weekTotals.hit} max={weekTotals.target || 1} height={3} className="mt-1.5" />
+            <Progress value={weekTotals.hit} max={weekTotals.target || 1} tint="slate" height={3} className="mt-1.5" />
           </div>
         ) : undefined
       }
@@ -136,7 +144,7 @@ export function HabitsCard({ date }: { date: string }) {
                   )}
                   {streak > 0 && (
                     <span className="inline-flex shrink-0 items-center gap-0.5 text-[11.5px] text-ink-3 tnum">
-                      <Flame className="size-3 text-warn" />
+                      <Flame className="size-3 text-ink-4" />
                       {streak}
                     </span>
                   )}

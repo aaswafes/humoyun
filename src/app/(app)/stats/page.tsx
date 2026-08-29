@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { BarChart3 } from "lucide-react";
-import { formatDuration, todayISO } from "@/lib/date";
+import { todayISO } from "@/lib/date";
 import { prayerStreak, useStore } from "@/lib/store";
 import { PRAYER_LABELS } from "@/lib/types";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
@@ -176,25 +176,33 @@ export default function StatsPage() {
     [stats, prayers, habits, habitLogs, weekdays, hours, estimate, weekStart, hour12],
   );
 
-  // ---- headline tiles ----
+  const totalDone = stats.reduce((s, d) => s + d.done, 0);
+  const totalPlanned = stats.reduce((s, d) => s + d.planned, 0);
+  const focusTotal = stats.reduce((s, d) => s + d.focusMin, 0);
+  const sessionCount = React.useMemo(
+    () => focusSessions.filter((s) => isFocus(s) && dateSet.has(sessionDate(s))).length,
+    [focusSessions, dateSet],
+  );
+  const salahStreak = prayerStreak(prayers, today);
+
+  /**
+   * Four headline numbers, one idea each. Everything the old hint lines said is
+   * now said once, in the summary of the panel that owns it — and the tile
+   * still speaks it, so nothing is lost to a screen reader.
+   */
   const tiles = React.useMemo<Tile[]>(() => {
-    const done = stats.reduce((s, d) => s + d.done, 0);
-    const planned = stats.reduce((s, d) => s + d.planned, 0);
-    const focusMin = stats.reduce((s, d) => s + d.focusMin, 0);
     const prevDone = prevStats.reduce((s, d) => s + d.done, 0);
     const prevFocus = prevStats.reduce((s, d) => s + d.focusMin, 0);
-    const sessions = focusSessions.filter((s) => isFocus(s) && dateSet.has(sessionDate(s))).length;
-    const perfect = perfectDays(scores);
-    const salah = prayerStreak(prayers, today);
-    const topHabit = [...habitSeries].sort((a, b) => b.streak - a.streak)[0];
 
     return [
       {
         key: "done",
         label: "Tasks done",
-        value: String(done),
-        hint: planned ? `of ${planned} planned · ${pctOf(done, planned)}% closed` : "nothing planned yet",
-        delta: changePct(done, prevDone),
+        value: String(totalDone),
+        hint: totalPlanned
+          ? `of ${totalPlanned} planned, ${pctOf(totalDone, totalPlanned)}% closed`
+          : "nothing planned yet",
+        delta: changePct(totalDone, prevDone),
         deltaOf: "tasks done",
         spark: stats.map((d) => d.done),
         target: "panel-completion",
@@ -203,10 +211,12 @@ export default function StatsPage() {
       {
         key: "focus",
         label: "Focus",
-        value: fmt(focusMin / 60, 1),
+        value: fmt(focusTotal / 60, 1),
         unit: "hours",
-        hint: sessions ? `across ${sessions} session${sessions === 1 ? "" : "s"}` : "no sessions logged",
-        delta: changePct(focusMin, prevFocus),
+        hint: sessionCount
+          ? `across ${sessionCount} session${sessionCount === 1 ? "" : "s"}`
+          : "no sessions logged",
+        delta: changePct(focusTotal, prevFocus),
         deltaOf: "focus time",
         spark: stats.map((d) => d.focusMin),
         target: "panel-focus",
@@ -218,7 +228,7 @@ export default function StatsPage() {
         value: estimate.ratio != null ? `${Math.round(estimate.ratio * 100)}` : "—",
         unit: estimate.ratio != null ? "% of plan" : undefined,
         hint: estimate.n
-          ? `${estimate.n} measured task${estimate.n === 1 ? "" : "s"} · ${estimate.over} ran over`
+          ? `${estimate.n} measured task${estimate.n === 1 ? "" : "s"}, ${estimate.over} ran over`
           : "no task carries both numbers",
         spark: estimatePoints.filter((p) => p.ratio != null).map((p) => p.ratio!),
         target: "panel-estimates",
@@ -227,34 +237,15 @@ export default function StatsPage() {
       {
         key: "perfect",
         label: "Perfect days",
-        value: String(perfect),
-        hint: "everything tracked, all closed out",
+        value: String(perfectDays(scores)),
+        hint: "days where everything tracked was closed out",
         spark: scores.map((s) => s.score ?? 0),
         target: "panel-consistency",
         targetLabel: "the consistency heatmap",
       },
-      {
-        key: "salah",
-        label: "Salah streak",
-        value: String(salah),
-        unit: salah === 1 ? "day" : "days",
-        hint: salah ? "all five, in a row" : "no full day yet",
-        target: "panel-salah",
-        targetLabel: "the salah panel",
-      },
-      {
-        key: "habit",
-        label: "Habit streak",
-        value: String(topHabit?.streak ?? 0),
-        unit: (topHabit?.streak ?? 0) === 1 ? "day" : "days",
-        hint: topHabit?.streak ? topHabit.habit.name : "no habit running",
-        target: "panel-habits",
-        targetLabel: "the habit matrix",
-      },
     ];
-  }, [stats, prevStats, focusSessions, dateSet, scores, prayers, today, habitSeries, estimate, estimatePoints]);
+  }, [stats, prevStats, totalDone, totalPlanned, focusTotal, sessionCount, scores, estimate, estimatePoints]);
 
-  const focusTotal = stats.reduce((s, d) => s + d.focusMin, 0);
   const hasAnything =
     allTasks.length + allSessions.length + habits.length + prayers.length + books.length > 0;
 
@@ -272,7 +263,9 @@ export default function StatsPage() {
           ["Tasks done", stats.reduce((s, d) => s + d.done, 0)],
           ["Tasks planned", stats.reduce((s, d) => s + d.planned, 0)],
           ["Focus minutes", Math.round(focusTotal)],
+          ["Focus sessions", sessionCount],
           ["Perfect days", perfectDays(scores)],
+          ["Salah streak (days)", salahStreak],
           ["Measured estimates", estimate.n],
           ["Median actual / planned", estimate.ratio != null ? estimate.ratio.toFixed(2) : ""],
         ],
@@ -338,16 +331,13 @@ export default function StatsPage() {
       tone: "success",
     });
   }, [
-    label, activeTags, days.length, stats, focusTotal, scores, estimate, weekdays, hours,
-    samples, tagDrift, habitSeries, prayerStats, weeks, toast,
+    label, activeTags, days.length, stats, focusTotal, sessionCount, salahStreak, scores, estimate,
+    weekdays, hours, samples, tagDrift, habitSeries, prayerStats, weeks, toast,
   ]);
 
-  const matchingInWindow = stats.reduce((sum, d) => sum + d.planned, 0);
   const filteredNote = activeTags.length
-    ? `Tasks, focus, estimates, rhythm and the day scores are narrowed to ${activeTags.join(" + ")} — ` +
-      `${formatDuration(Math.round(focusTotal))} of focus across ${matchingInWindow} matching ` +
-      `${matchingInWindow === 1 ? "task" : "tasks"} in this window. Habits, salah and tag drift are ` +
-      `not tag-scoped, so they still show everything.`
+    ? `Tasks, focus, estimates, rhythm and the day scores are narrowed to ${activeTags.join(" + ")}. ` +
+      `Habits, salah and tag drift are not tag-scoped, so they still show everything.`
     : null;
 
   return (
@@ -372,87 +362,94 @@ export default function StatsPage() {
             }
           />
         ) : (
-          <div className="flex flex-col gap-4">
-            <FilterBar
-              tags={tagList}
-              active={activeTags}
-              onToggle={toggleTag}
-              onClear={() => setActiveTags([])}
-              compare={compare}
-              onCompare={setCompare}
-              compareLabel={`vs previous ${days.length} days`}
-              onExport={exportCsv}
-              filteredNote={filteredNote}
-            />
+          <div className="flex flex-col gap-8">
+            {/* The headline: one control, four numbers, and the page in sentences. */}
+            <div className="flex flex-col gap-5">
+              <FilterBar
+                tags={tagList}
+                active={activeTags}
+                onToggle={toggleTag}
+                onClear={() => setActiveTags([])}
+                compare={compare}
+                onCompare={setCompare}
+                compareLabel={`Compare with the previous ${days.length} days`}
+                onExport={exportCsv}
+                filteredNote={filteredNote}
+              />
 
-            <StatTiles tiles={tiles} />
-            <InsightLines insights={insights} />
+              <StatTiles tiles={tiles} />
+              <InsightLines insights={insights} />
+            </div>
 
-            <CompletionTrend
-              stats={stats}
-              average={average}
-              previous={compare ? alignPrevious(stats, prevStats) : null}
-              previousLabel={previousLabel}
-            />
+            {/* Everything below reads as a list of findings. Open one for the
+                chart behind it; the summary line stands on its own until then. */}
+            <div className="divide-y divide-line">
+              <CompletionTrend
+                stats={stats}
+                average={average}
+                previous={compare ? alignPrevious(stats, prevStats) : null}
+                previousLabel={previousLabel}
+              />
 
-            <EstimateAccuracy
-              points={estimatePoints}
-              samples={samples}
-              summary={estimate}
-              grain={grain}
-              previous={compare ? alignPrevious(estimatePoints, prevEstimatePoints) : null}
-              previousLabel={previousLabel}
-            />
+              <EstimateAccuracy
+                points={estimatePoints}
+                samples={samples}
+                summary={estimate}
+                grain={grain}
+                previous={compare ? alignPrevious(estimatePoints, prevEstimatePoints) : null}
+                previousLabel={previousLabel}
+              />
 
-            <PlannedVsActual
-              buckets={buckets}
-              grain={grain}
-              previous={compare ? alignPrevious(buckets, prevBuckets) : null}
-              previousLabel={previousLabel}
-            />
+              <PlannedVsActual
+                buckets={buckets}
+                grain={grain}
+                previous={compare ? alignPrevious(buckets, prevBuckets) : null}
+                previousLabel={previousLabel}
+              />
 
-            <div className="grid gap-4 xl:grid-cols-2">
               <WeekdayPanel
                 rows={weekdays}
                 previous={compare ? prevWeekdays : null}
                 previousLabel={previousLabel}
               />
+
               <HourPanel
                 hours={hours}
                 hour12={hour12}
                 previous={compare ? prevHours : null}
                 previousLabel={previousLabel}
               />
-            </div>
 
-            <TimeBreakdown
-              byTag={byTag}
-              byTask={byTask}
-              totalMinutes={focusTotal}
-              activeTags={activeTags}
-              onToggleTag={toggleTag}
-            />
+              <TimeBreakdown
+                byTag={byTag}
+                byTask={byTask}
+                totalMinutes={focusTotal}
+                sessions={sessionCount}
+                activeTags={activeTags}
+                onToggleTag={toggleTag}
+              />
 
-            <TagDrift
-              rows={tagDrift}
-              activeTags={activeTags}
-              onToggleTag={toggleTag}
-              previousLabel={previousLabel}
-            />
+              <TagDrift
+                rows={tagDrift}
+                activeTags={activeTags}
+                onToggleTag={toggleTag}
+                previousLabel={previousLabel}
+              />
 
-            <ConsistencyHeatmap scores={scores} weekStart={weekStart} />
-            <HabitMatrix series={habitSeries} days={days} />
+              <ConsistencyHeatmap scores={scores} weekStart={weekStart} />
 
-            <div className="grid gap-4 xl:grid-cols-2">
+              <HabitMatrix series={habitSeries} days={days} />
+
               <SalahPanel
                 stats={prayerStats}
-                streak={prayerStreak(prayers, today)}
+                streak={salahStreak}
                 days={days.length}
               />
+
               <ReadingPanel weeks={weeks} projections={projections} />
             </div>
 
-            <p className="mt-1 px-1 text-[11.5px] leading-relaxed text-ink-4 tnum">
+            <p className="max-w-[76ch] text-[11.5px] leading-relaxed text-ink-4">
               Every figure here is computed from your own records across these{" "}
               <span className="tnum">{days.length}</span> days. Nothing is estimated, smoothed or
               filled in for you — where a reading would need a bigger sample to be honest, it says so

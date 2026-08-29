@@ -150,7 +150,7 @@ export function DialFace({
               cx={x}
               cy={y}
               r={Math.max(2.5, stroke * 0.52)}
-              fill="var(--warn)"
+              fill="var(--ink-3)"
               stroke="var(--canvas)"
               strokeWidth={1.5}
             />

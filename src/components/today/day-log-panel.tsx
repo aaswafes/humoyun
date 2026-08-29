@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { addDays } from "@/lib/date";
 import { AutoTextarea } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
+import { Fold, useFold } from "./fold";
 import { useAutosave } from "./use-autosave";
 
 export const MOOD_LABELS = ["Rough", "Low", "OK", "Good", "Great"];
@@ -25,12 +26,8 @@ function Scale({
   return (
     <div className="min-w-0 flex-1">
       <div className="mb-1.5 flex items-baseline gap-2">
-        <span id={id} className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-          {label}
-        </span>
-        <span className="text-[11.5px] text-ink-4">
-          {value ? options[value - 1] : "not set"}
-        </span>
+        <span id={id} className="text-[12px] font-medium text-ink-2">{label}</span>
+        <span className="text-[11.5px] text-ink-4">{value ? options[value - 1] : "not set"}</span>
       </div>
       <div role="group" aria-labelledby={id} className="flex gap-1">
         {options.map((option, i) => {
@@ -48,8 +45,8 @@ function Scale({
                 "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
                 "active:scale-[0.97]",
                 active
-                  ? "bg-accent-soft font-semibold text-accent ring-1 ring-accent-line"
-                  : "bg-hover text-ink-2 hover:bg-active hover:text-ink",
+                  ? "bg-accent-soft font-semibold text-accent"
+                  : "bg-hover text-ink-3 hover:bg-active hover:text-ink",
               )}
             >
               {option}
@@ -61,10 +58,15 @@ function Scale({
   );
 }
 
-export function DayLogPanel({ date }: { date: string }) {
+/**
+ * The evening surface: mood, energy and the note. Nothing here is needed at
+ * 9am, so it rests folded behind what it already holds.
+ */
+export function DayLogPanel({ date, className }: { date: string; className?: string }) {
   const log = useStore((s) => s.dayLogs.find((d) => d.date === date));
   const yesterday = useStore((s) => s.dayLogs.find((d) => d.date === addDays(date, -1)));
   const setDayLog = useStore((s) => s.setDayLog);
+  const { open, toggle } = useFold("logOpen", false);
 
   const [note, setNote] = React.useState(log?.note ?? "");
   const { status, flush } = useAutosave(
@@ -77,17 +79,23 @@ export function DayLogPanel({ date }: { date: string }) {
     yesterday?.energy ? ENERGY_LABELS[yesterday.energy - 1] : null,
   ].filter(Boolean).join(" · ");
 
-  return (
-    <section className="surface mt-1 overflow-hidden">
-      <div className="flex h-9 items-center gap-2 px-3 hairline-b">
-        <NotebookPen className="size-3.5 shrink-0 text-ink-3" />
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">How today felt</h2>
-        {yesterdayLine && (
-          <span className="ml-auto truncate text-[11.5px] text-ink-4">Yesterday: {yesterdayLine}</span>
-        )}
-      </div>
+  const summary =
+    [
+      log?.mood ? MOOD_LABELS[log.mood - 1] : null,
+      log?.energy ? `${ENERGY_LABELS[log.energy - 1]} energy` : null,
+      note.trim() ? "note written" : null,
+    ].filter(Boolean).join(" · ") || "not logged yet";
 
-      <div className="px-3 py-3">
+  return (
+    <Fold
+      icon={NotebookPen}
+      title="How today felt"
+      summary={summary}
+      open={open}
+      onToggle={toggle}
+      className={className}
+    >
+      <div className="pb-1 pt-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:gap-5">
           <Scale
             label="Mood"
@@ -108,8 +116,8 @@ export function DayLogPanel({ date }: { date: string }) {
             label="Note"
             hint={
               status === "saved" ? (
-                <span className="inline-flex items-center gap-1 text-success">
-                  <Check className="size-3" aria-hidden />
+                <span className="inline-flex items-center gap-1 text-ink-3">
+                  <Check className="size-3 text-success" aria-hidden />
                   Saved
                 </span>
               ) : status === "pending" ? (
@@ -139,7 +147,11 @@ export function DayLogPanel({ date }: { date: string }) {
             )}
           </Field>
         </div>
+
+        {yesterdayLine && (
+          <p className="mt-2 text-[11.5px] text-ink-4">Yesterday: {yesterdayLine}</p>
+        )}
       </div>
-    </section>
+    </Fold>
   );
 }

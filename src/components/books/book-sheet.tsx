@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  CalendarX, Check, ChevronDown, ChevronRight, Gauge, MoreHorizontal, Palette,
+  CalendarX, Check, ChevronDown, Gauge, MoreHorizontal, Palette,
   PauseCircle, PlayCircle, Trash2, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -10,12 +10,13 @@ import { useStore } from "@/lib/store";
 import { addDays, diffDays, formatDate, friendlyDate, startOfWeek, todayISO } from "@/lib/date";
 import type { Book, Task } from "@/lib/types";
 import {
-  AutoTextarea, Button, Checkbox, IconButton, InlineInput, Input, Progress, SectionLabel,
+  AutoTextarea, Button, Checkbox, IconButton, InlineInput, Input, SectionLabel,
 } from "@/components/ui/primitives";
 import {
   ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
 } from "@/components/ui/overlays";
 import { BookCover } from "./book-cover";
+import { Disclosure } from "./disclosure";
 import { Field, NumberField, RatingStars, SuggestInput } from "./fields";
 import { PlanEditor } from "./plan-editor";
 import { PlanDiffView } from "./plan-diff-view";
@@ -51,48 +52,54 @@ const STATUS_DOT: Record<BookStatus, string> = {
 
 const STATUS_ORDER: BookStatus[] = ["reading", "planned", "paused", "finished", "dropped"];
 
-// ---------------------------------------------------------
-function Section({
-  title, action, children, className, count, collapsible, defaultOpen = true,
+/**
+ * One group of the sheet. Only Reading is open when the sheet arrives; the
+ * rest state their contents on one line and unfold when asked.
+ */
+function Group({
+  storageKey, label, summary, defaultOpen, action, children,
 }: {
-  title: string;
+  storageKey: string;
+  label: string;
+  summary: React.ReactNode;
+  defaultOpen?: boolean;
   action?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
-  count?: number;
-  collapsible?: boolean;
-  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
-  const shown = collapsible ? open : true;
-
   return (
-    <section className={cn("hairline-t px-4 py-4", className)}>
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        {collapsible ? (
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            className="-my-1 flex cursor-pointer items-center gap-1.5 py-1 text-left"
-          >
-            <ChevronRight
-              className={cn("size-3 text-ink-4 transition-transform duration-200", open && "rotate-90")}
-              aria-hidden
-            />
-            <SectionLabel>{title}</SectionLabel>
-            {count !== undefined && <span className="text-[11px] text-ink-4 tnum">{count}</span>}
-          </button>
-        ) : (
-          <div className="flex items-center gap-1.5">
-            <SectionLabel>{title}</SectionLabel>
-            {count !== undefined && <span className="text-[11px] text-ink-4 tnum">{count}</span>}
-          </div>
-        )}
-        {action}
-      </div>
-      {shown && children}
-    </section>
+    <Disclosure
+      storageKey={storageKey}
+      label={label}
+      summary={summary}
+      defaultOpen={defaultOpen}
+      action={action}
+      className="hairline-t px-4 py-2"
+      bodyClassName="pb-4 pt-2"
+    >
+      {children}
+    </Disclosure>
+  );
+}
+
+/** A fold inside a group — spacing and a hairline, never a second card. */
+function SubGroup({
+  storageKey, label, summary, children,
+}: {
+  storageKey: string;
+  label: string;
+  summary: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Disclosure
+      storageKey={storageKey}
+      label={label}
+      summary={summary}
+      className="mt-4 hairline-t"
+      bodyClassName="pb-1 pt-2"
+    >
+      {children}
+    </Disclosure>
   );
 }
 
@@ -194,9 +201,38 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
     () => diffPlan(blocks, projected, plan.startDate), [blocks, projected, plan.startDate]);
 
   const upcoming = blocks.filter((t) => t.status !== "done" && (t.date ?? "") >= today).length;
+  const doneBlocks = blocks.filter((t) => t.status === "done").length;
   const visibleWeeks = showAllWeeks ? weeks : weeks.slice(0, 5);
   const resumeDate = library.paused[book.id];
   const paused = book.status === "paused";
+  const projectedFinish = projection.finish;
+  const hasPace = pace.perDay > 0 && projectedFinish != null;
+
+  // ---- the one line each folded group leads with ----
+  const planSummary = book.pages_per_day
+    ? `${book.pages_per_day} pp/day${book.end_date ? ` · ends ${shortDate(book.end_date)}` : ""}${upcoming ? ` · ${upcoming} ahead` : ""}`
+    : upcoming
+      ? `${upcoming} unfinished ${upcoming === 1 ? "block" : "blocks"} ahead`
+      : "Not on the calendar yet";
+
+  const insightsSummary = hasPace && projectedFinish
+    ? `At ${ratePhrase(pace.perDay)} you finish ${shortDate(projectedFinish)}`
+    : "No pace yet — tick a block or log a session";
+
+  const sessionsSummary = sessions.length
+    ? `${sessions.length} ${sessions.length === 1 ? "sitting" : "sittings"} · ${pace.pages} pp in ${pace.spanDays} days`
+    : "Log what you actually read";
+
+  const notesSummary = [
+    marginalia.length ? `${marginalia.length} kept` : null,
+    book.notes?.trim() ? "your verdict written" : null,
+  ].filter(Boolean).join(" · ") || "Quotes, thoughts and your verdict";
+
+  const detailsSummary = [
+    `${total.toLocaleString()} pages`,
+    library.series[book.id] || null,
+    book.cover_url ? "cover set" : null,
+  ].filter(Boolean).join(" · ");
 
   function commit<K extends keyof Book>(field: K, value: Book[K]) {
     if (book[field] === value) return;
@@ -299,9 +335,9 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
         <IconButton label="Close" size="sm" onClick={onClose}><X /></IconButton>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-8">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-10">
         {/* ---- identity ---- */}
-        <div className="flex gap-4 px-4 pb-4 pt-4">
+        <div className="flex gap-4 px-4 pb-5 pt-4">
           <div className="w-[88px] shrink-0">
             <BookCover
               title={title}
@@ -332,7 +368,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
               onChange={(e) => setAuthor(e.target.value)}
               onBlur={() => commit("author", author.trim() || null)}
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-              className="mt-0.5 text-[13px] text-ink-2"
+              className="mt-0.5 text-[13px] text-ink-3"
             />
 
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -345,7 +381,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                   >
                     <span className="size-1.5 rounded-full" style={{ background: STATUS_DOT[book.status] }} />
                     {STATUS_LABEL[book.status]}
-                    <ChevronDown className="size-3 text-ink-3" />
+                    <ChevronDown className="size-3 text-ink-4" />
                   </button>
                 }
               >
@@ -384,7 +420,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                       "inline-flex h-[24px] cursor-pointer items-center gap-1.5 rounded-full border border-line px-2 text-[12px] text-ink-2 transition-colors hover:bg-hover hover:text-ink",
                     )}
                   >
-                    <Palette className="size-3 text-ink-3" />
+                    <Palette className="size-3 text-ink-4" />
                     <span className="size-2.5 rounded-full" style={{ background: "var(--tint)" }} />
                   </button>
                 }
@@ -401,11 +437,11 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
           </div>
         </div>
 
-        {/* ---- paused banner ---- */}
+        {/* ---- paused: a state to come back from, not an alarm ---- */}
         {paused && (
-          <div className="mx-4 mb-4 rounded-lg border border-line bg-warn-soft px-3 py-2.5">
+          <div className="mx-4 mb-5 rounded-lg bg-hover px-3 py-2.5">
             <div className="flex items-start gap-2">
-              <PauseCircle className="mt-px size-4 shrink-0 text-warn" aria-hidden />
+              <PauseCircle className="mt-px size-4 shrink-0 text-ink-3" aria-hidden />
               <div className="min-w-0 flex-1">
                 <p className="text-[12.5px] font-medium text-ink">
                   {resumeDate
@@ -414,7 +450,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                       : `Paused until ${formatDate(resumeDate)}`
                     : "Paused"}
                 </p>
-                <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-2 tnum">
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-3 tnum">
                   {resumeDate && resumeDate > today
                     ? `${daysPhrase(Math.max(0, diffDays(resumeDate, today)))} to go. Resuming re-lays the plan from that day.`
                     : "Resuming re-lays the plan from the day you choose."}
@@ -438,18 +474,16 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
           </div>
         )}
 
-        {/* ---- progress + bookmark ---- */}
-        <Section title="Progress">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="display-serif text-[32px] leading-none text-ink tnum">{pct}%</span>
-            <span className="text-[12.5px] text-ink-3 tnum">
-              p.{read} <span className="text-ink-4">/ {total}</span>
-              {read < total && <span className="text-ink-4"> · {total - read} left</span>}
-            </span>
-          </div>
-          <Progress value={read} max={total} tint={book.color} height={5} className="mt-2.5" />
+        {/* ---- Reading: where you are, and moving the bookmark ---- */}
+        <Group
+          storageKey="humoyun.books.sheet.reading"
+          label="Reading"
+          summary={`p.${read} of ${total}`}
+          defaultOpen
+        >
+          <p className="display-serif text-[32px] leading-none text-ink tnum">{pct}%</p>
 
-          <div className="mt-3.5 flex items-end gap-2">
+          <div className="mt-4 flex items-end gap-2">
             <Field label="I'm on page" className="w-[132px]">
               <NumberField
                 label="Current page"
@@ -486,53 +520,30 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
             )}
           </div>
 
-          {/* the honest forecast, built from history rather than the plan */}
-          <div className="mt-3 rounded-md bg-hover px-2.5 py-2">
-            {projection.finish && pace.perDay > 0 ? (
-              <>
-                <p className="text-[12.5px] leading-relaxed text-ink-2 tnum">
-                  At <span className="font-medium text-ink">{ratePhrase(pace.perDay)}</span> you finish{" "}
-                  <span className="font-medium text-ink">{shortDate(projection.finish)}</span>.
-                </p>
-                <p className="mt-1 text-[11.5px] leading-relaxed text-ink-4 tnum">
-                  {pace.activeDays} {pace.activeDays === 1 ? "day" : "days"} read out of the last {pace.spanDays}
-                  {pace.minutesPerPage ? ` · ${Math.round(pace.minutesPerPage * 10) / 10} min a page` : ""}
-                  {pace.lastRead ? ` · last read ${friendlyDate(pace.lastRead).toLowerCase()}` : ""}
-                </p>
-                {projection.vsPlan != null && (
-                  <p
-                    className={cn(
-                      "mt-1 text-[11.5px] font-medium tnum",
-                      projection.vsPlan >= 0 ? "text-success" : "text-warn",
-                    )}
-                  >
-                    {projection.vsPlan === 0
-                      ? "Dead on the plan."
-                      : projection.vsPlan > 0
-                        ? `${daysPhrase(projection.vsPlan)} ahead of the plan.`
-                        : `${daysPhrase(projection.vsPlan)} behind the plan.`}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-[12.5px] leading-relaxed text-ink-3">
-                No pace yet. Tick a reading block or log a session below and a real finish date
-                appears here — one built on what you read, not what you planned.
-              </p>
-            )}
-          </div>
-        </Section>
-
-        {/* ---- reschedule, with the damage shown first ---- */}
-        <Section
-          title="Plan"
-          action={
-            book.pages_per_day ? (
-              <span className="text-[11.5px] text-ink-4 tnum">
-                now {book.pages_per_day} pp/day{book.end_date ? ` · ends ${shortDate(book.end_date)}` : ""}
+          {/* A finished book has one question left, so it is asked here. */}
+          {book.status === "finished" && (
+            <div className="mt-4 flex items-center gap-3">
+              <RatingStars value={book.rating} onChange={(r) => commit("rating", r)} />
+              <span className="text-[11.5px] text-ink-4">
+                {book.rating ? `${book.rating} of 5` : "Not rated"}
               </span>
-            ) : null
-          }
+            </div>
+          )}
+
+          <SubGroup
+            storageKey="humoyun.books.sheet.sessions"
+            label="Sessions"
+            summary={sessionsSummary}
+          >
+            <SessionLog book={book} sessions={sessions} weekStart={weekStart} />
+          </SubGroup>
+        </Group>
+
+        {/* ---- Plan: the calendar side of this book ---- */}
+        <Group
+          storageKey="humoyun.books.sheet.plan"
+          label="Plan"
+          summary={planSummary}
         >
           <PlanEditor
             draft={plan}
@@ -584,111 +595,122 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
             Applying replaces every unfinished block from {shortDate(plan.startDate)} onward. Blocks you
             have already ticked off stay put.
           </p>
-        </Section>
 
-        {/* ---- the plan as a calendar ---- */}
-        {(blocks.length > 0 || history.length > 0) && (
-          <Section title="Reading calendar" collapsible defaultOpen>
-            <BookCalendarStrip
-              blocks={blocks}
-              readDays={history}
-              tint={book.color}
-              weekStart={weekStart}
-              onToggle={(t) => toggleTask(t.id)}
-            />
-          </Section>
-        )}
-
-        {/* ---- blocks by week ---- */}
-        <Section
-          title="Reading blocks"
-          count={blocks.length}
-          collapsible
-          defaultOpen={false}
-        >
-          {weeks.length === 0 ? (
-            <p className="text-[12.5px] leading-relaxed text-ink-3">
-              No blocks on the calendar yet. Pick a pace above and hit Schedule — Humoyun will lay
-              them out day by day.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {visibleWeeks.map((w) => (
-                <div key={w.start || "unscheduled"}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2">
-                    <span className="text-[12px] font-medium text-ink-2">
-                      {w.start ? `Week of ${shortDate(w.start)}` : "Unscheduled"}
-                    </span>
-                    <span className="text-[11px] text-ink-4 tnum">
-                      {w.done}/{w.items.length} · {w.pages} pp
-                    </span>
-                  </div>
-                  <div className="rounded-md border border-line">
-                    {w.items.map((t, i) => {
-                      const isToday = t.date === today;
-                      const done = t.status === "done";
-                      return (
-                        <div
-                          key={t.id}
-                          className={cn(
-                            "flex items-center gap-2.5 px-2 py-[7px] transition-colors",
-                            i > 0 && "hairline-t",
-                            isToday && !done && "bg-selected",
-                          )}
-                        >
-                          <Checkbox
-                            size="sm"
-                            checked={done}
-                            tint={book.color}
-                            onChange={() => toggleTask(t.id)}
-                            label={done ? `Mark ${t.title} as not done` : `Mark ${t.title} as done`}
-                          />
-                          <span
+          <SubGroup
+            storageKey="humoyun.books.sheet.blocks"
+            label="Reading blocks"
+            summary={blocks.length
+              ? `${doneBlocks} of ${blocks.length} done · ${weeks.length} ${weeks.length === 1 ? "week" : "weeks"}`
+              : "Nothing on the calendar yet"}
+          >
+            {weeks.length === 0 ? (
+              <p className="text-[12.5px] leading-relaxed text-ink-3">
+                No blocks on the calendar yet. Pick a pace above and hit Schedule — Humoyun will lay
+                them out day by day.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {visibleWeeks.map((w) => (
+                  <div key={w.start || "unscheduled"}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <span className="text-[12px] font-medium text-ink-2">
+                        {w.start ? `Week of ${shortDate(w.start)}` : "Unscheduled"}
+                      </span>
+                      <span className="text-[11px] text-ink-4 tnum">
+                        {w.done}/{w.items.length} · {w.pages} pp
+                      </span>
+                    </div>
+                    <div className="rounded-md border border-line">
+                      {w.items.map((t, i) => {
+                        const isToday = t.date === today;
+                        const done = t.status === "done";
+                        return (
+                          <div
+                            key={t.id}
                             className={cn(
-                              "w-[86px] shrink-0 text-[12px] tnum",
-                              done ? "text-ink-4" : isToday ? "font-medium text-accent" : "text-ink-2",
+                              "flex items-center gap-2.5 px-2 py-[7px] transition-colors",
+                              i > 0 && "hairline-t",
+                              isToday && !done && "bg-selected",
                             )}
                           >
-                            {t.date ? formatDate(t.date) : "No date"}
-                          </span>
-                          <span className={cn("flex-1 truncate text-[12px] tnum", done ? "text-ink-4 line-through" : "text-ink-3")}>
-                            {t.page_from != null && t.page_to != null ? `p.${t.page_from}–${t.page_to}` : t.title}
-                          </span>
-                        </div>
-                      );
-                    })}
+                            <Checkbox
+                              size="sm"
+                              checked={done}
+                              tint={book.color}
+                              onChange={() => toggleTask(t.id)}
+                              label={done ? `Mark ${t.title} as not done` : `Mark ${t.title} as done`}
+                            />
+                            <span
+                              className={cn(
+                                "w-[86px] shrink-0 text-[12px] tnum",
+                                done ? "text-ink-4" : isToday ? "font-medium text-accent" : "text-ink-2",
+                              )}
+                            >
+                              {t.date ? formatDate(t.date) : "No date"}
+                            </span>
+                            <span className={cn("flex-1 truncate text-[12px] tnum", done ? "text-ink-4 line-through" : "text-ink-3")}>
+                              {t.page_from != null && t.page_to != null ? `p.${t.page_from}–${t.page_to}` : t.title}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              {weeks.length > visibleWeeks.length && (
-                <Button size="sm" variant="ghost" className="w-full" onClick={() => setShowAllWeeks(true)}>
-                  Show all {weeks.length} weeks
-                </Button>
-              )}
-            </div>
-          )}
-        </Section>
+                {weeks.length > visibleWeeks.length && (
+                  <Button size="sm" variant="ghost" className="w-full" onClick={() => setShowAllWeeks(true)}>
+                    Show all {weeks.length} weeks
+                  </Button>
+                )}
+              </div>
+            )}
+          </SubGroup>
+        </Group>
 
-        {/* ---- sittings ---- */}
-        <Section
-          title="Sessions"
-          count={sessions.length}
-          collapsible
-          defaultOpen={sessions.length > 0}
-          action={
-            pace.pages > 0 ? (
-              <span className="text-[11.5px] text-ink-4 tnum">
-                {pace.pages} pp{pace.minutes > 0 ? ` · ${Math.round(pace.minutes / 60 * 10) / 10}h` : ""} in {pace.spanDays} days
-              </span>
-            ) : null
-          }
+        {/* ---- Insights: the projection, and the evidence behind it ---- */}
+        <Group
+          storageKey="humoyun.books.sheet.insights"
+          label="Insights"
+          summary={insightsSummary}
         >
-          <SessionLog book={book} sessions={sessions} weekStart={weekStart} />
-        </Section>
+          {hasPace ? (
+            <p className="text-[11.5px] leading-relaxed text-ink-3 tnum">
+                {pace.activeDays} {pace.activeDays === 1 ? "day" : "days"} read out of the last {pace.spanDays}
+                {pace.minutesPerPage ? ` · ${Math.round(pace.minutesPerPage * 10) / 10} min a page` : ""}
+                {pace.lastRead ? ` · last read ${friendlyDate(pace.lastRead).toLowerCase()}` : ""}
+                {projection.vsPlan != null && (
+                  projection.vsPlan === 0
+                    ? " · dead on the plan"
+                    : projection.vsPlan > 0
+                      ? ` · ${daysPhrase(projection.vsPlan)} ahead of the plan`
+                      : ` · ${daysPhrase(projection.vsPlan)} behind the plan`
+              )}
+            </p>
+          ) : (
+            <p className="text-[12.5px] leading-relaxed text-ink-3">
+              Tick a reading block or log a session, and a real finish date appears here — one built
+              on what you read, not what you planned.
+            </p>
+          )}
 
-        {/* ---- marginalia ---- */}
-        <Section title="Highlights" count={marginalia.length} collapsible defaultOpen={marginalia.length > 0}>
+          {/* Renders nothing until this book has a day worth drawing. */}
+          <BookCalendarStrip
+            className="mt-4"
+            blocks={blocks}
+            readDays={history}
+            tint={book.color}
+            weekStart={weekStart}
+            onToggle={(t) => toggleTask(t.id)}
+          />
+        </Group>
+
+        {/* ---- Notes: the trail, and the verdict ---- */}
+        <Group
+          storageKey="humoyun.books.sheet.notes"
+          label="Notes"
+          summary={notesSummary}
+        >
           <BookNotes
             bookId={book.id}
             notes={marginalia}
@@ -696,35 +718,27 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
             currentPage={read}
             tint={book.color}
           />
-        </Section>
 
-        {/* ---- rating ---- */}
-        {book.status === "finished" && (
-          <Section title="Rating">
-            <div className="flex items-center gap-3">
-              <RatingStars value={book.rating} onChange={(r) => commit("rating", r)} />
-              <span className="text-[12px] text-ink-4">
-                {book.rating ? `${book.rating} of 5` : "Not rated"}
-              </span>
-            </div>
-          </Section>
-        )}
+          <div className="mt-4">
+            <p className="mb-1 text-[11.5px] font-medium text-ink-3">Your verdict</p>
+            <AutoTextarea
+              aria-label="Notes"
+              value={notes}
+              onChange={setNotes}
+              onBlur={() => commit("notes", notes.trim() || null)}
+              minRows={3}
+              placeholder="What stayed with you?"
+              className="text-[13px] text-ink placeholder:text-ink-4"
+            />
+          </div>
+        </Group>
 
-        {/* ---- notes ---- */}
-        <Section title="Notes">
-          <AutoTextarea
-            aria-label="Notes"
-            value={notes}
-            onChange={setNotes}
-            onBlur={() => commit("notes", notes.trim() || null)}
-            minRows={3}
-            placeholder="What stayed with you?"
-            className="text-[13px] text-ink placeholder:text-ink-4"
-          />
-        </Section>
-
-        {/* ---- details ---- */}
-        <Section title="Details">
+        {/* ---- Details ---- */}
+        <Group
+          storageKey="humoyun.books.sheet.details"
+          label="Details"
+          summary={detailsSummary}
+        >
           <div className="grid grid-cols-[132px_minmax(0,1fr)] gap-3">
             <Field label="Total pages">
               <NumberField
@@ -758,7 +772,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
               onBlur={() => commit("cover_url", cover.trim() || null)}
             />
           </Field>
-        </Section>
+        </Group>
       </div>
 
       <PauseDialog

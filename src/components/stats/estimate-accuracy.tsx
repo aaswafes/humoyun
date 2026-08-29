@@ -189,7 +189,7 @@ export function EstimateAccuracy({
                   <UnitLabel x={0} y={9}>% of estimate</UnitLabel>
                   <GridY
                     x0={PAD.l} x1={PAD.l + g.plotW}
-                    ticks={axisTicks(g.max, 3)} y={g.y}
+                    ticks={axisTicks(g.max, 2)} y={g.y}
                     format={(v) => `${Math.round(v * 100)}`}
                   />
 
@@ -309,9 +309,7 @@ export function EstimateAccuracy({
 
           {worstFew.length > 0 && (
             <div className="mt-4 hairline-t pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                Furthest off
-              </p>
+              <p className="text-[11.5px] font-medium text-ink-3">Furthest off</p>
               <ul className="mt-2 flex flex-col gap-1.5">
                 {worstFew.map((s) => (
                   <li key={s.taskId} className="flex items-baseline gap-2">
@@ -319,9 +317,7 @@ export function EstimateAccuracy({
                     <span className="shrink-0 text-[11.5px] text-ink-3 tnum">
                       {formatDuration(Math.round(s.planned))} → {formatDuration(Math.round(s.actual))}
                     </span>
-                    <span
-                      className={`shrink-0 text-[11.5px] font-medium tnum ${s.ratio > 1 ? "text-warn" : "text-accent"}`}
-                    >
+                    <span className="shrink-0 text-[11.5px] font-medium text-ink-2 tnum">
                       {Math.round(s.ratio * 100)}%
                     </span>
                     <span className="shrink-0 text-[11px] text-ink-4">

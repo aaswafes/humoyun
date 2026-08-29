@@ -61,7 +61,7 @@ export function SelectableRow({
 
   if (editingId === task.id) {
     return (
-      <div ref={ref} className="px-0.5 py-0.5">
+      <div ref={ref} className="px-0.5 py-1">
         <EditorRow task={task} showDate={showDate} />
       </div>
     );
@@ -78,7 +78,8 @@ export function SelectableRow({
         data-triage-row={task.id}
         aria-current={isCursor ? "true" : undefined}
         className={cn(
-          "group/inbox relative flex items-center gap-1 rounded-md",
+          // Triage is scanning, and scanning needs air between rows.
+          "group/inbox relative flex items-center gap-1 rounded-md py-0.5",
           isCursor && "bg-hover",
         )}
       >
@@ -104,7 +105,7 @@ export function SelectableRow({
   const tabbable = cursorId ? isCursor : order[0] === task.id;
 
   return (
-    <div ref={ref} className="group/row relative flex items-center gap-1">
+    <div ref={ref} className="group/row relative flex items-center gap-1 py-0.5">
       {isCursor && (
         <span
           aria-hidden

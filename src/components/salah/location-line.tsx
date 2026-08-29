@@ -24,7 +24,7 @@ export function LocationLine({ className }: { className?: string }) {
       <span>{madhab} asr</span>
       <Link
         href="/settings"
-        className="ml-auto rounded-sm text-accent transition-opacity duration-150 hover:opacity-70"
+        className="ml-auto rounded-sm text-ink-3 underline decoration-line-strong underline-offset-2 transition-colors duration-150 hover:text-ink"
       >
         Change
       </Link>

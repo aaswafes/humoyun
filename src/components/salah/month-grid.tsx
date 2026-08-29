@@ -14,6 +14,10 @@ import { ALL_STATUSES, HANDLED_STATUSES, PRAYER_STATE, StateDot, StateLegend } f
 
 const COLUMNS = "grid-cols-[24px_repeat(5,minmax(0,1fr))]";
 
+/**
+ * The month as a grid of squares, each one tappable. No border of its own —
+ * it lives inside a folded section, and a card inside a card is noise.
+ */
 export function MonthGrid({ today }: { today: string }) {
   const prayers = useStore((s) => s.prayers);
   const cyclePrayer = useStore((s) => s.cyclePrayer);
@@ -42,14 +46,14 @@ export function MonthGrid({ today }: { today: string }) {
   const isFuture = month > startOfMonth(today);
 
   return (
-    <section className="surface p-4">
+    <div>
       <header className="flex items-center gap-1">
-        <h2 className="flex-1 text-[13px] font-semibold text-ink">
+        <p className="flex-1 text-[12.5px] font-medium text-ink-2">
           {monthName(month)} <span className="tnum text-ink-3">{yearOf(month)}</span>
-        </h2>
+        </p>
         {!isCurrentMonth && (
           <Button size="sm" variant="ghost" onClick={() => setMonth(startOfMonth(today))}>
-            Today
+            This month
           </Button>
         )}
         <IconButton label="Previous month" onClick={() => setMonth(addMonths(month, -1))}>
@@ -60,92 +64,90 @@ export function MonthGrid({ today }: { today: string }) {
         </IconButton>
       </header>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div>
+      <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-[208px_minmax(0,1fr)]">
+        <div className="w-full max-w-[208px]">
+          <div className={cn("grid pb-1.5", COLUMNS)}>
+            <span />
+            {PRAYER_NAMES.map((name) => (
+              <span
+                key={name}
+                title={PRAYER_LABELS[name]}
+                className="text-center text-[10.5px] font-medium text-ink-4"
+              >
+                {PRAYER_LABELS[name].charAt(0)}
+              </span>
+            ))}
+          </div>
+
+          {days.map((day) => {
+            const isToday = day === today;
+            const future = day > today;
+            const friday = weekday(day) === 5;
+
+            return (
+              <div key={day} className={cn("grid items-center rounded-md", COLUMNS, isToday && "bg-selected")}>
+                <span
+                  title={friday ? "Jumu'ah" : undefined}
+                  className={cn(
+                    "tnum text-center text-[10.5px]",
+                    isToday ? "font-semibold text-ink" : friday ? "font-medium text-ink-3" : "text-ink-4",
+                  )}
+                >
+                  {dayNumber(day)}
+                </span>
+
+                {PRAYER_NAMES.map((name) => {
+                  const status = statuses.get(`${day}|${name}`) ?? "none";
+                  return (
+                    <button
+                      key={name}
+                      disabled={future}
+                      onClick={() => cyclePrayer(day, name)}
+                      title={`${PRAYER_LABELS[name]} · ${formatDate(day)} · ${PRAYER_STATE[status].label}`}
+                      aria-label={`${PRAYER_LABELS[name]} on ${formatDate(day)}, ${PRAYER_STATE[status].label}`}
+                      className={cn(
+                        "grid h-7 cursor-pointer place-items-center rounded-md",
+                        "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
+                        "hover:bg-hover active:scale-90 disabled:pointer-events-none",
+                      )}
+                    >
+                      <StateDot status={status} dim={future} />
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* One number, then the same month in words. Never both twice over. */}
+        <div className="min-w-0">
           <p className="display-serif tnum text-[32px] leading-none text-ink">
             {rate === null ? "—" : `${rate}%`}
           </p>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Recorded</p>
-        </div>
-        <div>
-          <p className="display-serif tnum text-[32px] leading-none text-ink">{streak}</p>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Day streak</p>
+          <p className="mt-2 text-[12px] text-ink-3">recorded in {monthName(month)}</p>
+
+          <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
+            {elapsed.length ? (
+              <>
+                <span className="tnum">{handled}</span> of <span className="tnum">{elapsed.length * 5}</span>{" "}
+                prayers, <span className="tnum">{jamaah}</span> in jamaah ·{" "}
+                <span className="tnum">{streak}</span>-day streak, counting days where all five were prayed.
+              </>
+            ) : isFuture ? (
+              <>This month has not started yet. The grid fills itself in as the days arrive.</>
+            ) : (
+              <>Nothing recorded this month yet — tap any square and it starts filling in.</>
+            )}
+          </p>
+
+          <p className="mt-2 text-[11.5px] leading-relaxed text-ink-4">
+            Tap any square to record a past prayer. Qadha counts as handled.
+          </p>
+
+          <StateLegend className="hairline-t mt-3.5 pt-3" statuses={ALL_STATUSES} />
         </div>
       </div>
-
-      <p className="mt-2.5 text-[11.5px] leading-relaxed text-ink-3">
-        {elapsed.length ? (
-          <>
-            <span className="tnum">{handled}</span> of <span className="tnum">{elapsed.length * 5}</span>{" "}
-            prayers recorded, <span className="tnum">{jamaah}</span> of them in jamaah. The streak counts
-            days where all five were prayed.
-          </>
-        ) : isFuture ? (
-          <>This month has not started yet. The grid fills itself in as the days arrive.</>
-        ) : (
-          <>Nothing recorded this month yet — tap any square and it starts filling in.</>
-        )}
-      </p>
-
-      <div className="mx-auto mt-4 w-full max-w-[208px]">
-        <div className={cn("grid pb-1.5", COLUMNS)}>
-          <span />
-          {PRAYER_NAMES.map((name) => (
-            <span
-              key={name}
-              title={PRAYER_LABELS[name]}
-              className="text-center text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-3"
-            >
-              {PRAYER_LABELS[name].charAt(0)}
-            </span>
-          ))}
-        </div>
-
-        {days.map((day) => {
-          const isToday = day === today;
-          const future = day > today;
-          const friday = weekday(day) === 5;
-
-          return (
-            <div key={day} className={cn("grid items-center rounded-md", COLUMNS, isToday && "bg-selected")}>
-              <span
-                title={friday ? "Jumu'ah" : undefined}
-                className={cn(
-                  "tnum text-center text-[10.5px]",
-                  isToday ? "font-semibold text-accent" : friday ? "font-medium text-ink-2" : "text-ink-4",
-                )}
-              >
-                {dayNumber(day)}
-              </span>
-
-              {PRAYER_NAMES.map((name) => {
-                const status = statuses.get(`${day}|${name}`) ?? "none";
-                return (
-                  <button
-                    key={name}
-                    disabled={future}
-                    onClick={() => cyclePrayer(day, name)}
-                    title={`${PRAYER_LABELS[name]} · ${formatDate(day)} · ${PRAYER_STATE[status].label}`}
-                    aria-label={`${PRAYER_LABELS[name]} on ${formatDate(day)}, ${PRAYER_STATE[status].label}`}
-                    className={cn(
-                      "grid h-7 cursor-pointer place-items-center rounded-md",
-                      "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
-                      "hover:bg-hover active:scale-90 disabled:pointer-events-none",
-                    )}
-                  >
-                    <StateDot status={status} dim={future} />
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="mt-3.5 text-[11.5px] leading-relaxed text-ink-3">
-        Tap any square to record a past prayer. Qadha counts as handled.
-      </p>
-      <StateLegend className="hairline-t mt-3 pt-3" statuses={ALL_STATUSES} />
-    </section>
+    </div>
   );
 }

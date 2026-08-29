@@ -2,14 +2,17 @@
 
 import * as React from "react";
 import { formatDuration, friendlyDate } from "@/lib/date";
-import { SectionLabel } from "@/components/ui/primitives";
 import { computeStats, type DayGroup } from "./focus-data";
 
+/**
+ * Six totals, on spacing rather than in boxes. The label is a quiet caption —
+ * six shouted micro-labels in a row were the loudest thing on the page.
+ */
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="min-w-0">
-      <SectionLabel>{label}</SectionLabel>
-      <p className="display-serif tnum mt-2 text-[22px] leading-none text-ink">{value}</p>
+      <p className="text-[12px] text-ink-3">{label}</p>
+      <p className="display-serif tnum mt-1.5 text-[22px] leading-none text-ink">{value}</p>
       <p className="mt-1.5 truncate text-[11.5px] text-ink-4">{hint}</p>
     </div>
   );
@@ -27,7 +30,7 @@ export const FocusStats = React.memo(function FocusStats({
   const started = s.completed + s.abandoned;
 
   return (
-    <section className="grid grid-cols-2 gap-x-4 gap-y-7 border-y border-line py-6 sm:grid-cols-3 lg:grid-cols-6">
+    <section className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
       <Stat
         label="Today"
         value={formatDuration(s.todayMinutes)}

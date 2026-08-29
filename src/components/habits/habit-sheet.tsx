@@ -19,16 +19,16 @@ import { Field, MiniEmpty, Select, VisuallyHidden } from "@/components/ui/form";
 import { HabitIcon } from "./habit-icons";
 import { Heatmap, HeatmapLegend } from "./heatmap";
 import { DayControl, WeekDots } from "./day-control";
+import { Fold, useFold } from "./fold";
 import { useHabitLogging } from "./habit-logging";
 import {
   metaFor, normaliseOrder, SLOT_HINT, SLOT_ICON, SLOT_LABEL, SLOTS, stackedOnto,
   useHabitMeta, type HabitMetaMap, type Slot,
 } from "./habit-meta";
 import {
-  bestStreak, cadenceLabel, completionRate, countLabel, currentStreak,
-  DAY_STATE_LABEL, daysLoggedIn, earliestDay, streakRuns, targetLabel,
-  weakestWeekday, weekDays, weekQuota, weekdayStats, weeksBetween,
-  type Counts, type Skips,
+  cadenceLabel, completionRate, countLabel, currentStreak, DAY_STATE_LABEL,
+  daysLoggedIn, earliestDay, streakRuns, targetLabel, weakestWeekday, weekDays,
+  weekQuota, weekdayStats, weeksBetween, type Counts, type Skips,
 } from "./habit-utils";
 
 /** Older history arrives in pages — a two-year habit has 700 entries. */
@@ -79,6 +79,10 @@ function SheetBody({
   const { meta, metaOf, skipsOf, setMeta, setSkip } = useHabitMeta();
   const { setCount } = useHabitLogging();
 
+  const runsFold = useFold("humoyun.habits.sheet.runsOpen");
+  const weekdayFold = useFold("humoyun.habits.sheet.weekdaysOpen");
+  const placeFold = useFold("humoyun.habits.sheet.placementOpen");
+
   const today = todayISO();
   const row = metaOf(habit.id);
   const skips = skipsOf(habit.id);
@@ -98,7 +102,6 @@ function SheetBody({
   if (seed !== habit.name) { setSeed(habit.name); setName(habit.name); }
 
   const streak = currentStreak(habit, counts, skips, today, weekStart);
-  const best = Math.max(streak, bestStreak(habit, counts, skips, today, weekStart));
   const rate = completionRate(habit, counts, today, 30, skips);
   // Left to the React compiler: both walk the habit's whole history, and hand
   // memoisation over a Map and a Set is what it refuses to preserve.
@@ -107,6 +110,8 @@ function SheetBody({
   const weakest = weakestWeekday(weekdays);
   const days = weekDays(habit, counts, skips, today, today, weekStart);
   const quota = weekQuota(habit, counts, today, weekStart);
+  // The best run is the longest of the runs already walked above.
+  const best = runs.reduce((max, run) => Math.max(max, run.length), streak);
 
   const after = row.after ? habits.find((h) => h.id === row.after) ?? null : null;
   const children = stackedOnto(habits.filter((h) => !h.archived), meta, habit.id);
@@ -148,6 +153,11 @@ function SheetBody({
     normaliseOrder();
     toast({ title: `${habit.name} restored`, description: "Every log came back with it.", tone: "success" });
   }
+
+  const placement = [
+    after ? `After ${after.name}` : SLOT_LABEL[row.slot],
+    row.cue,
+  ].filter(Boolean).join(" · ");
 
   return (
     <div className="flex h-full flex-col">
@@ -193,7 +203,7 @@ function SheetBody({
         <IconButton label="Close habit" onClick={onClose}><X /></IconButton>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
+      <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6">
         {/* ---- identity ---- */}
         <div className={`tint-${habit.color}`}>
           <div className="flex items-start gap-3">
@@ -213,14 +223,14 @@ function SheetBody({
               className="text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-ink placeholder:text-ink-4"
             />
           </div>
-          <p className="mt-1 pl-11 text-[12.5px] text-ink-3">
-            {[targetLabel(habit), row.cue].filter(Boolean).join(" · ") || "No daily target set"}
+          <p className="mt-1 pl-11 text-[12.5px] text-ink-4">
+            {targetLabel(habit) ?? "No daily target set"}
           </p>
         </div>
 
         {habit.archived && (
-          <div className="rounded-lg border border-line bg-sunken px-3.5 py-3">
-            <p className="text-[12.5px] leading-relaxed text-ink-2">
+          <div className="rounded-lg bg-sunken px-3.5 py-3">
+            <p className="text-[12.5px] leading-relaxed text-ink-3">
               Archived{row.archivedAt ? ` on ${formatDate(row.archivedAt, { year: true })}` : ""}.
               {row.archivedReason ? ` “${row.archivedReason}”` : " No reason was written down."}
             </p>
@@ -234,7 +244,7 @@ function SheetBody({
         {/* ---- today ---- */}
         {!habit.archived && (
           <section className={`tint-${habit.color}`}>
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2.5 flex items-center gap-2">
               <SectionLabel>Today</SectionLabel>
               <span className="text-[11.5px] text-ink-4">{formatDate(today)}</span>
               <div className="flex-1" />
@@ -258,45 +268,46 @@ function SheetBody({
               />
               <div className="flex items-center gap-2">
                 <WeekDots habit={habit} days={days} weekStart={weekStart} size={8} />
-                <span className="text-[12px] text-ink-3 tnum">
-                  <span className="text-ink">{quota.done}</span> of {quota.target} this week
+                <span className="text-[12px] text-ink-4 tnum">
+                  <span className="text-ink-2">{quota.done}</span> of {quota.target} this week
                 </span>
               </div>
             </div>
           </section>
         )}
 
-        {/* ---- numbers ---- */}
-        <section className={cn(`tint-${habit.color}`, "surface grid grid-cols-2 sm:grid-cols-4")}>
+        {/* ---- numbers ---- spacing, not a card: the sheet is the surface. */}
+        <section className={cn(`tint-${habit.color}`, "grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4")}>
           <Stat label="Streak" value={streak} caption={streak === 1 ? "day" : "days"} tinted={streak > 0} />
-          <Stat label="Best" value={best} caption={best === 1 ? "day" : "days"} className="border-l border-line" />
-          <Stat
-            label="30 days"
-            value={rate.pct}
-            suffix="%"
-            caption={`${rate.done} of ${rate.expected}`}
-            className="border-t border-line sm:border-t-0 sm:border-l"
-          />
+          <Stat label="Best" value={best} caption={best === 1 ? "day" : "days"} />
+          <Stat label="30 days" value={rate.pct} suffix="%" caption={`${rate.done} of ${rate.expected}`} />
           <Stat
             label="Logged"
             value={counts.size}
             caption={`since ${formatDate(earliestDay(habit, counts), { weekday: false, year: true })}`}
-            className="border-t border-l border-line sm:border-t-0"
           />
         </section>
 
         <YearSection habit={habit} counts={counts} skips={skips} weekStart={weekStart} today={today} />
 
         {/* ---- streak history ---- */}
-        <section>
-          <SectionLabel className="mb-2">Streak history</SectionLabel>
+        <Fold
+          label="Streak history"
+          summary={
+            runs.length
+              ? `${runs.length} ${runs.length === 1 ? "run" : "runs"} · best ${best} ${best === 1 ? "day" : "days"}`
+              : "No run has started yet"
+          }
+          open={runsFold.open}
+          onToggle={runsFold.toggle}
+        >
           {runs.length === 0 ? (
-            <MiniEmpty>No run has started yet — one logged day begins the first.</MiniEmpty>
+            <MiniEmpty>One logged day begins the first.</MiniEmpty>
           ) : (
             <ol className={cn(`tint-${habit.color}`, "space-y-1.5")}>
               {runs.slice(0, 6).map((run) => (
                 <li key={`${run.start}-${run.end}`} className="flex items-center gap-2.5">
-                  <span className="w-[46px] shrink-0 text-right text-[13px] font-medium text-ink tnum">
+                  <span className="w-[46px] shrink-0 text-right text-[13px] font-medium text-ink-2 tnum">
                     {run.length}<span className="ml-0.5 text-[11px] text-ink-4">d</span>
                   </span>
                   <span aria-hidden className="h-1.5 min-w-[3px] flex-1 rounded-full bg-hover">
@@ -305,7 +316,7 @@ function SheetBody({
                       style={{ width: `${Math.max(4, (run.length / Math.max(1, best)) * 100)}%`, background: "var(--tint)" }}
                     />
                   </span>
-                  <span className="shrink-0 text-[11.5px] text-ink-3 tnum">
+                  <span className="shrink-0 text-[11.5px] text-ink-4 tnum">
                     {formatDate(run.start, { weekday: false })} – {formatDate(run.end, { weekday: false })}
                   </span>
                   {run.live && (
@@ -321,49 +332,54 @@ function SheetBody({
           {runs.length > 6 && (
             <p className="mt-1.5 text-[11.5px] text-ink-4 tnum">and {runs.length - 6} older runs</p>
           )}
-        </section>
+        </Fold>
 
         {/* ---- weekday breakdown ---- */}
-        <section>
-          <div className="mb-2 flex items-baseline gap-2">
-            <SectionLabel>By weekday</SectionLabel>
-            {weakest && (
-              <p className="text-[11.5px] text-ink-4">{dayNameOf(weakest.weekday, "long")} is where it slips</p>
-            )}
-          </div>
+        <Fold
+          label="By weekday"
+          summary={
+            weakest
+              ? `${dayNameOf(weakest.weekday, "long")} is where it slips`
+              : "Seven days compared"
+          }
+          open={weekdayFold.open}
+          onToggle={weekdayFold.toggle}
+        >
           <ul className={cn(`tint-${habit.color}`, "space-y-1")}>
-            {weekdays.map((stat) => (
-              <li key={stat.weekday} className="flex items-center gap-2.5">
-                <span className="w-8 shrink-0 text-[11.5px] text-ink-3">{dayNameOf(stat.weekday, "short")}</span>
-                <span aria-hidden className="h-2 flex-1 rounded-full bg-hover">
-                  <span
-                    className="block h-full rounded-full transition-[width] duration-500 ease-[var(--ease-out-apple)]"
-                    style={{
-                      width: `${stat.pct}%`,
-                      background: weakest && stat.weekday === weakest.weekday ? "var(--warn)" : "var(--tint)",
-                    }}
-                  />
-                </span>
-                <span className="w-[38px] shrink-0 text-right text-[11.5px] text-ink-2 tnum">
-                  {stat.scheduled ? `${stat.pct}%` : "—"}
-                </span>
-                <span className="w-[54px] shrink-0 text-right text-[11px] text-ink-4 tnum">
-                  {stat.done}/{stat.scheduled}
-                </span>
-              </li>
-            ))}
+            {weekdays.map((stat) => {
+              const weak = !!weakest && stat.weekday === weakest.weekday;
+              return (
+                <li key={stat.weekday} className="flex items-center gap-2.5">
+                  <span className={cn("w-8 shrink-0 text-[11.5px]", weak ? "font-medium text-ink-2" : "text-ink-4")}>
+                    {dayNameOf(stat.weekday, "short")}
+                  </span>
+                  <span aria-hidden className="h-2 flex-1 rounded-full bg-hover">
+                    <span
+                      className="block h-full rounded-full transition-[width] duration-500 ease-[var(--ease-out-apple)]"
+                      style={{ width: `${stat.pct}%`, background: "var(--tint)", opacity: weak ? 0.45 : 1 }}
+                    />
+                  </span>
+                  <span className="w-[38px] shrink-0 text-right text-[11.5px] text-ink-3 tnum">
+                    {stat.scheduled ? `${stat.pct}%` : "—"}
+                  </span>
+                  <span className="w-[54px] shrink-0 text-right text-[11px] text-ink-4 tnum">
+                    {stat.done}/{stat.scheduled}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
-        </section>
+        </Fold>
 
         {/* ---- stacking ---- */}
-        <section className="space-y-3">
+        <Fold
+          label="Where it sits in the day"
+          summary={placement}
+          open={placeFold.open}
+          onToggle={placeFold.toggle}
+          panelClassName="space-y-3"
+        >
           <div>
-            <div className="mb-2 flex items-baseline gap-2">
-              <SectionLabel>Where it sits in the day</SectionLabel>
-              {after && (
-                <span className="text-[11.5px] text-ink-4">set by {after.name}</span>
-              )}
-            </div>
             <div role="group" aria-label="Time of day" className="grid grid-cols-4 gap-1">
               {SLOTS.map((slot) => {
                 const Icon = SLOT_ICON[slot];
@@ -439,11 +455,11 @@ function SheetBody({
           </Field>
 
           {children.length > 0 && (
-            <p className="text-[11.5px] leading-relaxed text-ink-3">
+            <p className="text-[11.5px] leading-relaxed text-ink-4">
               Stacked onto this: {children.map((c) => c.name).join(", ")}.
             </p>
           )}
-        </section>
+        </Fold>
 
         <Timeline
           habit={habit}
@@ -470,30 +486,32 @@ function leadsTo(start: string, target: string, habits: Habit[], meta: HabitMeta
 }
 
 function Stat({
-  label, value, suffix, caption, tinted, className,
+  label, value, suffix, caption, tinted,
 }: {
   label: string;
   value: number;
   suffix?: string;
   caption: string;
   tinted?: boolean;
-  className?: string;
 }) {
   return (
-    <div className={cn("px-3.5 py-3", className)}>
-      <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-4">{label}</p>
+    <div className="min-w-0">
+      <p className="text-[11.5px] text-ink-3">{label}</p>
       <p className="mt-1 flex items-baseline gap-0.5">
         <span className={cn("display-serif text-[22px] leading-none tnum", tinted && "text-[var(--tint)]")}>
           {value}
         </span>
-        {suffix && <span className="text-[12px] text-ink-3">{suffix}</span>}
+        {suffix && <span className="text-[12px] text-ink-4">{suffix}</span>}
       </p>
       <p className="mt-1 truncate text-[11.5px] text-ink-4">{caption}</p>
     </div>
   );
 }
 
-/** The full-year grid with its own year navigation and totals. */
+/**
+ * The full year, folded. This is the one place the whole grid belongs — a row
+ * on the list page has no room for twelve months and its own year navigation.
+ */
 function YearSection({
   habit, counts, skips, weekStart, today,
 }: {
@@ -504,6 +522,7 @@ function YearSection({
   today: string;
 }) {
   const toggleHabit = useStore((s) => s.toggleHabit);
+  const { open, toggle } = useFold("humoyun.habits.sheet.yearOpen");
   const thisYear = yearOf(today);
   const firstYear = yearOf(earliestDay(habit, counts));
   const [year, setYear] = React.useState(thisYear);
@@ -523,21 +542,25 @@ function YearSection({
   }, [skips, year]);
 
   return (
-    <section>
+    <Fold
+      label="Year"
+      summary={`${year} · ${logged} logged · ${rate.pct}% of target`}
+      open={open}
+      onToggle={toggle}
+    >
       <div className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <SectionLabel>Year</SectionLabel>
         <div className="flex items-center gap-0.5">
           <IconButton label="Previous year" size="sm" disabled={year <= firstYear} onClick={() => setYear((y) => y - 1)}>
             <ChevronLeft />
           </IconButton>
-          <span className="min-w-[42px] text-center text-[12.5px] font-semibold text-ink tnum">{year}</span>
+          <span className="min-w-[42px] text-center text-[12.5px] font-medium text-ink-2 tnum">{year}</span>
           <IconButton label="Next year" size="sm" disabled={year >= thisYear} onClick={() => setYear((y) => y + 1)}>
             <ChevronRight />
           </IconButton>
         </div>
-        <p className="text-[11.5px] text-ink-3 tnum">
-          <span className="text-ink">{logged}</span> logged · <span className="text-ink">{rate.pct}%</span> of target
-          {rested > 0 && <> · <span className="text-ink">{rested}</span> rested</>}
+        <p className="text-[11.5px] text-ink-4 tnum">
+          <span className="text-ink-2">{logged}</span> logged · <span className="text-ink-2">{rate.pct}%</span> of target
+          {rested > 0 && <> · <span className="text-ink-2">{rested}</span> rested</>}
         </p>
       </div>
 
@@ -556,7 +579,7 @@ function YearSection({
         />
       </div>
       <HeatmapLegend habit={habit} className="mt-2" />
-    </section>
+    </Fold>
   );
 }
 
@@ -578,6 +601,9 @@ function Timeline({
   onSkipReason: (date: string, reason: string | null) => void;
 }) {
   const { setNote } = useHabitLogging();
+  // Open by default: "All notes and history" on the list page leads here, and
+  // it would be a dead end if it landed on a closed section.
+  const { open, toggle } = useFold("humoyun.habits.sheet.historyOpen", true);
   const [shown, setShown] = React.useState(PAGE);
   const [editing, setEditing] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState("");
@@ -604,14 +630,18 @@ function Timeline({
   }
 
   return (
-    <section>
-      <div className="mb-2 flex items-baseline gap-2">
-        <SectionLabel>History</SectionLabel>
-        <span className="text-[11px] text-ink-4 tnum">{entries.length}</span>
-      </div>
-
+    <Fold
+      label="History"
+      summary={
+        entries.length
+          ? `${entries.length} ${entries.length === 1 ? "day" : "days"} recorded`
+          : "Nothing recorded yet"
+      }
+      open={open}
+      onToggle={toggle}
+    >
       {entries.length === 0 ? (
-        <MiniEmpty>Nothing recorded yet. Log today above and it lands here with room for a note.</MiniEmpty>
+        <MiniEmpty>Log today above and it lands here with room for a note.</MiniEmpty>
       ) : (
         <>
           <VisuallyHidden>{`${entries.length} days recorded, newest first.`}</VisuallyHidden>
@@ -619,12 +649,12 @@ function Timeline({
             {visible.map((entry) => {
               const isSkip = !entry.log && entry.skipReason !== null;
               const text = entry.log?.note ?? entry.skipReason ?? "";
-              const open = editing === entry.date;
+              const isOpen = editing === entry.date;
 
               return (
                 <li key={entry.date} className="rounded-md px-2 py-1.5 transition-colors hover:bg-hover">
                   <div className="flex items-baseline gap-2">
-                    <span className="w-[86px] shrink-0 text-[12px] text-ink-2 tnum">
+                    <span className="w-[86px] shrink-0 text-[12px] text-ink-3 tnum">
                       {formatDate(entry.date, { year: yearOf(entry.date) !== yearOf(today) })}
                     </span>
                     <span className={cn("shrink-0 text-[11.5px]", isSkip ? "text-ink-4" : "text-[var(--tint-ink)]")}>
@@ -632,16 +662,16 @@ function Timeline({
                     </span>
                     <div className="flex-1" />
                     <button
-                      onClick={() => { setEditing(open ? null : entry.date); setDraft(text); }}
-                      aria-expanded={open}
+                      onClick={() => { setEditing(isOpen ? null : entry.date); setDraft(text); }}
+                      aria-expanded={isOpen}
                       className="shrink-0 text-[11.5px] text-ink-4 hover:text-accent cursor-pointer transition-colors"
                     >
                       {text ? "Edit note" : "Add note"}
                     </button>
                   </div>
 
-                  {open ? (
-                    <div className="mt-1.5 rounded-md border border-line bg-raised px-2.5 py-1.5">
+                  {isOpen ? (
+                    <div className="mt-1.5 rounded-md bg-sunken px-2.5 py-1.5">
                       <AutoTextarea
                         value={draft}
                         onChange={setDraft}
@@ -660,7 +690,7 @@ function Timeline({
                       </div>
                     </div>
                   ) : (
-                    text && <p className="mt-0.5 text-[12.5px] leading-snug text-ink-2">{text}</p>
+                    text && <p className="mt-0.5 text-[12.5px] leading-snug text-ink-3">{text}</p>
                   )}
                 </li>
               );
@@ -675,6 +705,6 @@ function Timeline({
           )}
         </>
       )}
-    </section>
+    </Fold>
   );
 }

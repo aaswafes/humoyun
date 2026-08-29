@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { formatDuration } from "@/lib/date";
 import { Button, IconButton, Input, SectionLabel } from "@/components/ui/primitives";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
-import { Field, Toggle } from "@/components/ui/form";
+import { Field } from "@/components/ui/form";
 import { PRESET_LIMITS, presetRhythm, type SessionPreset } from "./focus-prefs";
 import type { FocusEngine } from "./focus-engine";
 
@@ -144,7 +144,7 @@ export function FocusSettings({
 
   return (
     <>
-      <Modal open onClose={onClose} title="Focus settings" width={520}>
+      <Modal open onClose={onClose} title="Targets and presets" width={520}>
         <div className="max-h-[70vh] space-y-6 overflow-y-auto p-4">
           {/* ---- targets ---- */}
           <div>
@@ -255,30 +255,8 @@ export function FocusSettings({
             )}
           </div>
 
-          {/* ---- behaviour ---- */}
-          <div>
-            <SectionLabel className="mb-2.5">Behaviour</SectionLabel>
-            <div className="space-y-3.5">
-              <Toggle
-                label="Start breaks automatically"
-                description="The break clock begins the moment a block ends."
-                checked={prefs.autoStartBreaks}
-                onChange={(autoStartBreaks) => setPrefs({ autoStartBreaks })}
-              />
-              <Toggle
-                label="Start the next block automatically"
-                description="When a break runs out, focus picks up again by itself."
-                checked={prefs.autoStartFocus}
-                onChange={(autoStartFocus) => setPrefs({ autoStartFocus })}
-              />
-              <Toggle
-                label="Breathing ring in deep work"
-                description="A very slow ring to breathe with. Hidden when the system asks for reduced motion."
-                checked={prefs.ambient}
-                onChange={(ambient) => setPrefs({ ambient })}
-              />
-            </div>
-          </div>
+          {/* The three automation switches live in the gear popover this
+              modal is opened from, so they are not repeated here. */}
         </div>
 
         <div className="flex justify-end border-t border-line px-4 py-3">

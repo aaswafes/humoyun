@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Keyboard, ListChecks, Plus } from "lucide-react";
+import { CircleHelp, ListChecks, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, inboxTasks, overdueTasks } from "@/lib/store";
 import { todayISO } from "@/lib/date";
@@ -14,11 +14,12 @@ import { TriageProvider, useTriage, type TriageTab } from "@/components/inbox/tr
 import { useTriageActions } from "@/components/inbox/actions";
 import { useTriageKeys } from "@/components/inbox/triage-keys";
 import { TriageDnd } from "@/components/inbox/triage-dnd";
-import { DateRail, LegendList } from "@/components/inbox/date-rail";
-import { ViewsBar } from "@/components/inbox/views-bar";
+import { DateRail } from "@/components/inbox/date-rail";
+import { LegendList } from "@/components/inbox/legend";
+import { ControlRow } from "@/components/inbox/control-row";
 import { InboxView } from "@/components/inbox/inbox-view";
 import { UpcomingView } from "@/components/inbox/upcoming-view";
-import { AllView } from "@/components/inbox/all-view";
+import { AllView, filterTasks } from "@/components/inbox/all-view";
 import { DoneView } from "@/components/inbox/done-view";
 import { BulkBar } from "@/components/inbox/bulk-bar";
 
@@ -44,7 +45,7 @@ function TabLabel({
 function InboxSurface() {
   const tasks = useStore((s) => s.tasks);
   const {
-    tab, setTab, selecting, setSelecting, message, legendOpen, setLegendOpen,
+    tab, setTab, filters, selecting, setSelecting, message, legendOpen, setLegendOpen,
   } = useTriage();
   const actions = useTriageActions();
 
@@ -57,6 +58,13 @@ function InboxSurface() {
   const topLevel = React.useMemo(() => tasks.filter((t) => !t.parent_id), [tasks]);
   const doneCount = React.useMemo(() => topLevel.filter((t) => t.status === "done").length, [topLevel]);
 
+  // The All tab's count belongs in the header with every other tab's count, and
+  // it is the same pass the list runs — so it is computed the same way, once here.
+  const shown = React.useMemo(
+    () => (tab === "all" ? filterTasks(tasks, filters).length : 0),
+    [tab, tasks, filters],
+  );
+
   // One row deletes straight away with an undo in the toast; a whole selection
   // is worth a beat of friction first.
   const requestDelete = React.useCallback(
@@ -67,10 +75,10 @@ function InboxSurface() {
     [actions],
   );
 
-  // "/" works from any tab: switch to All, then focus the box the frame after
-  // it exists. Two frames, because the tab swap is a full re-render.
+  // "/" works from any tab. The two tabs that search already own the box; from
+  // anywhere else it lands on All, focused the frame after the box exists.
   const focusSearch = React.useCallback(() => {
-    if (tab === "all") { searchRef.current?.focus(); return; }
+    if (tab === "all" || tab === "done") { searchRef.current?.focus(); return; }
     setTab("all");
     requestAnimationFrame(() => requestAnimationFrame(() => searchRef.current?.focus()));
   }, [tab, setTab]);
@@ -80,8 +88,11 @@ function InboxSurface() {
   const subtitle =
     tab === "inbox" ? (inboxCount ? `${inboxCount} unscheduled` : "Nothing waiting")
     : tab === "upcoming" ? "Next 14 days"
-    : tab === "all" ? `${topLevel.length} ${topLevel.length === 1 ? "task" : "tasks"}`
-    : `${doneCount} completed`;
+    : tab === "all"
+      ? (shown === topLevel.length
+          ? `${topLevel.length} ${topLevel.length === 1 ? "task" : "tasks"}`
+          : `${shown} of ${topLevel.length}`)
+      : `${doneCount} completed`;
 
   const withRail = tab !== "done";
 
@@ -94,10 +105,11 @@ function InboxSurface() {
           <>
             <IconButton
               label="Keyboard shortcuts"
+              title="Keyboard shortcuts — press ?"
               active={legendOpen}
               onClick={() => setLegendOpen(!legendOpen)}
             >
-              <Keyboard />
+              <CircleHelp />
             </IconButton>
             <IconButton
               label={selecting ? "Leave select mode" : "Select tasks"}
@@ -130,21 +142,21 @@ function InboxSurface() {
       </PageHeader>
 
       <PageBody wide>
-        <div className="mx-auto w-full max-w-[1160px]">
+        <div className="mx-auto w-full max-w-[1120px]">
           <TriageDnd>
-            <ViewsBar />
+            <ControlRow searchRef={searchRef} />
 
-            <div className={cn("gap-6", withRail && "lg:grid lg:grid-cols-[minmax(0,1fr)_264px]")}>
+            <div className={cn(withRail && "lg:grid lg:grid-cols-[minmax(0,1fr)_256px] lg:gap-10")}>
               <div className="min-w-0">
                 {tab === "inbox" && <InboxView />}
                 {tab === "upcoming" && <UpcomingView onSeeAll={() => setTab("all")} />}
-                {tab === "all" && <AllView searchRef={searchRef} />}
+                {tab === "all" && <AllView />}
                 {tab === "done" && <DoneView onSeeUpcoming={() => setTab("upcoming")} />}
               </div>
 
               {withRail && (
-                <aside aria-label="Triage rail" className="mt-6 lg:mt-0">
-                  <div className="lg:sticky lg:top-3">
+                <aside aria-label="Triage rail" className="mt-10 lg:mt-0">
+                  <div className="lg:sticky lg:top-4">
                     <DateRail />
                   </div>
                 </aside>
@@ -163,9 +175,9 @@ function InboxSurface() {
         </VisuallyHidden>
       </div>
 
-      <Modal open={legendOpen} onClose={() => setLegendOpen(false)} title="Keyboard triage" width={560}>
-        <div className="max-h-[70vh] overflow-y-auto p-4">
-          <p className="mb-3 text-[12.5px] leading-relaxed text-ink-3">
+      <Modal open={legendOpen} onClose={() => setLegendOpen(false)} title="Keyboard triage" width={600}>
+        <div className="max-h-[70vh] overflow-y-auto p-5">
+          <p className="mb-5 text-[12.5px] leading-relaxed text-ink-3">
             Every key acts on the selection when there is one, and on the row under the cursor
             otherwise. Nothing here is destructive without an undo.
           </p>

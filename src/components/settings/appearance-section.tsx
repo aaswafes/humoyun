@@ -8,7 +8,7 @@ import { formatTime } from "@/lib/date";
 import { ACCENTS, TINTS, type Accent, type Tint } from "@/lib/types";
 import { Badge, Button, Checkbox, Progress, Segmented } from "@/components/ui/primitives";
 import { SwatchCheck } from "@/components/ui/form";
-import { Group, Pane, Row } from "./ui";
+import { FoldGroup, Group, Pane, Row } from "./ui";
 
 type Theme = "light" | "dark" | "system";
 
@@ -169,7 +169,7 @@ function AccentPreview() {
   const [done, setDone] = React.useState(false);
 
   return (
-    <div className="rounded-lg border border-line bg-raised p-3">
+    <div className="rounded-lg bg-sunken p-3">
       <div className="flex items-center gap-2.5 rounded-md bg-selected px-2 py-1.5">
         <Checkbox checked={done} onChange={setDone} label="Preview task" size="sm" />
         <span className={cn("min-w-0 flex-1 truncate text-[13px]", done ? "text-ink-4 line-through" : "text-ink")}>
@@ -278,9 +278,11 @@ export function AppearanceSection() {
         </Row>
       </Group>
 
-      <Group
+      <FoldGroup
         title="Entity colours"
-        description="Tasks, books, habits and tags carry one of these ten. They are tuned separately for light and dark, so a task keeps its identity when the theme flips."
+        storageKey="humoyun.settings.tintsOpen"
+        summary="Ten tints, named — the reference for tasks, books, habits and tags"
+        description="They are tuned separately for light and dark, so a task keeps its identity when the theme flips."
       >
         <Row label="The palette" hint="Not editable — this is the reference, so you can name a colour when you pick one." stacked>
           <div className="flex flex-wrap gap-1.5">
@@ -291,7 +293,7 @@ export function AppearanceSection() {
             ))}
           </div>
         </Row>
-      </Group>
+      </FoldGroup>
 
       <Group title="Time">
         <Row

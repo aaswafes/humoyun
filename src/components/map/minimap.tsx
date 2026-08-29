@@ -118,7 +118,10 @@ function MinimapImpl({
         );
       }}
       className={cn(
-        "block cursor-pointer overflow-hidden rounded-lg border border-line material shadow-[var(--shadow-md)]",
+        "block cursor-pointer overflow-hidden rounded-lg material shadow-[var(--shadow-md)]",
+        // ambient: present, but not competing with the board until you reach it
+        "transition-opacity duration-200 ease-[var(--ease-out-apple)]",
+        "opacity-60 hover:opacity-100 focus-visible:opacity-100",
         className,
       )}
     >

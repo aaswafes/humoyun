@@ -75,6 +75,17 @@ export interface TriageApi {
   replaceFilters: (next: Filters) => void;
   resetFilters: () => void;
 
+  /** The Inbox tab has one option of its own; it rides here so the single
+   *  control row can own every option on the surface. */
+  inboxSort: SortKey;
+  setInboxSort: (s: SortKey) => void;
+
+  /** One line of aggregate truth for the whole surface. The active view
+   *  publishes whatever the page header does not already say — and nothing it
+   *  does say twice. */
+  summary: string;
+  publishSummary: (text: string) => void;
+
   // ---- selection ----
   selecting: boolean;
   setSelecting: (on: boolean) => void;
@@ -123,6 +134,8 @@ const EMPTY: string[] = [];
 export function TriageProvider({ children }: { children: React.ReactNode }) {
   const [tab, setTabRaw] = React.useState<TriageTab>("inbox");
   const [filters, setFiltersRaw] = React.useState<Filters>(DEFAULT_FILTERS);
+  const [inboxSort, setInboxSort] = React.useState<SortKey>("manual");
+  const [summary, setSummaryRaw] = React.useState("");
   const [selecting, setSelectingRaw] = React.useState(false);
   const [selected, setSelectedSet] = React.useState<ReadonlySet<string>>(() => new Set<string>());
   const [rows, setRows] = React.useState<string[]>(EMPTY);
@@ -211,6 +224,10 @@ export function TriageProvider({ children }: { children: React.ReactNode }) {
     setFiltersRaw((prev) => ({ ...prev, ...changes }));
   }, []);
 
+  const publishSummary = React.useCallback((text: string) => {
+    setSummaryRaw((prev) => (prev === text ? prev : text));
+  }, []);
+
   const replaceFilters = React.useCallback((next: Filters) => setFiltersRaw(next), []);
   const resetFilters = React.useCallback(() => setFiltersRaw(DEFAULT_FILTERS), []);
 
@@ -232,6 +249,10 @@ export function TriageProvider({ children }: { children: React.ReactNode }) {
       patchFilters,
       replaceFilters,
       resetFilters,
+      inboxSort,
+      setInboxSort,
+      summary,
+      publishSummary,
       selecting,
       setSelecting,
       ids,
@@ -258,6 +279,7 @@ export function TriageProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       tab, setTab, filters, patchFilters, replaceFilters, resetFilters,
+      inboxSort, summary, publishSummary,
       selecting, setSelecting, ids, selected, toggle, setSelectedIds, clear,
       rows, publishRows, cursorId, setCursor, editingId,
       targetIds, message, announce, dragIds, legendOpen, dropBox, setOnRowDrop,
@@ -271,6 +293,12 @@ export function useTriage(): TriageApi {
   const value = React.useContext(TriageContext);
   if (!value) throw new Error("useTriage must be used inside <TriageProvider>");
   return value;
+}
+
+/** The active view names its own aggregate, in one place, once. */
+export function useRegisterSummary(text: string) {
+  const { publishSummary } = useTriage();
+  React.useEffect(() => { publishSummary(text); }, [text, publishSummary]);
 }
 
 /** Views call this every render with their flat visible order. */

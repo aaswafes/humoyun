@@ -11,7 +11,7 @@ import { buildLogIndex, habitScheduledOn, isHabitComplete } from "@/lib/habits";
 import { useNow } from "@/hooks/use-hotkeys";
 import { Badge, Button } from "@/components/ui/primitives";
 import { Select } from "@/components/ui/form";
-import { Callout, Group, Pane, Row, TimeField, ToggleRow } from "./ui";
+import { Callout, FoldGroup, Group, Pane, Row, TimeField, ToggleRow } from "./ui";
 import {
   DEFAULT_NOTIFICATION_PREFS,
   inQuietHours,
@@ -174,8 +174,8 @@ export function NotificationsSection() {
       {/* ---- permission ---- */}
       <div
         className={cn(
-          "mb-5 flex items-start gap-3.5 rounded-lg border p-4",
-          live ? "border-accent-line bg-accent-soft" : "border-line bg-sunken",
+          "mb-6 flex items-start gap-3.5 rounded-lg p-4",
+          live ? "bg-accent-soft" : "bg-sunken",
         )}
       >
         <div
@@ -375,8 +375,14 @@ export function NotificationsSection() {
                 />
               </Group>
 
-              <Group
+              <FoldGroup
                 title="Coming up today"
+                storageKey="humoyun.settings.upcomingOpen"
+                summary={
+                  upcoming.length
+                    ? `${upcoming.length} would fire before midnight`
+                    : "Nothing left to fire today"
+                }
                 description="Exactly what these settings would send between now and midnight."
               >
                 {upcoming.length ? (
@@ -400,7 +406,7 @@ export function NotificationsSection() {
                     hours, or there is nothing on the calendar with a time on it.
                   </Callout>
                 )}
-              </Group>
+              </FoldGroup>
             </>
           )}
         </>
@@ -433,9 +439,8 @@ export function NotificationsSection() {
       </div>
 
       <p className="mt-2 max-w-[62ch] text-[11.5px] leading-relaxed text-ink-4">
-        The reminder loop lives in the browser tab. Moving between pages keeps it running; reloading the
-        page stops it until you open this pane again. There is no background service and no push server,
-        which is also why none of this needs an account.
+        Moving between pages keeps the loop running; reloading the page stops it until you open this
+        pane again.
       </p>
     </Pane>
   );

@@ -69,10 +69,16 @@ export function FocusCard({ date, now }: { date: string; now: number }) {
         .join(", ") + "."
     : "No focus sessions logged today yet.";
 
+  const summary = minutes
+    ? `${formatDuration(minutes)} · ${today.length} session${today.length === 1 ? "" : "s"}`
+    : active ? "session running" : "nothing logged yet";
+
   return (
     <RailCard
       icon={Timer}
       title="Focus today"
+      foldKey="rail.focus"
+      summary={summary}
       href="/focus"
       hrefLabel="Open Focus"
       accessory={
@@ -95,8 +101,8 @@ export function FocusCard({ date, now }: { date: string; now: number }) {
       <div className="flex items-end gap-3 px-2 pb-2 pt-1.5">
         <span className="display-serif tnum select-none text-[32px] leading-[0.8] text-ink">{minutes}</span>
         <div className="pb-0.5">
-          <p className="text-[12.5px] leading-tight text-ink-2">minutes focused</p>
-          <p className="text-[11.5px] leading-tight text-ink-3 tnum">
+          <p className="text-[12.5px] leading-tight text-ink-3">minutes focused</p>
+          <p className="text-[11.5px] leading-tight text-ink-4 tnum">
             {today.length ? `${today.length} session${today.length === 1 ? "" : "s"}` : "no sessions yet"}
           </p>
         </div>
@@ -127,29 +133,33 @@ export function FocusCard({ date, now }: { date: string; now: number }) {
         <VisuallyHidden id={chartId}>{chartSummary}</VisuallyHidden>
       </div>
 
-      {active ? (
-        <Button variant="subtle" className="w-full" disabled>
-          Session in progress
-        </Button>
-      ) : (
-        <div className="flex gap-1.5">
-          <Button
-            variant="subtle"
-            className="flex-1"
-            onClick={() => startTimer({ mode: "pomodoro", targetMinutes: 25, label: "Focus" })}
-          >
-            <Play className="size-3" />
-            Start 25m
+      <div className="px-2 pt-0.5">
+        {active ? (
+          <Button variant="subtle" size="sm" className="w-full" disabled>
+            Session in progress
           </Button>
-          <Button
-            variant="subtle"
-            aria-label="Start a 50 minute session"
-            onClick={() => startTimer({ mode: "pomodoro", targetMinutes: 50, label: "Deep work" })}
-          >
-            50m
-          </Button>
-        </div>
-      )}
+        ) : (
+          <div className="flex gap-1.5">
+            <Button
+              variant="subtle"
+              size="sm"
+              className="flex-1"
+              onClick={() => startTimer({ mode: "pomodoro", targetMinutes: 25, label: "Focus" })}
+            >
+              <Play className="size-3" />
+              Start 25m
+            </Button>
+            <Button
+              variant="subtle"
+              size="sm"
+              aria-label="Start a 50 minute session"
+              onClick={() => startTimer({ mode: "pomodoro", targetMinutes: 50, label: "Deep work" })}
+            >
+              50m
+            </Button>
+          </div>
+        )}
+      </div>
     </RailCard>
   );
 }

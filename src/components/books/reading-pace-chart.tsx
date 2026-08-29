@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import { dayNumber, monthName } from "@/lib/date";
-import { SectionLabel, Segmented } from "@/components/ui/primitives";
+import { Segmented } from "@/components/ui/primitives";
 import { VisuallyHidden } from "@/components/ui/form";
 import { weeklyBuckets, type ReadDay } from "./pace";
 import { shortDate } from "./plan";
@@ -62,7 +62,7 @@ export function ReadingPaceChart({
   return (
     <section className={cn("min-w-0", className)}>
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <SectionLabel>Reading pace</SectionLabel>
+        <h3 className="text-[11.5px] text-ink-3">Reading pace</h3>
         <Segmented<Range>
           size="sm"
           value={range}
@@ -71,7 +71,7 @@ export function ReadingPaceChart({
         />
       </div>
 
-      <p className="mb-1.5 truncate text-[11.5px] text-ink-3 tnum" aria-live="polite">{caption}</p>
+      <p className="mb-1.5 truncate text-[11.5px] text-ink-4 tnum" aria-live="polite">{caption}</p>
 
       <VisuallyHidden id={summaryId}>
         {total > 0
@@ -151,7 +151,7 @@ export function ReadingPaceChart({
       </div>
 
       {total === 0 && (
-        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-3">
+        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-4">
           Tick off a reading block or log a session, and the pages you finished each week land here.
         </p>
       )}

@@ -22,9 +22,76 @@ import { parseTask } from "@/lib/parse";
 import { addDays, friendlyDate, todayISO } from "@/lib/date";
 import { PRIORITY_LABELS, type Task, type Tint } from "@/lib/types";
 import { TaskRow, TaskDatePicker, timeOfDayOf } from "./task-row";
-import { Button, EmptyState, IconButton, Progress, Badge } from "@/components/ui/primitives";
+import { Button, EmptyState, IconButton, Badge } from "@/components/ui/primitives";
 import { Popover, MenuItem, MenuLabel, MenuSeparator, TintPicker, useMounted } from "@/components/ui/overlays";
 import { useHotkeys } from "@/hooks/use-hotkeys";
+
+// =========================================================
+// Folds that remember
+// =========================================================
+/** 200ms, opacity only — safe to wrap around a drag surface. */
+export const FOLD_ANIM = { animation: "hm-fade-in 200ms var(--ease-out-apple) both" } as const;
+
+// Fold state is an external store, the way the settings tab already is: the
+// server snapshot is the default and the client snapshot is localStorage, so
+// hydration never disagrees and no effect has to write state on mount.
+const foldListeners = new Set<() => void>();
+const foldCache = new Map<string, boolean>();
+
+function subscribeFolds(fn: () => void) {
+  foldListeners.add(fn);
+  return () => { foldListeners.delete(fn); };
+}
+
+/** Only a value the user actually chose is cached — otherwise the caller's default wins. */
+function readFold(key: string, fallback: boolean): boolean {
+  const cached = foldCache.get(key);
+  if (cached !== undefined) return cached;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === "1" || raw === "0") {
+      const value = raw === "1";
+      foldCache.set(key, value);
+      return value;
+    }
+  } catch { /* private mode */ }
+  return fallback;
+}
+
+function writeFold(key: string, value: boolean) {
+  foldCache.set(key, value);
+  try { localStorage.setItem(key, value ? "1" : "0"); } catch { /* private mode */ }
+  foldListeners.forEach((fn) => fn());
+}
+
+/**
+ * Open/closed state for a disclosure, remembered per surface. Pass `null` as the
+ * key for a fold that should not be remembered.
+ */
+export function useDisclosure(key: string | null, defaultOpen: boolean) {
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen);
+
+  const stored = React.useSyncExternalStore(
+    subscribeFolds,
+    () => (key ? readFold(key, defaultOpen) : defaultOpen),
+    () => defaultOpen,
+  );
+
+  const open = key ? stored : localOpen;
+
+  const toggle = React.useCallback(() => {
+    if (key) writeFold(key, !readFold(key, defaultOpen));
+    else setLocalOpen((v) => !v);
+  }, [key, defaultOpen]);
+
+  /** for a shortcut that has to reveal what it targets before acting on it */
+  const openNow = React.useCallback(() => {
+    if (key) writeFold(key, true);
+    else setLocalOpen(true);
+  }, [key]);
+
+  return { open, toggle, openNow };
+}
 
 // =========================================================
 // Grouping and sorting
@@ -451,7 +518,7 @@ function GroupHeader({
     <div
       ref={setNodeRef}
       className={cn(
-        "mb-1 mt-3 flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 first:mt-0",
+        "mb-1.5 mt-6 flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-150 first:mt-0",
         isOver && "bg-accent-soft ring-1 ring-accent-line",
         group.tint && `tint-${group.tint}`,
       )}
@@ -468,15 +535,11 @@ function GroupHeader({
         <span className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
           {group.label}
         </span>
-        <span className="shrink-0 text-[11px] text-ink-4 tnum">{group.tasks.length}</span>
+        {/* One number per idea: the bar and the count said the same thing. */}
+        <span className="shrink-0 text-[11px] text-ink-4 tnum">
+          {done > 0 ? `${done}/${group.tasks.length}` : group.tasks.length}
+        </span>
       </button>
-      <Progress
-        value={done}
-        max={Math.max(1, group.tasks.length)}
-        height={3}
-        tint={group.tint ?? undefined}
-        className="w-14 shrink-0"
-      />
     </div>
   );
 }
@@ -741,6 +804,16 @@ export function TaskList({
 
   const showInsert = insertBetween ?? !!composer;
   const showControls = controls ?? tasks.length >= 4;
+  // One control above a list, not a row of them. Its label names the view that
+  // is on, so the popover never has to be opened just to find out.
+  const viewLabel =
+    groupBy !== "none"
+      ? GROUP_LABELS[groupBy]
+      : sortBy !== "manual"
+        ? SORT_LABELS[sortBy]
+        : hideDone
+          ? "Completed hidden"
+          : "View";
   // An enclosing surface may already own the drag context.
   const nestedInDnd = React.useContext(InsideDnd);
   const ownsDnd = dnd && !nestedInDnd;
@@ -1014,29 +1087,22 @@ export function TaskList({
   return (
     <div className={cn("group/list relative", className)}>
       {showControls && (
-        <div className="mb-1 flex items-center justify-end gap-1">
-          {selectable && (
-            <Button
-              size="xs"
-              variant="ghost"
-              className={cn("text-ink-3", selectionActive && "text-accent")}
-              onClick={() => (selectionActive ? clearSelection() : setSelected(new Set(flatOrder)))}
-            >
-              <MousePointerClick className="size-3" />
-              {selectionActive ? "Clear" : "Select all"}
-            </Button>
-          )}
+        <div className="mb-1.5 flex items-center justify-end">
           <Popover
             align="end"
-            className="w-[220px]"
+            className="w-[224px]"
             trigger={
-              <Button size="xs" variant="ghost" className={cn("text-ink-3", groupBy !== "none" && "text-accent")}>
+              <Button
+                size="xs"
+                variant="ghost"
+                className={cn(viewLabel === "View" ? "text-ink-4" : "text-ink-2")}
+              >
                 <ListFilter className="size-3" />
-                {groupBy === "none" ? "View" : GROUP_LABELS[groupBy]}
+                {viewLabel}
               </Button>
             }
           >
-            {() => (
+            {(close) => (
               <>
                 <MenuLabel>Group by</MenuLabel>
                 {(Object.keys(GROUP_LABELS) as TaskGroupBy[]).map((key) => (
@@ -1065,6 +1131,19 @@ export function TaskList({
                 <MenuItem icon={EyeOff} checked={hideDone} onClick={() => setHideDone((v) => !v)}>
                   Hide completed
                 </MenuItem>
+                {selectable && (
+                  <MenuItem
+                    icon={MousePointerClick}
+                    shortcut={selectionActive ? "Esc" : undefined}
+                    onClick={() => {
+                      if (selectionActive) clearSelection();
+                      else setSelected(new Set(flatOrder));
+                      close();
+                    }}
+                  >
+                    {selectionActive ? "Clear selection" : "Select all"}
+                  </MenuItem>
+                )}
               </>
             )}
           </Popover>
@@ -1100,9 +1179,15 @@ export function TaskList({
   );
 }
 
-/** Collapsible section wrapper used by Today, Inbox and Upcoming. */
+/**
+ * Collapsible section wrapper used by Today, Inbox and Upcoming.
+ *
+ * `summary` is the folded state's one-line value ("5h 20m planned · 1 unscheduled")
+ * and `persistKey` remembers whether the reader left it open. Both are optional,
+ * so every existing caller keeps behaving exactly as it did.
+ */
 export function TaskSection({
-  title, count, children, defaultOpen = true, accessory, tone,
+  title, count, children, defaultOpen = true, accessory, tone, summary, persistKey,
 }: {
   title: string;
   count?: number;
@@ -1110,15 +1195,21 @@ export function TaskSection({
   defaultOpen?: boolean;
   accessory?: React.ReactNode;
   tone?: "danger" | "default";
+  summary?: React.ReactNode;
+  persistKey?: string;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
+  const { open, toggle } = useDisclosure(
+    persistKey ? `humoyun.tasks.section.${persistKey}` : null,
+    defaultOpen,
+  );
+
   return (
-    <section className="mb-5">
-      <div className="mb-1 flex items-center gap-2">
+    <section className="mb-8">
+      <div className="mb-2 flex items-center gap-2">
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggle}
           aria-expanded={open}
-          className="group flex items-center gap-1 cursor-pointer"
+          className="group flex min-w-0 items-center gap-1.5 cursor-pointer py-0.5"
         >
           <ChevronRight
             className={cn(
@@ -1127,18 +1218,21 @@ export function TaskSection({
             )}
           />
           <h2 className={cn(
-            "text-[11px] font-semibold uppercase tracking-[0.06em]",
+            "shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em]",
             tone === "danger" ? "text-danger" : "text-ink-3",
           )}>
             {title}
           </h2>
           {count !== undefined && (
-            <span className="ml-0.5 text-[11px] text-ink-4 tnum">{count}</span>
+            <span className="shrink-0 text-[11px] text-ink-4 tnum">{count}</span>
+          )}
+          {!open && summary && (
+            <span className="truncate text-[11.5px] text-ink-4">{summary}</span>
           )}
         </button>
         <div className="ml-auto">{accessory}</div>
       </div>
-      {open && children}
+      {open && <div style={FOLD_ANIM}>{children}</div>}
     </section>
   );
 }

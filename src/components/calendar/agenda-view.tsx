@@ -88,7 +88,7 @@ function WeekHeader({ weekStartDate, byDate }: { weekStartDate: string; byDate: 
       className="sticky top-0 z-20 flex items-center gap-2.5 px-1 py-1 bg-canvas hairline-b"
       style={{ height: WEEK_H }}
     >
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 tnum">
+      <span className="text-[11.5px] font-medium text-ink-3 tnum">
         Week {summary.week}
       </span>
       <span className="text-[11.5px] text-ink-4 tnum">
@@ -116,10 +116,10 @@ function WeekHeader({ weekStartDate, byDate }: { weekStartDate: string; byDate: 
         ))}
       </div>
 
-      <span className="text-[11.5px] text-ink-3 tnum" aria-hidden>
+      {/* The days below each carry their own count; the week only adds up the
+          hours. The full roll-up is in the description. */}
+      <span className="text-[11.5px] text-ink-4 tnum" aria-hidden>
         {formatDuration(summary.minutes)}
-        <span className="mx-1 text-ink-4">·</span>
-        {summary.done}/{summary.total}
       </span>
       <VisuallyHidden>{description}</VisuallyHidden>
     </div>
@@ -142,6 +142,10 @@ function DayGroup({
   const isToday = date === today;
   const done = tasks.filter((t) => t.status === "done").length;
   const minutes = React.useMemo(() => dayMinutes(tasks), [tasks]);
+  // "Friday" and "5 Sep" are two ways of saying the same day; the second only
+  // earns its place when the first is a relative word, or the year differs.
+  const friendly = friendlyDate(date);
+  const showDate = friendly !== formatDate(date) || yearOf(date) !== yearOf(today);
 
   return (
     <section
@@ -166,11 +170,13 @@ function DayGroup({
           {dayNumber(date)}
         </span>
         <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-ink">
-          {friendlyDate(date)}
+          {friendly}
         </span>
-        <span className="text-[12px] text-ink-3 tnum">
-          {formatDate(date, { weekday: false, year: yearOf(date) !== yearOf(today) })}
-        </span>
+        {showDate && (
+          <span className="text-[12px] text-ink-3 tnum">
+            {formatDate(date, { weekday: false, year: yearOf(date) !== yearOf(today) })}
+          </span>
+        )}
         {minutes > 0 && (
           <span className="text-[11.5px] text-ink-4 tnum">{formatDuration(minutes)}</span>
         )}
@@ -270,7 +276,6 @@ export function AgendaView({ anchor, preview }: { anchor: string; preview: DropP
           <section>
             <header className="sticky top-0 z-20 flex items-baseline gap-2.5 px-1 py-2 bg-canvas hairline-b">
               <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-danger">Overdue</span>
-              <span className="text-[11.5px] text-ink-3 tnum">{overdue.length}</span>
               <div className="ml-auto">
                 <Button size="sm" onClick={pullOverdue}>
                   Move {overdue.length === 1 ? "it" : `all ${overdue.length}`} to today

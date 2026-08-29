@@ -23,7 +23,10 @@ export function Field({
   // A div, not a <label> — several of these wrap buttons that open popovers,
   // and an implicit label would fire the trigger twice. Controls that can take
   // an id get a proper <label for> instead; the rest carry their own aria-label.
-  const caption = "text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3";
+  // Sentence case, not the uppercase micro-label: these are form captions
+  // sitting five to a panel, and shouting five times is what made the sheet
+  // feel loud.
+  const caption = "text-[11.5px] font-medium text-ink-3";
   const generated = React.useId();
 
   // One element child can be given the id, so the caption becomes a real label
@@ -37,11 +40,11 @@ export function Field({
 
   return (
     <div className={cn("block", className)}>
-      <div className="mb-1.5 flex items-baseline gap-2">
+      <div className="mb-1 flex items-baseline gap-2">
         {controlId
           ? <label htmlFor={controlId} className={cn(caption, "cursor-pointer")}>{label}</label>
           : <span className={caption}>{label}</span>}
-        {hint && <span className="text-[11.5px] text-ink-4">{hint}</span>}
+        {hint && <span className="text-[11px] text-ink-4">{hint}</span>}
       </div>
       {control}
     </div>

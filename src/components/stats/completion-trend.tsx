@@ -45,7 +45,11 @@ export function CompletionTrend({
   }, [stats, average, ghost]);
 
   const summary = totals.done
-    ? `${totals.done} tasks completed — ${fmt(totals.perDay, 1)} a day on average, best day ${totals.best.done} on ` +
+    ? `${totals.done} tasks completed` +
+      (totals.planned
+        ? ` of ${totals.planned} planned, ${pctOf(totals.done, totals.planned)}% closed`
+        : "") +
+      ` — ${fmt(totals.perDay, 1)} a day on average, best day ${totals.best.done} on ` +
       `${formatDate(totals.best.date)}. The 7-day average now sits at ${fmt(totals.now, 1)} a day.` +
       (ghost
         ? ` The window before it closed ${totals.before}, so this one is ` +

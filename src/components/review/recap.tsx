@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDate, formatDuration } from "@/lib/date";
-import { Button, Progress } from "@/components/ui/primitives";
-import { Section } from "./section";
+import { Button } from "@/components/ui/primitives";
+import { Fold, Section } from "./section";
 import { Delta, Sparkline } from "./sparkline";
 import { habitTally, formatHours, metricsFor, pct, plural, type MetricSource, type Metrics } from "./metrics";
 import { plannedMinutes } from "./derive";
@@ -15,6 +15,9 @@ import { historySeries, measurementNote, SCOPE_NOUN, type Period } from "./perio
 /** How far back the sparkline looks. A year of years is expensive and dull. */
 const HISTORY: Record<Period["scope"], number> = { week: 8, month: 6, year: 4 };
 
+/** The four the review opens on. The rest are one click away, not gone. */
+const LEAD_COUNT = 4;
+
 interface StatDef {
   key: string;
   label: string;
@@ -22,8 +25,6 @@ interface StatDef {
   read: (m: Metrics) => number;
   format: (n: number) => string;
   detail: (m: Metrics) => string;
-  /** Optional denominator, drawn as a hairline meter under the number. */
-  ratio?: (m: Metrics) => { part: number; whole: number } | null;
 }
 
 const STATS: StatDef[] = [
@@ -33,7 +34,6 @@ const STATS: StatDef[] = [
     read: (m) => m.tasksDone,
     format: (n) => String(n),
     detail: (m) => (m.tasksPlanned ? `of ${m.tasksPlanned} planned · ${pct(m.tasksDone, m.tasksPlanned)}%` : "nothing was planned"),
-    ratio: (m) => (m.tasksPlanned ? { part: m.tasksDone, whole: m.tasksPlanned } : null),
   },
   {
     key: "focus",
@@ -51,7 +51,6 @@ const STATS: StatDef[] = [
     read: (m) => m.habitsHit,
     format: (n) => String(n),
     detail: (m) => (m.habitsDue ? `of ${m.habitsDue} due · ${pct(m.habitsHit, m.habitsDue)}%` : "no habits tracked"),
-    ratio: (m) => (m.habitsDue ? { part: m.habitsHit, whole: m.habitsDue } : null),
   },
   {
     key: "salah",
@@ -62,7 +61,6 @@ const STATS: StatDef[] = [
       m.salahJamaah
         ? `of ${m.salahDue} · ${m.salahJamaah} in jamaah`
         : `of ${m.salahDue} prayers · ${pct(m.salahDone, m.salahDue)}%`,
-    ratio: (m) => (m.salahDue ? { part: m.salahDone, whole: m.salahDue } : null),
   },
   {
     key: "pages",
@@ -78,7 +76,6 @@ const STATS: StatDef[] = [
     read: (m) => m.goalsAdvanced,
     format: (n) => String(n),
     detail: (m) => (m.goalsActive ? `of ${m.goalsActive} active` : "no active goals"),
-    ratio: (m) => (m.goalsActive ? { part: m.goalsAdvanced, whole: m.goalsActive } : null),
   },
 ];
 
@@ -110,6 +107,50 @@ export function useRecap(period: Period, weekStartDay: number) {
   }, [period, src, weekStartDay]);
 }
 
+// ---------------------------------------------------------
+// One number, its trend, and the sentence that puts it in context. The
+// ratio is stated in words rather than drawn as a meter as well — the same
+// fact twice is what made this page loud.
+// ---------------------------------------------------------
+function StatTile({
+  stat, current, previous, history, labels,
+}: {
+  stat: StatDef;
+  current: Metrics;
+  previous: Metrics;
+  history: Metrics[];
+  labels: string[];
+}) {
+  const value = stat.read(current);
+  const before = stat.read(previous);
+
+  return (
+    <div className="min-w-0">
+      <div className="text-[12px] text-ink-3">{stat.label}</div>
+      <div className="mt-1.5 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className={cn("display-serif text-[32px] leading-none tnum", value ? "text-ink" : "text-ink-4")}>
+              {stat.format(value)}
+            </span>
+            <Delta value={value - before} previous={before} format={stat.format} />
+          </div>
+          <p className="mt-1.5 truncate text-[12px] text-ink-4 tnum">{stat.detail(current)}</p>
+        </div>
+        <Sparkline
+          values={history.map(stat.read)}
+          labels={labels}
+          format={stat.format}
+          width={62}
+          className="mb-1"
+        />
+      </div>
+    </div>
+  );
+}
+
+const STAT_GRID = "grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4";
+
 export function Recap({
   period, weekStartDay, onGoToCurrent,
 }: {
@@ -124,52 +165,36 @@ export function Recap({
     return <BookedPreview period={period} src={src} weekStartDay={weekStartDay} onGoToCurrent={onGoToCurrent} />;
   }
 
+  const lead = STATS.slice(0, LEAD_COUNT);
+  const rest = STATS.slice(LEAD_COUNT);
+  const tile = (stat: StatDef) => (
+    <StatTile
+      key={stat.key}
+      stat={stat}
+      current={current}
+      previous={previous}
+      history={history}
+      labels={labels}
+    />
+  );
+
   return (
     <Section
       id="review-recap"
       label="Recap"
       note={measurementNote(period)}
-      action={<span className="text-[11px] text-ink-4">vs {labels[labels.length - 2] ?? "before"}</span>}
+      action={<span className="text-[11px] text-ink-4 tnum">vs {labels[labels.length - 2] ?? "before"}</span>}
     >
-      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-line sm:grid-cols-2 lg:grid-cols-3">
-        {STATS.map((stat) => {
-          const value = stat.read(current);
-          const before = stat.read(previous);
-          const ratio = stat.ratio?.(current) ?? null;
-          return (
-            <div key={stat.key} className="bg-canvas px-4 py-3.5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                {stat.label}
-              </div>
-              <div className="mt-2 flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className={cn("display-serif text-[32px] leading-none tnum", value ? "text-ink" : "text-ink-4")}>
-                      {stat.format(value)}
-                    </span>
-                    <Delta value={value - before} previous={before} format={stat.format} />
-                  </div>
-                  <p className="mt-1.5 truncate text-[12px] text-ink-3 tnum">{stat.detail(current)}</p>
-                </div>
-                <Sparkline
-                  values={history.map(stat.read)}
-                  labels={labels}
-                  format={stat.format}
-                  className="mb-1"
-                />
-              </div>
-              {ratio && (
-                <Progress
-                  value={ratio.part}
-                  max={ratio.whole}
-                  height={3}
-                  className="mt-2.5"
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <div className={STAT_GRID}>{lead.map(tile)}</div>
+
+      <Fold
+        tone="inline"
+        storageKey="recapMore"
+        label="More numbers"
+        summary={rest.map((s) => s.label.toLowerCase()).join(", ")}
+      >
+        <div className={STAT_GRID}>{rest.map(tile)}</div>
+      </Fold>
     </Section>
   );
 }
@@ -216,48 +241,37 @@ function BookedPreview({
         </Button>
       }
     >
-      <div className="surface p-4">
-        <div className="flex items-start gap-3">
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-            <CalendarClock className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[13.5px] text-ink">
-              {period.title} {period.relative.toLowerCase().startsWith("starts") ? period.relative.toLowerCase() : "has not started"}.
-              {" "}
-              {booked.tasks
-                ? `${booked.tasks} ${plural(booked.tasks, "task")} already booked.`
-                : "Nothing is booked yet."}
-            </p>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
-              A review measures what happened. Until then this is a plan, not a record —
-              write the reflection now only if you want to set the intention early.
-            </p>
+      <p className="max-w-[62ch] text-[13.5px] leading-relaxed text-ink-2">
+        {period.title} {period.relative.toLowerCase().startsWith("starts") ? period.relative.toLowerCase() : "has not started"}.
+        {" "}
+        {booked.tasks
+          ? `${booked.tasks} ${plural(booked.tasks, "task")} already booked.`
+          : "Nothing is booked yet."}
+        {" "}
+        A review measures what happened — until then this is a plan, not a record.
+      </p>
+
+      <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4">
+        {[
+          { label: "Booked", value: String(booked.tasks), sub: `${booked.timed} timed` },
+          { label: "Planned time", value: formatHours(booked.minutes), sub: "from durations" },
+          { label: "Habits due", value: String(booked.habitsDue), sub: `across ${period.days.length} days` },
+          { label: "Reading blocks", value: String(booked.reading), sub: booked.reading ? "scheduled" : "none yet" },
+        ].map((cell) => (
+          <div key={cell.label} className="min-w-0">
+            <div className="text-[12px] text-ink-3">{cell.label}</div>
+            <div className="display-serif mt-1 text-[22px] leading-none text-ink tnum">{cell.value}</div>
+            <p className="mt-1 truncate text-[11.5px] text-ink-4 tnum">{cell.sub}</p>
           </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-md bg-line sm:grid-cols-4">
-          {[
-            { label: "Booked", value: String(booked.tasks), sub: `${booked.timed} timed` },
-            { label: "Planned time", value: formatHours(booked.minutes), sub: "from durations" },
-            { label: "Habits due", value: String(booked.habitsDue), sub: `across ${period.days.length} days` },
-            { label: "Reading blocks", value: String(booked.reading), sub: booked.reading ? "scheduled" : "none yet" },
-          ].map((cell) => (
-            <div key={cell.label} className="bg-canvas px-3 py-2.5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{cell.label}</div>
-              <div className="display-serif mt-1 text-[22px] leading-none text-ink tnum">{cell.value}</div>
-              <p className="mt-1 truncate text-[11.5px] text-ink-4 tnum">{cell.sub}</p>
-            </div>
-          ))}
-        </div>
-
-        {booked.busiest && booked.busiest.n > 0 && (
-          <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-ink-3">
-            <Sparkles className="size-3.5 text-ink-4" />
-            Heaviest day so far: {formatDate(booked.busiest.date)} with {booked.busiest.n} {plural(booked.busiest.n, "task")}.
-          </p>
-        )}
+        ))}
       </div>
+
+      {booked.busiest && booked.busiest.n > 0 && (
+        <p className="mt-5 inline-flex items-center gap-1.5 text-[12px] text-ink-4">
+          <Sparkles className="size-3.5" />
+          Heaviest day so far: {formatDate(booked.busiest.date)} with {booked.busiest.n} {plural(booked.busiest.n, "task")}.
+        </p>
+      )}
     </Section>
   );
 }

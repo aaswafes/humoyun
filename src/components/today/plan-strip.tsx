@@ -17,6 +17,7 @@ import { PRAYER_LABELS, PRAYER_NAMES, type Task } from "@/lib/types";
 import { Button } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover } from "@/components/ui/overlays";
 import { VisuallyHidden } from "@/components/ui/form";
+import { Fold, useFold } from "./fold";
 import { TimeBudget } from "./time-budget";
 import {
   SLOT_MIN, blockLength, budgetFor, busyRanges, estimateOf, hourLabel,
@@ -173,6 +174,8 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
   const [showAll, setShowAll] = React.useState(false);
   const ribbonId = React.useId();
   const budgetId = React.useId();
+  // The planner is a tool you reach for, not a thing you read. It rests folded.
+  const { open, toggle } = useFold("planOpen", false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -356,17 +359,24 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
     `Prayer times: ${PRAYER_NAMES.map((n) => `${PRAYER_LABELS[n]} ${formatTime(times[n], hour12)}`).join(", ")}.`,
   ].join(" ");
 
+  // What the folded row has to say for itself: the whole day in one line.
+  const summary = [
+    budget.planned > 0 ? `${formatDuration(budget.planned)} planned` : "nothing estimated",
+    unscheduled.length ? `${unscheduled.length} unscheduled` : null,
+    budget.over > 0 ? `over by ${formatDuration(budget.over)}` : `${formatDuration(budget.left)} left`,
+  ].filter(Boolean).join(" · ");
+
   return (
-    <section className="surface mb-5 overflow-hidden">
-      <div className="flex h-9 items-center gap-2 px-3 hairline-b">
-        <CalendarRange className="size-3.5 shrink-0 text-ink-3" />
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Plan the day</h2>
-        <div className="ml-auto flex items-center gap-1.5">
-          {unscheduled.length > 0 && (
-            <span className="text-[11.5px] text-ink-3 tnum">{unscheduled.length} unscheduled</span>
-          )}
+    <Fold
+      icon={CalendarRange}
+      title="Plan the day"
+      summary={summary}
+      open={open}
+      onToggle={toggle}
+      accessory={
+        open ? (
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             onClick={autoFill}
             disabled={!unscheduled.length}
@@ -375,10 +385,10 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
             <Wand2 className="size-3" />
             Auto-fill
           </Button>
-        </div>
-      </div>
-
-      <div className="px-3 py-3">
+        ) : undefined
+      }
+    >
+      <div className="pb-1 pt-3">
         <TimeBudget budget={budget} hour12={hour12} id={budgetId} />
 
         <DndContext
@@ -541,6 +551,6 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
           </DragOverlay>
         </DndContext>
       </div>
-    </section>
+    </Fold>
   );
 }

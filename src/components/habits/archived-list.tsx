@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchiveRestore, Flame, PanelRight, Trash2 } from "lucide-react";
+import { ArchiveRestore, PanelRight, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDate, todayISO } from "@/lib/date";
@@ -55,16 +55,16 @@ export function ArchivedList({
             key={habit.id}
             className={cn(
               `tint-${habit.color}`,
-              "group/arch flex items-center gap-3 rounded-lg px-2 py-3 transition-colors duration-150 hover:bg-hover",
-              i > 0 && "border-t border-line",
+              "group/arch flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover",
+              i > 0 && "hairline-t",
             )}
           >
             <span
-              className="grid size-8 shrink-0 place-items-center rounded-md opacity-60"
+              className="grid size-7 shrink-0 place-items-center rounded-md opacity-60"
               style={{ background: "var(--tint-soft)" }}
               aria-hidden
             >
-              <HabitIcon name={habit.icon} className="size-4 text-[var(--tint)]" />
+              <HabitIcon name={habit.icon} className="size-[15px] text-[var(--tint)]" />
             </span>
 
             <div className="min-w-0 flex-1">
@@ -80,7 +80,7 @@ export function ArchivedList({
                 {last && <> · last on {formatDate(last, { weekday: false, year: true })}</>}
               </p>
               {meta.archivedReason && (
-                <p className="mt-1 max-w-[52ch] truncate text-[12px] italic text-ink-3">
+                <p className="mt-1 max-w-[52ch] truncate text-[12px] italic text-ink-4">
                   “{meta.archivedReason}”
                   {meta.archivedAt && (
                     <span className="not-italic text-ink-4"> — {formatDate(meta.archivedAt, { weekday: false, year: true })}</span>
@@ -88,13 +88,6 @@ export function ArchivedList({
                 </p>
               )}
             </div>
-
-            {best > 2 && (
-              <span className="hidden shrink-0 items-center gap-1 text-[11.5px] text-ink-4 tnum sm:flex">
-                <Flame className="size-3" aria-hidden />
-                {best}
-              </span>
-            )}
 
             <IconButton label={`Open ${habit.name}`} onClick={() => onOpenDetail(habit.id)}>
               <PanelRight />

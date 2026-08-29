@@ -1,33 +1,21 @@
 "use client";
 
 import * as React from "react";
-import {
-  BellDot, CalendarPlus, CircleCheck, Flag, Hourglass, Link2Off, PencilLine,
-  ShieldCheck, TrendingDown,
-} from "lucide-react";
+import { BellDot, CalendarPlus, CircleCheck, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { endOfWeek, formatDate, startOfWeek, todayISO } from "@/lib/date";
 import type { Goal } from "@/lib/types";
-import { Badge, Button, EmptyState, Input, Progress, SectionLabel } from "@/components/ui/primitives";
+import { Badge, Button, EmptyState, Input } from "@/components/ui/primitives";
 import { Popover } from "@/components/ui/overlays";
 import {
   ATTENTION_BLURB, ATTENTION_ORDER, ATTENTION_TITLE, attentionScore, fmtNum,
   formatGoalRange, goalAttention, HORIZON_LABEL, pct, periodRange,
   type AttentionFlag, type AttentionKind, type GoalIndex,
 } from "./goal-model";
-import { GoalDot } from "./goal-card";
+import { ATTENTION_ICON, AttentionLine, GoalDot } from "./goal-card";
+import { Fold, useFold } from "./goal-fold";
 import { useGoalMeta } from "./use-goal-actions";
-
-const KIND_ICON: Record<AttentionKind, React.ComponentType<{ className?: string }>> = {
-  overdue: Flag,
-  checkin: BellDot,
-  stalled: Hourglass,
-  behind: TrendingDown,
-  undated: CalendarPlus,
-  undefined: PencilLine,
-  unlinked: Link2Off,
-};
 
 /** Long lists get a lid — the point of this view is the top of it. */
 const ROW_CAP = 40;
@@ -41,8 +29,9 @@ interface Entry {
 
 /**
  * The weekly "what wants something from me" pass. One row per goal — a goal
- * with three problems is one conversation, not three — filtered by the kind of
- * problem, with the fix that actually resolves it sitting on the row.
+ * with three problems is one conversation, not three — with the fix that
+ * actually resolves it sitting on the row. Filtering is a tool you reach for,
+ * so it rests folded behind the filter it is currently applying.
  */
 export function GoalReview({
   goals, index, onOpen,
@@ -57,6 +46,7 @@ export function GoalReview({
   const today = todayISO();
   const [filter, setFilter] = React.useState<AttentionKind | "all">("all");
   const [expanded, setExpanded] = React.useState(false);
+  const filters = useFold("review.filters", false);
 
   const entries = React.useMemo<Entry[]>(() => {
     return goals
@@ -134,45 +124,54 @@ export function GoalReview({
     );
   }
 
+  const filterSummary = filter === "all"
+    ? `Everything · ${entries.length}`
+    : `${ATTENTION_TITLE[filter]} · ${counts.get(filter) ?? 0}`;
+
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="display-serif text-[32px] leading-none text-ink tnum">{entries.length}</span>
-        <span className="text-[13px] text-ink-2">
-          of {activeCount} active {activeCount === 1 ? "goal wants" : "goals want"} something from you
-        </span>
-        <span className="text-[12px] text-ink-4 tnum">
+    <div className="space-y-6">
+      <div>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="display-serif text-[32px] leading-none text-ink tnum">{entries.length}</span>
+          <span className="text-[13px] text-ink-2">
+            of {activeCount} active {activeCount === 1 ? "goal wants" : "goals want"} something from you
+          </span>
+        </div>
+        <p className="mt-1.5 text-[12px] text-ink-4 tnum">
           Week of {formatDate(startOfWeek(today, weekStart), { weekday: false })} –{" "}
-          {formatDate(endOfWeek(today, weekStart), { weekday: false })}
-        </span>
+          {formatDate(endOfWeek(today, weekStart), { weekday: false })} · worst first
+        </p>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        <FilterChip
-          active={filter === "all"}
-          label="Everything"
-          count={entries.length}
-          onClick={() => setFilter("all")}
-        />
-        {ATTENTION_ORDER.filter((kind) => counts.get(kind)).map((kind) => (
+      <Fold
+        id="goal-review-filters"
+        label="Filter"
+        summary={filterSummary}
+        open={filters.open}
+        onToggle={filters.toggle}
+      >
+        <div className="flex flex-wrap gap-1.5 pt-1">
           <FilterChip
-            key={kind}
-            active={filter === kind}
-            label={ATTENTION_TITLE[kind]}
-            count={counts.get(kind) as number}
-            icon={KIND_ICON[kind]}
-            onClick={() => setFilter(kind)}
+            active={filter === "all"}
+            label="Everything"
+            count={entries.length}
+            onClick={() => setFilter("all")}
           />
-        ))}
-      </div>
-
-      {filter !== "all" && (
-        <p className="mb-3 text-[12.5px] leading-relaxed text-ink-3">{ATTENTION_BLURB[filter]}</p>
-      )}
-
-      <SectionLabel className="mb-1">
-        {filter === "all" ? "Worst first" : ATTENTION_TITLE[filter]}
-      </SectionLabel>
+          {ATTENTION_ORDER.filter((kind) => counts.get(kind)).map((kind) => (
+            <FilterChip
+              key={kind}
+              active={filter === kind}
+              label={ATTENTION_TITLE[kind]}
+              count={counts.get(kind) as number}
+              icon={ATTENTION_ICON[kind]}
+              onClick={() => setFilter(kind)}
+            />
+          ))}
+        </div>
+        {filter !== "all" && (
+          <p className="mt-2 text-[12.5px] leading-relaxed text-ink-3">{ATTENTION_BLURB[filter]}</p>
+        )}
+      </Fold>
 
       <div className="-mx-2">
         {shown.map((entry) => {
@@ -180,7 +179,7 @@ export function GoalReview({
           return (
             <div
               key={entry.goal.id}
-              className="group/row relative flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors duration-150 hover:bg-hover"
+              className="group/row relative flex items-start gap-2.5 rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover"
             >
               <span className="mt-[3px]"><GoalDot goal={entry.goal} /></span>
 
@@ -195,35 +194,16 @@ export function GoalReview({
                   {entry.goal.title || "Untitled goal"}
                 </button>
 
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1">
                   <Badge tint={entry.goal.color}>{HORIZON_LABEL[entry.goal.horizon]}</Badge>
                   <span className="text-[11.5px] text-ink-3 tnum">{formatGoalRange(entry.goal)}</span>
-                  <div className="w-16">
-                    <Progress value={stats.overall * 100} tint={entry.goal.color} height={3} />
-                  </div>
                   <span className="text-[11.5px] text-ink-3 tnum">{pct(stats.overall)}</span>
                 </div>
 
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {entry.flags.map((flag) => {
-                    const Icon = KIND_ICON[flag.kind];
-                    return (
-                      <span
-                        key={flag.kind}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2 py-[2px] text-[11px]",
-                          flag.tone === "danger" && "border-danger text-danger",
-                          flag.tone === "warn" && "border-warn text-warn",
-                          flag.tone === "muted" && "border-line text-ink-3",
-                        )}
-                      >
-                        <Icon className="size-3" />
-                        <span className="font-medium">{flag.label}</span>
-                        <span className="text-ink-4 tnum">{flag.detail}</span>
-                      </span>
-                    );
-                  })}
-                </div>
+                {/* Outlined pills for every flag turned a list of goals into a
+                    warning panel. The words carry the state; the ink is grey
+                    unless something has genuinely failed. */}
+                <AttentionLine flags={entry.flags} className="mt-1.5" />
               </div>
 
               <div className="relative z-[1] flex shrink-0 items-center gap-1 pt-0.5">
@@ -260,7 +240,7 @@ export function GoalReview({
       </div>
 
       {matching.length > ROW_CAP && (
-        <div className="mt-2 flex justify-center">
+        <div className="flex justify-center">
           <Button size="sm" variant="ghost" onClick={() => setExpanded((v) => !v)}>
             {expanded ? "Show fewer" : `Show ${matching.length - ROW_CAP} more`}
           </Button>

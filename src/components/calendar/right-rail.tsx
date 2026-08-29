@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
 import {
-  BookOpen, CalendarPlus, Clock, Flag, Inbox, LayoutTemplate, Maximize2, PanelRightClose,
+  BookOpen, CalendarPlus, Clock, Flag, Inbox, LayoutTemplate, Maximize2,
+  PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -12,16 +13,23 @@ import {
 } from "@/lib/date";
 import { inboxTasks, useStore } from "@/lib/store";
 import type { Book, Task, Template } from "@/lib/types";
-import { Button, EmptyState, IconButton, Progress, Segmented } from "@/components/ui/primitives";
+import { Button, IconButton, Progress } from "@/components/ui/primitives";
 import { MiniEmpty } from "@/components/ui/form";
 import { openQuickAdd } from "@/components/shell/quick-add";
+import { Fold, useStickyFlag } from "./view-prefs";
 import { applyTemplateOnDay, moveTaskToDay, scheduleBookOnDay } from "./calendar-utils";
 
-type Tab = "books" | "templates" | "unscheduled";
+type Section = "books" | "templates" | "unscheduled";
 
 const STATUS_LABEL: Record<string, string> = {
   reading: "Reading",
   planned: "Planned",
+};
+
+const OPEN_KEY: Record<Section, string> = {
+  books: "humoyun.calendar.rail.books",
+  templates: "humoyun.calendar.rail.templates",
+  unscheduled: "humoyun.calendar.rail.unscheduled",
 };
 
 /**
@@ -84,8 +92,9 @@ function RailCard({
         {subtitle && <p className="truncate text-[11.5px] leading-snug text-ink-3">{subtitle}</p>}
         {meta}
         {footer}
-        {/* What the drop will do, before anything is dropped. */}
-        <p className="mt-1 truncate text-[11px] leading-snug text-accent tnum">{preview}</p>
+        {/* What the drop will do, before anything is dropped. It is a hint,
+            not the headline, so it sits in the quietest ink on the card. */}
+        <p className="mt-1 truncate text-[11px] leading-snug text-ink-4 tnum">{preview}</p>
       </div>
 
       <div className="absolute right-0.5 top-0.5 flex items-center gap-0.5">
@@ -130,7 +139,6 @@ function CoverBlock({ tint, children }: { tint: string; children: React.ReactNod
 // ---------------------------------------------------------
 function BookCard({ book, date }: { book: Book; date: string }) {
   const perDay = Math.max(1, book.pages_per_day ?? 30);
-  const pct = book.total_pages ? Math.round((book.current_page / book.total_pages) * 100) : 0;
   const remaining = Math.max(0, book.total_pages - book.current_page);
   const days = remaining ? Math.max(1, Math.ceil(remaining / perDay)) : 0;
 
@@ -150,17 +158,22 @@ function BookCard({ book, date }: { book: Book; date: string }) {
       title={book.title}
       subtitle={book.author}
       meta={
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <Progress value={book.current_page} max={Math.max(1, book.total_pages)} tint={book.color} height={3} className="flex-1" />
-          <span className="text-[10.5px] text-ink-4 tnum">{pct}%</span>
-        </div>
+        // The bar and the page count are the same number twice; the bar keeps
+        // the shape, the page count keeps the detail, the percentage goes.
+        <Progress
+          value={book.current_page}
+          max={Math.max(1, book.total_pages)}
+          tint={book.color}
+          height={3}
+          className="mt-1.5"
+        />
       }
       footer={
         <p className="mt-1 text-[11px] leading-snug text-ink-4 tnum">
           p.{book.current_page}/{book.total_pages}
-          <span className="mx-1 text-ink-4">·</span>
+          <span className="mx-1">·</span>
           {perDay}/day
-          <span className="mx-1 text-ink-4">·</span>
+          <span className="mx-1">·</span>
           {STATUS_LABEL[book.status] ?? book.status}
         </p>
       }
@@ -173,7 +186,7 @@ function BookCard({ book, date }: { book: Book; date: string }) {
   );
 }
 
-function BooksTab({ date }: { date: string }) {
+function BooksPane({ date }: { date: string }) {
   const books = useStore((s) => s.books);
   const router = useRouter();
 
@@ -185,18 +198,15 @@ function BooksTab({ date }: { date: string }) {
 
   if (!shelf.length) {
     return (
-      <EmptyState
-        icon={BookOpen}
-        title="The shelf is empty"
-        description="Books you are reading or planning live here. Drag one onto a day and Humoyun fills the following days with reading blocks."
-        action={<Button size="sm" onClick={() => router.push("/books")}>Add a book</Button>}
-        className="py-10"
-      />
+      <MiniEmpty action={<Button size="sm" onClick={() => router.push("/books")}>Add a book</Button>}>
+        Books you are reading or planning live here. Drag one onto a day and the
+        following days fill with reading blocks.
+      </MiniEmpty>
     );
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 pb-1">
       {shelf.map((book) => <BookCard key={book.id} book={book} date={date} />)}
     </div>
   );
@@ -241,18 +251,12 @@ function TemplateCard({ template, date }: { template: Template; date: string }) 
   );
 }
 
-function TemplatesTab({ date }: { date: string }) {
-  const templates = useStore((s) => s.templates);
+function useSaveDayAsTemplate(date: string) {
   const saveDayAsTemplate = useStore((s) => s.saveDayAsTemplate);
   const remove = useStore((s) => s.remove);
   const toast = useStore((s) => s.toast);
 
-  const sorted = React.useMemo(
-    () => uniqueById(templates).sort((a, b) => a.order_index - b.order_index || b.use_count - a.use_count),
-    [templates],
-  );
-
-  function saveToday() {
+  return React.useCallback(() => {
     const made = saveDayAsTemplate(date, `${dayName(date)} routine`);
     if (!made) {
       toast({
@@ -267,22 +271,29 @@ function TemplatesTab({ date }: { date: string }) {
       tone: "success",
       action: { label: "Undo", run: () => remove("templates", made.id) },
     });
-  }
+  }, [date, saveDayAsTemplate, remove, toast]);
+}
+
+function TemplatesPane({ date }: { date: string }) {
+  const templates = useStore((s) => s.templates);
+  const saveToday = useSaveDayAsTemplate(date);
+
+  const sorted = React.useMemo(
+    () => uniqueById(templates).sort((a, b) => a.order_index - b.order_index || b.use_count - a.use_count),
+    [templates],
+  );
 
   if (!sorted.length) {
     return (
-      <EmptyState
-        icon={LayoutTemplate}
-        title="No templates yet"
-        description="A template is a day you can re-apply — a study block, a travel day, a Friday routine. Build one from a day you already planned."
-        action={<Button size="sm" onClick={saveToday}>Save this day as a template</Button>}
-        className="py-10"
-      />
+      <MiniEmpty action={<Button size="sm" onClick={saveToday}>Save this day</Button>}>
+        A template is a day you can re-apply — a study block, a travel day, a
+        Friday routine.
+      </MiniEmpty>
     );
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 pb-1">
       {sorted.map((template) => <TemplateCard key={template.id} template={template} date={date} />)}
       <button
         type="button"
@@ -323,8 +334,9 @@ function UnscheduledCard({ task, date }: { task: Task; date: string }) {
         (task.priority > 0 || task.duration_min || task.tags.length > 0) ? (
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] leading-snug text-ink-4 tnum">
             {task.priority > 0 && (
-              <span className="inline-flex items-center gap-1 text-warn">
-                <Flag className="size-2.5" fill="currentColor" aria-hidden />
+              // A priority is a fact about the task, not an alarm on the shelf.
+              <span className="inline-flex items-center gap-1">
+                <Flag className="size-2.5" fill={task.priority === 3 ? "currentColor" : "none"} aria-hidden />
                 {["", "Low", "Medium", "High"][task.priority]}
               </span>
             )}
@@ -347,24 +359,20 @@ function UnscheduledCard({ task, date }: { task: Task; date: string }) {
   );
 }
 
-function UnscheduledTab({ date }: { date: string }) {
+function UnscheduledPane({ date }: { date: string }) {
   const tasks = useStore((s) => s.tasks);
   const inbox = React.useMemo(() => uniqueById(inboxTasks(tasks)), [tasks]);
 
   if (!inbox.length) {
     return (
-      <MiniEmpty
-        className="py-8"
-        action={<Button size="sm" onClick={openQuickAdd}>Capture something</Button>}
-      >
-        Nothing waiting. Anything captured without a date lands here, ready to be
-        dropped on a day.
+      <MiniEmpty action={<Button size="sm" onClick={openQuickAdd}>Capture something</Button>}>
+        Anything captured without a date lands here, ready to be dropped on a day.
       </MiniEmpty>
     );
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 pb-1">
       {inbox.map((task) => <UnscheduledCard key={task.id} task={task} date={date} />)}
     </div>
   );
@@ -372,55 +380,114 @@ function UnscheduledTab({ date }: { date: string }) {
 
 // ---------------------------------------------------------
 // Rail
+//
+// Collapsed it is a 44px edge that still says what is behind it; open it is an
+// accordion, so one shelf is on screen at a time instead of three tabs and a
+// scrolling list. Both states, and which pane is open, are remembered.
 // ---------------------------------------------------------
-export function RightRail({ date, onClose }: { date: string; onClose: () => void }) {
-  const [tab, setTab] = React.useState<Tab>("books");
+export function RightRail({
+  date, open, onOpenChange,
+}: {
+  date: string;
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+}) {
   const books = useStore((s) => s.books);
   const templates = useStore((s) => s.templates);
   const tasks = useStore((s) => s.tasks);
+
+  const [booksOpen, setBooksOpen] = useStickyFlag(OPEN_KEY.books, true);
+  const [templatesOpen, setTemplatesOpen] = useStickyFlag(OPEN_KEY.templates, false);
+  const [inboxOpen, setInboxOpen] = useStickyFlag(OPEN_KEY.unscheduled, false);
 
   const counts = React.useMemo(() => ({
     books: uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned")).length,
     templates: uniqueById(templates).length,
     unscheduled: inboxTasks(tasks).length,
   }), [books, templates, tasks]);
-  const tabCount = counts[tab];
+
+  const setSectionOpen: Record<Section, (next: boolean) => void> = {
+    books: setBooksOpen,
+    templates: setTemplatesOpen,
+    unscheduled: setInboxOpen,
+  };
+
+  const EDGE: { key: Section; icon: React.ComponentType<{ className?: string }>; noun: (n: number) => string }[] = [
+    { key: "books", icon: BookOpen, noun: (n) => `${n} ${n === 1 ? "book" : "books"} on the shelf` },
+    { key: "templates", icon: LayoutTemplate, noun: (n) => `${n} ${n === 1 ? "template" : "templates"} saved` },
+    { key: "unscheduled", icon: Inbox, noun: (n) => `${n} ${n === 1 ? "task" : "tasks"} without a date` },
+  ];
+
+  if (!open) {
+    return (
+      <aside
+        aria-label="Books, templates and unscheduled"
+        className="flex w-11 shrink-0 flex-col items-center gap-1 border-l border-line pl-1 pt-0.5"
+      >
+        <IconButton label="Show books and templates" size="md" onClick={() => onOpenChange(true)}>
+          <PanelRightOpen />
+        </IconButton>
+
+        <div className="mt-1 h-px w-5 bg-line" />
+
+        {EDGE.map(({ key, icon: Icon, noun }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => { onOpenChange(true); setSectionOpen[key](true); }}
+            aria-label={`Open the rail — ${noun(counts[key])}`}
+            title={noun(counts[key])}
+            className={cn(
+              "flex w-9 cursor-pointer flex-col items-center gap-0.5 rounded-md py-1.5",
+              "text-ink-4 transition-colors duration-150 hover:bg-hover hover:text-ink-2",
+            )}
+          >
+            <Icon className="size-4" />
+            <span className="text-[11px] font-medium text-ink-3 tnum">{counts[key]}</span>
+          </button>
+        ))}
+      </aside>
+    );
+  }
 
   return (
     <aside className="flex w-[292px] shrink-0 flex-col border-l border-line pl-4">
-      <div className="pb-2">
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          className="w-full [&>button]:flex-1"
-          options={[
-            { value: "books", label: "Books", title: `${counts.books} on the shelf` },
-            { value: "templates", label: "Templates", title: `${counts.templates} saved` },
-            { value: "unscheduled", label: "Unscheduled", title: `${counts.unscheduled} without a date` },
-          ]}
-        />
-      </div>
-
-      <div className="flex items-start gap-1 pb-3">
-        <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-ink-3">
-          Drag onto any day to schedule it. Buttons target{" "}
-          <span className="text-ink-2">{friendlyDate(date).toLowerCase()}</span>
-          {tabCount > 0 && (
-            <>
-              <span className="mx-1 text-ink-4">·</span>
-              <span className="tnum">{tabCount} here</span>
-            </>
-          )}
+      <div className="flex items-center gap-1 pb-1">
+        <p className="min-w-0 flex-1 truncate text-[11.5px] text-ink-4">
+          Drag onto any day · buttons use {friendlyDate(date).toLowerCase()}
         </p>
-        <IconButton label="Hide the rail" size="md" onClick={onClose}>
+        <IconButton label="Hide the rail" size="md" onClick={() => onOpenChange(false)}>
           <PanelRightClose />
         </IconButton>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        {tab === "books" && <BooksTab date={date} />}
-        {tab === "templates" && <TemplatesTab date={date} />}
-        {tab === "unscheduled" && <UnscheduledTab date={date} />}
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+        <Fold
+          label="Books"
+          summary={`${counts.books} on the shelf`}
+          open={booksOpen}
+          onOpenChange={setBooksOpen}
+        >
+          <BooksPane date={date} />
+        </Fold>
+
+        <Fold
+          label="Templates"
+          summary={`${counts.templates} saved`}
+          open={templatesOpen}
+          onOpenChange={setTemplatesOpen}
+        >
+          <TemplatesPane date={date} />
+        </Fold>
+
+        <Fold
+          label="Unscheduled"
+          summary={`${counts.unscheduled} without a date`}
+          open={inboxOpen}
+          onOpenChange={setInboxOpen}
+        >
+          <UnscheduledPane date={date} />
+        </Fold>
       </div>
     </aside>
   );

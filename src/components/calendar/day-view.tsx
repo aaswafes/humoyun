@@ -12,6 +12,7 @@ import { completionOn, focusMinutesOn, useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
 import { Button, Progress, SectionLabel } from "@/components/ui/primitives";
 import { TaskList } from "@/components/tasks/task-list";
+import { Fold, useStickyFlag } from "./view-prefs";
 import { TimeGrid } from "./time-grid";
 import { DAY_MIN, isTimed, spanOf, workHoursOf, type DropPreview } from "./calendar-utils";
 
@@ -64,6 +65,10 @@ export function DayView({
   const moveTask = useStore((s) => s.moveTask);
   const patch = useStore((s) => s.patch);
   const toast = useStore((s) => s.toast);
+
+  // The four load figures are what you check while planning, not what you came
+  // to the day for — so they rest folded behind the two that matter.
+  const [loadOpen, setLoadOpen] = useStickyFlag("humoyun.calendar.dayLoadOpen", false);
 
   const { setNodeRef, isOver } = useDroppable({
     id: `dayside:${date}`,
@@ -137,7 +142,7 @@ export function DayView({
         <div className="pt-1">
           <p
             className={cn(
-              "text-[11px] font-semibold uppercase tracking-[0.06em]",
+              "text-[12px] font-medium",
               isToday ? "text-accent" : "text-ink-3",
             )}
           >
@@ -153,21 +158,23 @@ export function DayView({
           </div>
         </div>
 
-        <div className="mt-4">
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <SectionLabel>Progress</SectionLabel>
-            <span className="text-[12px] text-ink-2 tnum">
-              {done}<span className="text-ink-4">/{total}</span>
-              {total > 0 && (
-                <span className="ml-1.5 text-ink-4">{Math.round((done / total) * 100)}%</span>
-              )}
-            </span>
-          </div>
-          <Progress value={done} max={Math.max(1, total)} height={4} />
+        {/* The bar and the count say it once between them — the label above
+            them said nothing the numbers did not. */}
+        <div className="mt-5 flex items-center gap-2">
+          <Progress value={done} max={Math.max(1, total)} height={4} className="flex-1" />
+          <span className="shrink-0 text-[12px] text-ink-3 tnum">
+            {done}<span className="text-ink-4">/{total}</span>
+          </span>
         </div>
 
-        <div className="mt-5">
-          <SectionLabel className="mb-1">Load</SectionLabel>
+        <Fold
+          className="mt-5"
+          label="Load"
+          summary={`${formatDuration(load.scheduled)} · ${formatDuration(load.free)} free`}
+          open={loadOpen}
+          onOpenChange={setLoadOpen}
+          panelClassName="pt-0.5"
+        >
           <Stat
             icon={Clock}
             label="Scheduled"
@@ -188,11 +195,13 @@ export function DayView({
             />
           )}
           {focusMin > 0 && <Stat icon={Timer} label="Focused" value={formatDuration(focusMin)} />}
-        </div>
+        </Fold>
 
         {carryOver.length > 0 && (
-          <div className="mt-4 rounded-lg border border-line bg-raised p-2">
-            <p className="text-[12px] leading-snug text-ink-2">
+          // Loose ends are information, not an alert: a line of quiet text and
+          // the one button that clears them, on spacing rather than a card.
+          <div className="mt-5">
+            <p className="text-[12px] leading-snug text-ink-3">
               {carryOver.length} unfinished {carryOver.length === 1 ? "task" : "tasks"} on{" "}
               {friendlyDate(addDays(date, -1)).toLowerCase()}.
             </p>
@@ -203,7 +212,7 @@ export function DayView({
           </div>
         )}
 
-        <div className="mt-6 min-h-0 flex-1">
+        <div className="mt-7 min-h-0 flex-1">
           <div className="mb-1.5 flex items-baseline justify-between">
             <SectionLabel>Unscheduled</SectionLabel>
             {untimed.length > 0 && (

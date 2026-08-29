@@ -19,6 +19,7 @@ import { MenuItem, Popover, useMounted } from "@/components/ui/overlays";
 import { MiniEmpty } from "@/components/ui/form";
 import { TaskList } from "@/components/tasks/task-list";
 import { PRAYER_STATE, StateMark } from "@/components/salah/prayer-state";
+import { Fold, useStickyFlag } from "./view-prefs";
 import { applyTemplateOnDay, isTimed, spanOf } from "./calendar-utils";
 
 const WIDTH = 344;
@@ -192,20 +193,32 @@ function SalahRow({ date, hour12 }: { date: string; hour12: boolean }) {
 // ---------------------------------------------------------
 // Habits due on this day
 // ---------------------------------------------------------
-function HabitsDue({ date }: { date: string }) {
+/** The habits this day expects, and the log index they are counted against. */
+function useHabitsDue(date: string) {
   const habits = useStore((s) => s.habits);
   const habitLogs = useStore((s) => s.habitLogs);
-  const toggleHabit = useStore((s) => s.toggleHabit);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
 
   const index = React.useMemo(() => buildLogIndex(habitLogs), [habitLogs]);
-
   const due = React.useMemo(
     () => habits
       .filter((h) => !h.archived && habitScheduledOn(h, date, index.get(h.id), weekStart))
       .sort((a, b) => a.order_index - b.order_index),
     [habits, date, index, weekStart],
   );
+
+  return { due, index, weekStart };
+}
+
+function HabitsDue({
+  date, due, index, weekStart,
+}: {
+  date: string;
+  due: ReturnType<typeof useHabitsDue>["due"];
+  index: ReturnType<typeof useHabitsDue>["index"];
+  weekStart: number;
+}) {
+  const toggleHabit = useStore((s) => s.toggleHabit);
 
   if (!due.length) return null;
 
@@ -348,7 +361,6 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
 
   const dayTasks = React.useMemo(() => tasksOn(tasks, date), [tasks, date]);
   const timed = React.useMemo(() => dayTasks.filter(isTimed), [dayTasks]);
-  const untimed = React.useMemo(() => dayTasks.filter((t) => !isTimed(t)), [dayTasks]);
   const { done, total } = React.useMemo(() => completionOn(tasks, date), [tasks, date]);
   const unfinished = React.useMemo(
     () => dayTasks.filter((t) => t.status !== "done" && t.status !== "dropped"),
@@ -359,6 +371,26 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
     [timed],
   );
   const isToday = date === todayISO();
+
+  // The peek used to repeat most of the Day view. What is left open is the
+  // day's list; the timeline, salah, habits and reading sit one line below it.
+  const [moreOpen, setMoreOpen] = useStickyFlag("humoyun.calendar.peekMoreOpen", false);
+  const { due: habitsDue, index: habitIndex, weekStart } = useHabitsDue(date);
+  const prayers = useStore((s) => s.prayers);
+  const prayedCount = React.useMemo(
+    () => prayers.filter((p) => p.date === date && p.status !== "none").length,
+    [prayers, date],
+  );
+  const readingCount = React.useMemo(
+    () => new Set(dayTasks.filter((t) => t.book_id).map((t) => t.book_id)).size,
+    [dayTasks],
+  );
+  const moreSummary = [
+    "Timeline",
+    `salah ${prayedCount}/5`,
+    habitsDue.length ? `${habitsDue.length} ${habitsDue.length === 1 ? "habit" : "habits"}` : null,
+    readingCount ? `${readingCount} reading` : null,
+  ].filter(Boolean).join(" · ");
 
   // ---- placement ----
   const place = React.useCallback(() => {
@@ -490,7 +522,7 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
           <div className="min-w-0 flex-1">
             <p
               className={cn(
-                "text-[11px] font-semibold uppercase tracking-[0.06em]",
+                "text-[11.5px] font-medium",
                 isToday ? "text-accent" : "text-ink-3",
               )}
             >
@@ -526,45 +558,17 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
             )}
           </div>
 
-          <MiniTimeline date={date} tasks={timed} hour12={hour12} />
-
-          <section className="mt-4">
-            <SectionLabel>Salah</SectionLabel>
-            <SalahRow date={date} hour12={hour12} />
-          </section>
-
-          {timed.length > 0 && (
-            <section className="mt-4">
-              <div className="mb-1 flex items-baseline justify-between">
-                <SectionLabel>Scheduled</SectionLabel>
-                <span className="text-[11px] text-ink-4 tnum">{timed.length}</span>
-              </div>
-              <div className="pl-1">
-                <TaskList tasks={timed} sortable={false} />
-              </div>
-            </section>
-          )}
-
-          <section className="mt-4">
-            <div className="mb-1 flex items-baseline justify-between">
-              <SectionLabel>Anytime</SectionLabel>
-              {untimed.length > 0 && (
-                <span className="text-[11px] text-ink-4 tnum">{untimed.length}</span>
-              )}
-            </div>
-            <div className="pl-1">
-              <TaskList
-                tasks={untimed}
-                sortable={false}
-                composer
-                composerDate={date}
-                emptyDescription={timed.length ? "Everything here has a time." : "Nothing on this day yet."}
-              />
-            </div>
-          </section>
-
-          <HabitsDue date={date} />
-          <ReadingBlocks tasks={dayTasks} />
+          {/* Timed and untimed used to be two labelled lists; they are one
+              list that already prints the times, so the labels went. */}
+          <div className="mt-2.5">
+            <TaskList
+              tasks={dayTasks}
+              sortable={false}
+              composer
+              composerDate={date}
+              emptyDescription="Nothing on this day yet."
+            />
+          </div>
 
           {!dayTasks.length && (
             <MiniEmpty className="mt-1">
@@ -572,11 +576,24 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
             </MiniEmpty>
           )}
 
-          {dayTasks.length > 0 && (
-            <p className="mt-3 px-1 text-[11px] leading-snug text-ink-4">
-              Double-click a task name to rename it in place.
-            </p>
-          )}
+          <Fold
+            className="mt-3 border-t border-line pt-1"
+            dense
+            label="More"
+            summary={moreSummary}
+            open={moreOpen}
+            onOpenChange={setMoreOpen}
+          >
+            <MiniTimeline date={date} tasks={timed} hour12={hour12} />
+
+            <section className="mt-4">
+              <SectionLabel>Salah</SectionLabel>
+              <SalahRow date={date} hour12={hour12} />
+            </section>
+
+            <HabitsDue date={date} due={habitsDue} index={habitIndex} weekStart={weekStart} />
+            <ReadingBlocks tasks={dayTasks} />
+          </Fold>
         </div>
 
         {/* ---- quick actions ---- */}
@@ -642,7 +659,7 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
               "text-accent transition-colors duration-150 hover:bg-accent-soft active:scale-[0.975]",
             )}
           >
-            Day view
+            Open full day
             <ArrowUpRight className="size-3.5" aria-hidden />
           </button>
         </footer>

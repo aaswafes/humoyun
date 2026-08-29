@@ -13,7 +13,9 @@ import {
 import { useNow } from "@/hooks/use-hotkeys";
 import { parseTask } from "@/lib/parse";
 import { useStore } from "@/lib/store";
-import { PRAYER_LABELS, type PrayerName, type PrayerStatus, type Task } from "@/lib/types";
+import {
+  PRAYER_LABELS, PRIORITY_LABELS, type PrayerName, type PrayerStatus, type Task,
+} from "@/lib/types";
 import { prayerTimesFor } from "@/lib/prayer";
 import { IconButton } from "@/components/ui/primitives";
 import { ConfirmDialog } from "@/components/ui/overlays";
@@ -169,8 +171,12 @@ function EventBlock({
   const gripH = height >= 40 ? 7 : height >= 26 ? 5 : 0;
   const duration = end - start;
   const range = formatRange(start, end, hour12);
+  // Medium and high earn the glyph, the same rule the chips follow; the label
+  // keeps every level, so quietening the mark costs a reader nothing.
+  const flagged = task.priority >= 2 && !done;
   const label =
     `${task.title || "Untitled"} — ${range}, ${formatDuration(duration)}` +
+    (task.priority > 0 ? `, ${PRIORITY_LABELS[task.priority]} priority` : "") +
     (selected ? ". Selected" : "");
 
   return (
@@ -210,8 +216,12 @@ function EventBlock({
         >
           {task.title || "Untitled"}
         </p>
-        {height >= 30 && task.priority > 0 && !done && (
-          <Flag className="mt-[2px] size-2.5 shrink-0 text-danger" fill="currentColor" aria-hidden />
+        {height >= 30 && flagged && (
+          <Flag
+            className="mt-[2px] size-2.5 shrink-0 text-ink-3"
+            fill={task.priority === 3 ? "currentColor" : "none"}
+            aria-hidden
+          />
         )}
         {height >= 30 && task.recurrence && (
           <Repeat className="mt-[2px] size-2.5 shrink-0 text-ink-4" aria-hidden />
@@ -379,6 +389,13 @@ export function TimeGrid({
   // ---- the vertical scale ----
   const work = React.useMemo(() => workHoursOf(profile), [profile]);
 
+  /**
+   * Only what the user put on the grid widens it. Salah runs from before dawn
+   * to late evening, so counting prayer times as marks opened a sixteen-hour
+   * column every single day — mostly empty grid, greeting someone whose work
+   * fits between nine and six. The collapsed strips name what they are holding
+   * and open in one click, so nothing is lost by leaving them shut.
+   */
   const openWin = React.useMemo(() => {
     const marks: number[] = [];
     for (const list of timedByDate.values()) {
@@ -388,9 +405,8 @@ export function TimeGrid({
       }
     }
     if (todayIdx >= 0) marks.push(nowMin);
-    for (const w of prayerWindows) marks.push(w.start);
     return openWindowFor(work, marks);
-  }, [timedByDate, todayIdx, nowMin, prayerWindows, work]);
+  }, [timedByDate, todayIdx, nowMin, work]);
 
   const scale = React.useMemo(
     () => (expanded ? makeScale(0, DAY_MIN) : makeScale(openWin.from, openWin.to)),
@@ -860,6 +876,25 @@ export function TimeGrid({
   const hasAllDay = dates.some((d) => (allDayByDate.get(d) ?? []).length > 0);
   const hiddenBands = scale.bands.filter((b) => b.collapsed);
 
+  // A marker inside a 30px strip is unreadable and unreachable, so the strip
+  // counts it instead and hands it back the moment the strip is opened.
+  const openWindows = React.useMemo(
+    () => prayerWindows.filter((w) => w.start >= scale.from && w.start <= scale.to),
+    [prayerWindows, scale],
+  );
+
+  const hiddenIn = React.useCallback((from: number, to: number) => {
+    let n = 0;
+    for (const w of prayerWindows) if (w.start >= from && w.start < to) n++;
+    for (const list of timedByDate.values()) {
+      for (const t of list) {
+        const { start } = spanOf(t);
+        if (start >= from && start < to) n++;
+      }
+    }
+    return n;
+  }, [prayerWindows, timedByDate]);
+
   // One control, placed in whichever gutter cell already sits above the grid —
   // floating it over the hour column would cover the labels it lives next to.
   const scaleToggle = (
@@ -896,7 +931,7 @@ export function TimeGrid({
               >
                 <span
                   className={cn(
-                    "text-[11px] font-semibold uppercase tracking-[0.06em]",
+                    "text-[11px] font-medium",
                     isToday ? "text-accent" : "text-ink-3",
                   )}
                 >
@@ -923,7 +958,7 @@ export function TimeGrid({
         <div className={cn("flex shrink-0 border-t border-line", !hasAllDay && "h-[30px]")}>
           <div
             style={{ width: GUTTER }}
-            className="shrink-0 pr-2 pt-1.5 text-right text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-4"
+            className="shrink-0 pr-2 pt-1.5 text-right text-[10.5px] font-medium text-ink-4"
           >
             All-day
           </div>
@@ -939,10 +974,12 @@ export function TimeGrid({
           <div style={{ width: GUTTER }} className="flex shrink-0 items-center justify-center py-0.5">
             {scaleToggle}
           </div>
+          {/* The open window is the working day unless something pushed it
+              wider, so printing both was the same sentence twice. */}
           <p className="pl-2 text-[11px] text-ink-4 tnum">
-            {expanded ? "Whole day" : `${formatTime(scale.from, hour12)} – ${formatTime(scale.to === DAY_MIN ? 0 : scale.to, hour12)}`}
-            <span className="mx-1.5">·</span>
-            work {formatTime(work.start, hour12)} – {formatTime(work.end, hour12)}
+            {expanded
+              ? "Whole day"
+              : `${formatTime(scale.from, hour12)} – ${formatTime(scale.to === DAY_MIN ? 0 : scale.to, hour12)}`}
           </p>
         </div>
       )}
@@ -973,8 +1010,8 @@ export function TimeGrid({
             onPointerCancel={onGridPointerCancel}
             className="relative flex flex-1"
           >
-            {prayerWindows.length > 0 && (
-              <SalahBands date={dates[0]} hour12={hour12} windows={prayerWindows} scale={scale} />
+            {openWindows.length > 0 && (
+              <SalahBands date={dates[0]} hour12={hour12} windows={openWindows} scale={scale} />
             )}
 
             {/* Working hours read as the lit part of the day. */}
@@ -1033,27 +1070,36 @@ export function TimeGrid({
             )}
 
             {/* The collapsed strips are their own expander — no hidden gesture. */}
-            {hiddenBands.map((band) => (
-              <button
-                key={`${band.from}-${band.to}`}
-                type="button"
-                data-no-create
-                onClick={() => setScaleExpanded(true)}
-                style={{ top: band.top, height: band.height }}
-                className={cn(
-                  "absolute inset-x-0 z-30 flex cursor-pointer items-center justify-center gap-1.5",
-                  "bg-sunken text-[11px] font-medium text-ink-3 transition-colors duration-150",
-                  "hover:text-accent [&:hover_svg]:text-accent",
-                  band.from === 0 ? "hairline-b" : "hairline-t",
-                )}
-              >
-                <ChevronsUpDown className="size-3" aria-hidden />
-                {formatTime(band.from, hour12)} – {formatTime(band.to === DAY_MIN ? 0 : band.to, hour12)}
-                <span className="text-ink-4">
-                  · {formatDuration(band.to - band.from)} hidden
-                </span>
-              </button>
-            ))}
+            {hiddenBands.map((band) => {
+              const hidden = hiddenIn(band.from, band.to);
+              const range = `${formatTime(band.from, hour12)} – ${formatTime(band.to === DAY_MIN ? 0 : band.to, hour12)}`;
+              return (
+                <button
+                  key={`${band.from}-${band.to}`}
+                  type="button"
+                  data-no-create
+                  onClick={() => setScaleExpanded(true)}
+                  aria-label={
+                    hidden
+                      ? `Open ${range} — ${hidden} ${hidden === 1 ? "item" : "items"} hidden there`
+                      : `Open ${range}`
+                  }
+                  style={{ top: band.top, height: band.height }}
+                  className={cn(
+                    "absolute inset-x-0 z-30 flex cursor-pointer items-center justify-center gap-1.5",
+                    "bg-sunken text-[11px] text-ink-4 transition-colors duration-150",
+                    "hover:text-accent [&:hover_svg]:text-accent",
+                    band.from === 0 ? "hairline-b" : "hairline-t",
+                  )}
+                >
+                  <ChevronsUpDown className="size-3" aria-hidden />
+                  <span className="tnum">{range}</span>
+                  {hidden > 0 && (
+                    <span className="text-ink-3 tnum">· {hidden} hidden</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

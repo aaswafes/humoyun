@@ -17,7 +17,7 @@ import {
   type SunnahDef,
 } from "./day-data";
 import {
-  duhaWindow, nextPrayer, openWindow, prayerWindows, tahajjudRowMinute, type TimesTriple,
+  duhaWindow, nextPrayer, openWindow, tahajjudRowMinute, type TimesTriple,
 } from "./windows";
 
 type Row =
@@ -38,6 +38,11 @@ type Row =
       icon: React.ComponentType<{ className?: string }>;
     };
 
+/**
+ * The one thing the page is for: the five prayers, and how much of the open
+ * window is left. It is the only bordered card on the surface and the only
+ * place a 44px numeral appears — everything else steps down or folds away.
+ */
 export function TodayCard({
   date, t, nowMin, showSunnah, onToggleSunnah, hijriOffset,
 }: {
@@ -67,7 +72,6 @@ export function TodayCard({
   const data = React.useMemo(() => salahDataOf(log), [log]);
   const rawatib = React.useMemo(() => rawatibFor(madhab), [madhab]);
 
-  const windows = prayerWindows(t);
   const open = openWindow(t, nowMin);
   const next = nextPrayer(t, nowMin);
   const urgent = useWindowUrgent(open?.window.end ?? Number.POSITIVE_INFINITY, 20);
@@ -106,63 +110,49 @@ export function TodayCard({
     <section className="surface p-5">
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-            Today · {dayName(date)}
+          <p className="text-[13.5px] font-medium text-ink">
+            Today{" "}
+            <span className="font-normal text-ink-3">
+              · {dayName(date)} <span className="tnum">{dayNumber(date)}</span> {monthName(date)}
+            </span>
           </p>
-          <p className="display-serif mt-1.5 text-[32px] leading-none text-ink">
-            <span className="tnum">{dayNumber(date)}</span> {monthName(date)}
-          </p>
-          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-3">
+          <p className="mt-1 text-[12px] text-ink-3">
             <span className="tnum">{formatHijri(hijri)}</span>
-            {note && (
-              <span className="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium leading-[17px] text-accent">
-                {note}
-              </span>
-            )}
+            {note && <span className="text-ink-2"> · {note}</span>}
           </p>
         </div>
 
+        {/* The one hero on the surface: how much of the open window is left. */}
         <div className="shrink-0 text-right">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-            {open ? `${PRAYER_LABELS[open.name]} window` : `${PRAYER_LABELS[next.name]} in`}
+          <p className="text-[11.5px] text-ink-3">
+            {open ? `Left in ${PRAYER_LABELS[open.name]}` : `${PRAYER_LABELS[next.name]} in`}
           </p>
-          <p className={cn("display-serif mt-1.5 text-[32px] leading-none", urgent ? "text-warn" : "text-ink")}>
+          <p className="display-serif mt-1 text-[44px] leading-none text-ink">
             {open ? <WindowCountdown end={open.window.end} /> : <Countdown at={next.at % 1440} />}
           </p>
-          <p className="mt-2 text-[11.5px] text-ink-3">
-            {open ? (
-              <>
-                left{open.dayOffset === -1 ? " of last night's Isha" : ""} · closes{" "}
-                <span className="tnum">{formatTime(open.window.end, hour12)}</span>
-              </>
-            ) : (
-              <>no window open right now</>
-            )}
-          </p>
+          {open?.dayOffset === -1 && (
+            <p className="mt-1 text-[11.5px] text-ink-4">carried from last night</p>
+          )}
         </div>
       </header>
 
       {open ? (
-        <div className="mt-4">
+        <div className="mt-5">
           <Progress value={open.progress * 100} height={4} />
           <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[11px]">
             <span className="tnum text-ink-4">{formatTime(open.window.start, hour12)}</span>
-            <span className={cn(urgent ? "font-medium text-warn" : "text-ink-3")}>
-              {urgent
-                ? "Closing soon"
-                : `${Math.max(1, Math.round((1 - open.progress) * 100))}% of the window still ahead`}
-            </span>
+            {urgent && <span className="font-medium text-ink-2">Closing soon</span>}
             <span className="tnum text-ink-4">{formatTime(open.window.end, hour12)}</span>
           </div>
         </div>
       ) : (
-        <p className="mt-4 rounded-lg bg-hover px-3 py-2 text-[12px] leading-relaxed text-ink-3">
+        <p className="mt-4 text-[12px] leading-relaxed text-ink-3">
           Nothing is open between sunrise and Dhuhr. That stretch belongs to duha, if you want one.
         </p>
       )}
 
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <p className="text-[12px] text-ink-3">
           <span className="tnum">{recorded}</span> of <span className="tnum">5</span> recorded
         </p>
         <button
@@ -199,7 +189,7 @@ export function TodayCard({
                   {row.label}
                   <span className="text-ink-4"> · {row.note}</span>
                 </span>
-                <span className="tnum shrink-0 text-[12px] text-ink-3">{formatTime(row.min, hour12)}</span>
+                <span className="tnum shrink-0 text-[12px] text-ink-4">{formatTime(row.min, hour12)}</span>
               </li>
             );
           }
@@ -236,7 +226,7 @@ export function TodayCard({
                     <span className={ticked ? "text-ink-2" : "text-ink-3"}>{row.def.label}</span>
                     <span className="text-ink-4"> · {row.def.rakat} · {row.def.detail}</span>
                   </span>
-                  <span className="tnum shrink-0 text-[12px] text-ink-3">{formatTime(row.min, hour12)}</span>
+                  <span className="tnum shrink-0 text-[12px] text-ink-4">{formatTime(row.min, hour12)}</span>
                 </button>
               </li>
             );
@@ -253,21 +243,19 @@ export function TodayCard({
 
           return (
             <li key={row.key}>
+              {/* The open window is marked once — a tinted row and the word Now.
+                  The closing time lives under the progress bar, not here too. */}
               <div className={cn("flex items-center gap-0.5 rounded-lg", isNow && "bg-selected")}>
                 <button
                   type="button"
                   onClick={() => cyclePrayer(date, row.name)}
                   aria-label={`${PRAYER_LABELS[row.name]} at ${formatTime(row.min, hour12)}, ${state.label}. Activate to cycle the status.`}
                   className={cn(
-                    "relative flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left",
+                    "flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left",
                     "transition-[background-color,transform] duration-200 ease-[var(--ease-out-apple)] active:scale-[0.985]",
                     !isNow && "hover:bg-hover",
                   )}
                 >
-                  {isNow && (
-                    <span aria-hidden className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-full bg-accent" />
-                  )}
-
                   <StateMark status={status} />
 
                   <span className="min-w-0 flex-1">
@@ -281,12 +269,6 @@ export function TodayCard({
                     </span>
                     <span className={cn("mt-px block truncate text-[11.5px]", state.text)}>
                       {state.label}
-                      {isNow && (
-                        <span className="text-ink-3">
-                          {" · closes "}
-                          <span className="tnum">{formatTime(windows[row.name].end, hour12)}</span>
-                        </span>
-                      )}
                       {adhkarDone > 0 && (
                         <span className="text-ink-4">
                           {" · "}

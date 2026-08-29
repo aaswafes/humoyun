@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Moon, Settings2, Timer } from "lucide-react";
+import { Moon, Timer } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDuration, nowMinutes, todayISO } from "@/lib/date";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -14,13 +15,14 @@ import { DeepWork } from "@/components/focus/deep-work";
 import { FocusStats } from "@/components/focus/focus-stats";
 import { FocusGoals } from "@/components/focus/focus-goals";
 import { DayTimeline, type LiveBlock } from "@/components/focus/day-timeline";
-import { FocusHeatmap } from "@/components/focus/focus-heatmap";
-import { TimeOfDay } from "@/components/focus/time-of-day";
-import { TagTotals } from "@/components/focus/tag-totals";
-import { SessionHistory } from "@/components/focus/session-history";
 import { SessionEditor } from "@/components/focus/session-editor";
 import { FocusSettings } from "@/components/focus/focus-settings";
-import { groupSessions, type SessionView } from "@/components/focus/focus-data";
+import { SessionSetup } from "@/components/focus/session-setup";
+import { Fold, useFold, useStickyChoice } from "@/components/focus/fold";
+import {
+  SessionsPanel, SESSIONS_TAB_VALUES, type SessionsTab,
+} from "@/components/focus/sessions-panel";
+import { computeStats, groupSessions, type SessionView } from "@/components/focus/focus-data";
 import type { FocusSession } from "@/lib/types";
 
 const NO_SESSIONS: SessionView[] = [];
@@ -34,10 +36,21 @@ export default function FocusPage() {
 
   const [deep, setDeep] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [setupOpen, setSetupOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<string | null>(null);
   const [pickedDay, setPickedDay] = React.useState<string | null>(null);
 
+  // The dial is the whole page at rest. Everything else opens on request and
+  // stays the way it was left.
+  const [todayOpen, setTodayOpen] = useFold("humoyun.focus.todayOpen");
+  const [sessionsOpen, setSessionsOpen] = useFold("humoyun.focus.sessionsOpen");
+  const [totalsOpen, setTotalsOpen] = useFold("humoyun.focus.totalsOpen");
+  const [tab, setTab] = useStickyChoice<SessionsTab>(
+    "humoyun.focus.sessionsTab", SESSIONS_TAB_VALUES, "history",
+  );
+
   const groups = React.useMemo(() => groupSessions(sessions), [sessions]);
+  const stats = React.useMemo(() => computeStats(groups, weekStart), [groups, weekStart]);
   const today = groups.find((g) => g.date === todayISO());
   const todayMinutes = today?.minutes ?? 0;
   const { dailyGoal, weeklyGoal } = engine.prefs;
@@ -79,6 +92,17 @@ export default function FocusPage() {
     [start],
   );
 
+  /** A day picked out of the six-month grid belongs under History, so it goes there. */
+  const pickDay = React.useCallback(
+    (date: string | null) => {
+      setPickedDay(date);
+      if (!date) return;
+      setSessionsOpen(true);
+      setTab("history");
+    },
+    [setSessionsOpen, setTab],
+  );
+
   // Only keys the app shell leaves alone: b and s are the tails of its
   // "g then b" / "g then s" chords and would fire twice.
   useHotkeys(
@@ -87,24 +111,50 @@ export default function FocusPage() {
       d: () => setDeep((v) => !v),
       x: () => logInterrupt(),
     },
-    { enabled: !settingsOpen && !editing },
+    { enabled: !settingsOpen && !setupOpen && !editing },
   );
 
-  const goalLine =
+  // Today, said once. Each folded row below states something this does not.
+  const headline =
     todayMinutes > 0
-      ? `${formatDuration(todayMinutes)} today · ${Math.round((todayMinutes / Math.max(1, dailyGoal)) * 100)}% of target`
+      ? `${formatDuration(todayMinutes)} of ${formatDuration(dailyGoal)} today`
       : `Nothing logged yet · ${formatDuration(dailyGoal)} target`;
+
+  const todaySummary = [
+    today?.items.length
+      ? `${today.items.length} ${today.items.length === 1 ? "session" : "sessions"}`
+      : "Nothing logged today",
+    today?.breakMinutes ? `${formatDuration(today.breakMinutes)} rest` : null,
+    today?.interruptions ? `${today.interruptions} interrupted` : null,
+    "daily and weekly targets",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const logged = React.useMemo(
+    () => groups.reduce((n, g) => n + g.items.length, 0),
+    [groups],
+  );
+  const sessionsSummary = `${logged} logged · history, tags, time of day, six months`;
+
+  const totalsSummary = [
+    stats.streak ? `${stats.streak}-day streak` : "No streak yet",
+    `${formatDuration(stats.weekMinutes)} this week`,
+    "averages, finish rate, distractions",
+  ].join(" · ");
 
   return (
     <>
       <PageHeader
         title="Focus"
-        subtitle={goalLine}
+        subtitle={headline}
         actions={
           <div className="flex items-center gap-1">
-            <IconButton label="Presets and targets" onClick={() => setSettingsOpen(true)}>
-              <Settings2 />
-            </IconButton>
+            <SessionSetup
+              engine={engine}
+              onManage={() => setSettingsOpen(true)}
+              onOpenChange={setSetupOpen}
+            />
             <IconButton label="Deep work (D)" active={deep} onClick={() => setDeep(true)}>
               <Moon />
             </IconButton>
@@ -116,79 +166,94 @@ export default function FocusPage() {
         <div className="py-6">
           <FocusDial
             engine={engine}
-            onSettings={() => setSettingsOpen(true)}
             onEditLast={() => engine.last?.sessionId && setEditing(engine.last.sessionId)}
           />
           <WrapNote engine={engine} onExpand={setEditing} />
         </div>
 
-        {groups.length === 0 ? (
-          <EmptyState
-            icon={Timer}
-            title="No sessions logged yet"
-            description="Every finished timer lands here — credited to the task you attached it to, so you can see where the hours actually went."
-            action={
-              <div className="flex items-center gap-2">
-                <Button variant="primary" size="sm" onClick={() => start()}>
-                  Start {engine.minutes} minutes
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
-                  Set a daily target
-                </Button>
-              </div>
-            }
-            className="border-t border-line"
-          />
-        ) : (
-          <div className="space-y-11 pt-4">
-            <FocusStats groups={groups} weekStart={weekStart} />
-
-            <FocusGoals
-              groups={groups}
-              weekStart={weekStart}
-              dailyGoal={dailyGoal}
-              weeklyGoal={weeklyGoal}
-              onEdit={() => setSettingsOpen(true)}
+        {/* Once the clock is running the room gets quieter, not busier. */}
+        <div
+          className={cn(
+            "mt-10 transition-opacity duration-300 ease-[var(--ease-out-apple)]",
+            engine.phase === "focus" && "opacity-40 focus-within:opacity-100 hover:opacity-100",
+          )}
+        >
+          {groups.length === 0 ? (
+            <EmptyState
+              icon={Timer}
+              title="No sessions logged yet"
+              description="Every finished timer lands here — credited to the task you attached it to, so you can see where the hours actually went."
+              action={
+                <div className="flex items-center gap-2">
+                  <Button variant="primary" size="sm" onClick={() => start()}>
+                    Start {engine.minutes} minutes
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+                    Set a daily target
+                  </Button>
+                </div>
+              }
+              className="border-t border-line"
             />
+          ) : (
+            <>
+              <Fold
+                label="Today"
+                summary={todaySummary}
+                open={todayOpen}
+                onOpenChange={setTodayOpen}
+              >
+                <div className="space-y-9">
+                  <DayTimeline
+                    items={today?.items ?? NO_SESSIONS}
+                    breaks={today?.breaks ?? NO_SESSIONS}
+                    nowMin={nowMinutes()}
+                    live={live}
+                    onOpen={setEditing}
+                  />
 
-            <DayTimeline
-              items={today?.items ?? NO_SESSIONS}
-              breaks={today?.breaks ?? NO_SESSIONS}
-              minutes={todayMinutes}
-              nowMin={nowMinutes()}
-              live={live}
-              onOpen={setEditing}
-            />
+                  <FocusGoals
+                    groups={groups}
+                    weekStart={weekStart}
+                    dailyGoal={dailyGoal}
+                    weeklyGoal={weeklyGoal}
+                    onEdit={() => setSettingsOpen(true)}
+                  />
+                </div>
+              </Fold>
 
-            <div className="grid gap-x-10 gap-y-10 md:grid-cols-2 xl:grid-cols-3">
-              <div className="min-w-0 md:col-span-2 xl:col-span-1">
-                <FocusHeatmap
+              <Fold
+                label="Sessions"
+                summary={sessionsSummary}
+                open={sessionsOpen}
+                onOpenChange={setSessionsOpen}
+              >
+                <SessionsPanel
                   groups={groups}
                   weekStart={weekStart}
                   dailyGoal={dailyGoal}
-                  selected={pickedDay}
-                  onSelect={setPickedDay}
-                />
-              </div>
-              <div className="min-w-0">
-                <TimeOfDay groups={groups} hour12={hour12} />
-              </div>
-              <div className="min-w-0">
-                <TagTotals
-                  groups={groups}
+                  hour12={hour12}
+                  tab={tab}
+                  onTab={setTab}
+                  pickedDay={pickedDay}
+                  onPickDay={pickDay}
+                  onResume={resume}
+                  onOpen={setEditing}
                   onTagLast={lastSessionId ? () => setEditing(lastSessionId) : null}
                 />
-              </div>
-            </div>
+              </Fold>
 
-            <SessionHistory
-              groups={groups}
-              onResume={resume}
-              onOpen={setEditing}
-              focusDate={pickedDay}
-            />
-          </div>
-        )}
+              <Fold
+                label="Totals"
+                summary={totalsSummary}
+                open={totalsOpen}
+                onOpenChange={setTotalsOpen}
+              >
+                <FocusStats groups={groups} weekStart={weekStart} />
+              </Fold>
+            </>
+          )}
+        </div>
       </PageBody>
 
       <DeepWork

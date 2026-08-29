@@ -18,6 +18,7 @@ const CARDINALS = [
 /**
  * A rose rather than a live compass: the app cannot read the phone's
  * magnetometer, so it draws the bearing honestly and says what to do with it.
+ * No border of its own — it sits inside a folded section.
  */
 export function QiblaCompass() {
   const profile = useStore((s) => s.profile);
@@ -33,13 +34,16 @@ export function QiblaCompass() {
   const summaryId = "salah-qibla-summary";
 
   return (
-    <section className="surface p-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[13px] font-semibold text-ink">Qibla</h2>
-        <p className="tnum text-[11.5px] text-ink-3">{profile.city}</p>
+    <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="text-[12px] text-ink-3">From {profile.city}</p>
+        <p className="text-[12px] text-ink-3">
+          <span className="font-medium text-ink-2">{point}</span> ·{" "}
+          <span className="tnum">{distance.toLocaleString()}</span> km
+        </p>
       </div>
 
-      <div className="mt-3 flex justify-center">
+      <div className="mt-4 flex flex-col items-center gap-3">
         <svg
           width={SIZE}
           height={SIZE}
@@ -96,6 +100,8 @@ export function QiblaCompass() {
           <circle cx={C} cy={C} r={4} fill="var(--raised)" stroke="var(--accent)" strokeWidth={2} />
           <circle cx={tip.x} cy={tip.y} r={3.5} fill="var(--accent)" />
         </svg>
+
+        <p className="display-serif tnum text-[22px] leading-none text-ink">{Math.round(bearing)}°</p>
       </div>
 
       <VisuallyHidden id={summaryId}>
@@ -103,19 +109,11 @@ export function QiblaCompass() {
         roughly {compassPointName(bearing)} — and about {distance.toLocaleString()} kilometres away.
       </VisuallyHidden>
 
-      <div className="mt-3 flex items-baseline justify-between gap-3">
-        <p className="display-serif tnum text-[22px] leading-none text-ink">{Math.round(bearing)}°</p>
-        <p className="text-[12px] text-ink-3">
-          <span className="font-medium text-ink-2">{point}</span> ·{" "}
-          <span className="tnum">{distance.toLocaleString()}</span> km
-        </p>
-      </div>
-
-      <p className="mt-2.5 text-[11.5px] leading-relaxed text-ink-4">
+      <p className="mt-3 text-[11.5px] leading-relaxed text-ink-4">
         Measured clockwise from <span className="text-ink-3">true</span> north. A phone compass points at
         magnetic north, which is a few degrees off in most places — worth allowing for before you draw a
         line on the floor.
       </p>
-    </section>
+    </div>
   );
 }

@@ -3,7 +3,6 @@
 import * as React from "react";
 import { CalendarRange, Network, Plus, Waypoints } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { formatDate } from "@/lib/date";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { Button, EmptyState, Segmented } from "@/components/ui/primitives";
 import { BoardSwitcher } from "@/components/map/board-switcher";
@@ -51,13 +50,9 @@ export default function MapPage() {
 
   const summary = React.useMemo(() => {
     const ids = new Set(boardNodes.map((n) => n.id));
-    const links = edges.filter((e) => ids.has(e.source_id) && ids.has(e.target_id)).length;
-    const dates = boardNodes.map((n) => n.date).filter(Boolean).sort() as string[];
     return {
-      links,
-      dated: dates.length,
-      first: dates[0] ?? null,
-      last: dates[dates.length - 1] ?? null,
+      links: edges.filter((e) => ids.has(e.source_id) && ids.has(e.target_id)).length,
+      dated: boardNodes.filter((n) => !!n.date).length,
     };
   }, [boardNodes, edges]);
 
@@ -72,16 +67,13 @@ export default function MapPage() {
         title="Mind Map"
         subtitle={
           active ? (
+            // The ruler already draws the dated range, and the dated count only
+            // means something once the timeline is on — so the header states the
+            // board's size and nothing the canvas is already saying.
             <span className="tnum">
               {boardNodes.length} node{boardNodes.length === 1 ? "" : "s"} · {summary.links} link
-              {summary.links === 1 ? "" : "s"} · {summary.dated} dated
-              {timelineMode && summary.first && summary.last && (
-                <>
-                  {" · "}
-                  {formatDate(summary.first, { weekday: false, year: true })}
-                  {summary.first !== summary.last && ` → ${formatDate(summary.last, { weekday: false, year: true })}`}
-                </>
-              )}
+              {summary.links === 1 ? "" : "s"}
+              {timelineMode && ` · ${summary.dated} dated`}
             </span>
           ) : undefined
         }

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen } from "lucide-react";
 import { diffDays, formatDate, todayISO, yearOf } from "@/lib/date";
-import { Button, EmptyState, Progress, SectionLabel } from "@/components/ui/primitives";
+import { Button, EmptyState, Progress } from "@/components/ui/primitives";
 import {
   AxisText, Chart, GridY, HoverSurface, Panel, PanelNote, UnitLabel,
   axisTicks, fmt, niceMax,
@@ -170,7 +170,7 @@ export function ReadingPanel({
       </Chart>
 
       <div className="mt-5 hairline-t pt-4">
-        <SectionLabel>Finishing</SectionLabel>
+        <p className="text-[11.5px] font-medium text-ink-3">Finishing</p>
         {projections.length === 0 ? (
           <p className="mt-2 text-[12.5px] text-ink-4">
             No book is currently marked as reading.

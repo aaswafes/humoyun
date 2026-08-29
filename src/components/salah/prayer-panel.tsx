@@ -94,7 +94,7 @@ export function PrayerPanel({
 
   return (
     <div id={id} className="anim-fade mt-1 rounded-lg bg-sunken p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">How it went</p>
+      <p className="text-[11.5px] font-medium text-ink-3">How it went</p>
       <StatusPicker
         className="mt-2"
         status={status}
@@ -104,7 +104,7 @@ export function PrayerPanel({
 
       {showSunnah && sunnahDefs.length > 0 && (
         <div className="hairline-t mt-3 pt-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+          <p className="text-[11.5px] font-medium text-ink-3">
             Rawatib
           </p>
           <div className="mt-1 -mx-2">
@@ -123,7 +123,7 @@ export function PrayerPanel({
 
       <div className="hairline-t mt-3 pt-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+          <p className="text-[11.5px] font-medium text-ink-3">
             Adhkar after {label}
           </p>
           <Button

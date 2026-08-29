@@ -4,7 +4,7 @@ import * as React from "react";
 import { Hourglass } from "lucide-react";
 import { formatDuration } from "@/lib/date";
 import { useStore } from "@/lib/store";
-import { Button, EmptyState, SectionLabel } from "@/components/ui/primitives";
+import { Button, EmptyState } from "@/components/ui/primitives";
 import {
   Chart, Panel, PanelNote, fmt, pctOf, useSvgId,
   type TableSpec, type TipState,
@@ -56,7 +56,7 @@ function HBars({
 
   return (
     <div>
-      <SectionLabel>{title}</SectionLabel>
+      <p className="text-[11.5px] font-medium text-ink-3">{title}</p>
       {slices.length === 0 ? (
         <p className="mt-3 text-[12.5px] text-ink-4">{emptyNote}</p>
       ) : (
@@ -150,11 +150,13 @@ function HBars({
 }
 
 export function TimeBreakdown({
-  byTag, byTask, totalMinutes, activeTags, onToggleTag,
+  byTag, byTask, totalMinutes, sessions, activeTags, onToggleTag,
 }: {
   byTag: Slice[];
   byTask: Slice[];
   totalMinutes: number;
+  /** Focus sessions inside the window — stated here rather than on the tile. */
+  sessions: number;
   activeTags: string[];
   onToggleTag: (tag: string) => void;
 }) {
@@ -164,7 +166,8 @@ export function TimeBreakdown({
   const topTag = byTag[0];
   const summary = !hasData
     ? "No focus sessions have been logged in this window."
-    : `${formatDuration(Math.round(totalMinutes))} of focus in total` +
+    : `${formatDuration(Math.round(totalMinutes))} of focus across ${sessions} ` +
+      `${sessions === 1 ? "session" : "sessions"}` +
       (topTag
         ? `, and ${topTag.label} took the largest share at ${fmt(pctOf(topTag.minutes, totalMinutes))}%.`
         : ".");

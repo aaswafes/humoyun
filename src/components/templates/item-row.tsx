@@ -199,7 +199,7 @@ function RuleEditor({
   }
 
   return (
-    <div className="col-span-2 space-y-2.5 rounded-md border border-line bg-sunken p-2.5">
+    <div className="col-span-2 space-y-2.5 rounded-md bg-sunken p-2.5">
       <GroupField
         label="Only create it on"
         hint={days?.length ? weekdaysLabel(days) : "any day"}
@@ -387,10 +387,8 @@ export function ItemRow({
         )}
         {stat && stat.created >= 3 && (
           <span
-            className={cn(
-              "hidden shrink-0 text-[11px] tnum sm:inline",
-              stat.rate >= 0.7 ? "text-success" : stat.rate >= 0.4 ? "text-warn" : "text-danger",
-            )}
+            /* How often a row gets finished is information, not an alarm. */
+            className="hidden shrink-0 text-[11px] text-ink-4 tnum sm:inline"
             title={`Done ${stat.done} of the ${stat.created} times it was created`}
           >
             {Math.round(stat.rate * 100)}%
@@ -615,7 +613,7 @@ export function ItemRow({
           )}
 
           {stat && stat.created > 0 && (
-            <p className="col-span-2 text-[11.5px] text-ink-3">
+            <p className="col-span-2 text-[11.5px] text-ink-4">
               Created {stat.created}× from this template, finished {stat.done}×
               {stat.created >= 3 && stat.rate < 0.4 && " — this is the one you keep skipping."}
             </p>

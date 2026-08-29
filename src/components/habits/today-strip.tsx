@@ -14,11 +14,12 @@ import {
 import { isComplete, scheduledOn, type Counts, type Skips, NO_COUNTS } from "./habit-utils";
 
 /**
- * Everything due today, in the order the day actually happens: morning first,
- * and a stacked habit directly under the one it follows.
+ * The page hero: everything due today, in the order the day actually happens —
+ * morning first, and a stacked habit directly under the one it follows.
  *
- * Each row is a pill split in two — the body logs, the trailing button opens
- * the rest of the actions — because an interactive row may not swallow buttons.
+ * Today's progress is stated exactly once, here, by the big numeral. Each row
+ * is a pill split in two — the body logs, the trailing button opens the rest of
+ * the actions — because an interactive row may not swallow buttons.
  */
 export function TodayStrip({
   habits, index, meta, skipsOf, date, weekStart, onCreate, onOpenDetail, onSkip,
@@ -49,66 +50,71 @@ export function TodayStrip({
   const grouped = usedSlots.length > 1;
 
   return (
-    <section className="mb-8">
-      <div className="mb-2.5 flex items-baseline gap-2">
-        <SectionLabel>Due today</SectionLabel>
+    <section>
+      <div className="flex items-baseline gap-2">
+        <SectionLabel>Today</SectionLabel>
         <span className="text-[11.5px] text-ink-4">{formatDate(date)}</span>
-        <div className="flex-1" />
-        {due.length > 0 && (
-          <span className="text-[12px] text-ink-3 tnum">
-            {done}<span className="text-ink-4"> / {due.length}</span>
-          </span>
-        )}
       </div>
 
       {due.length === 0 ? (
         <button
           onClick={onCreate}
-          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-ink-3 hover:bg-hover hover:text-ink-2 cursor-pointer transition-colors"
+          className="mt-2 -ml-2 flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] text-ink-3 hover:bg-hover hover:text-ink-2 cursor-pointer transition-colors"
         >
           <Plus className="size-4" />
           {habits.length
             ? "Nothing is scheduled today — add a habit that runs daily."
             : "Add your first habit."}
         </button>
-      ) : grouped ? (
-        <div className="space-y-3">
-          {usedSlots.map((slot) => {
-            const SlotIcon = SLOT_ICON[slot];
-            const inSlot = due.filter((h) => slotFor(h) === slot);
-            return (
-              <div key={slot}>
-                <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-ink-4">
-                  <SlotIcon className="size-3" aria-hidden />
-                  {SLOT_LABEL[slot]}
-                </p>
-                <PillRow
-                  habits={inSlot}
-                  index={index}
-                  meta={meta}
-                  skipsOf={skipsOf}
-                  date={date}
-                  onOpenDetail={onOpenDetail}
-                  onSkip={onSkip}
-                />
-              </div>
-            );
-          })}
-        </div>
       ) : (
-        <PillRow
-          habits={due}
-          index={index}
-          meta={meta}
-          skipsOf={skipsOf}
-          date={date}
-          onOpenDetail={onOpenDetail}
-          onSkip={onSkip}
-        />
+        <>
+          <p className="mt-1.5 flex items-baseline gap-2">
+            <span className="display-serif text-[44px] leading-none text-ink tnum">{done}</span>
+            <span className="text-[13px] text-ink-3 tnum">of {due.length} done</span>
+          </p>
+
+          <div className="mt-4">
+            {grouped ? (
+              <div className="space-y-3.5">
+                {usedSlots.map((slot) => {
+                  const SlotIcon = SLOT_ICON[slot];
+                  const inSlot = due.filter((h) => slotFor(h) === slot);
+                  return (
+                    <div key={slot}>
+                      <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-ink-4">
+                        <SlotIcon className="size-3" aria-hidden />
+                        {SLOT_LABEL[slot]}
+                      </p>
+                      <PillRow
+                        habits={inSlot}
+                        index={index}
+                        meta={meta}
+                        skipsOf={skipsOf}
+                        date={date}
+                        onOpenDetail={onOpenDetail}
+                        onSkip={onSkip}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <PillRow
+                habits={due}
+                index={index}
+                meta={meta}
+                skipsOf={skipsOf}
+                date={date}
+                onOpenDetail={onOpenDetail}
+                onSkip={onSkip}
+              />
+            )}
+          </div>
+        </>
       )}
 
       {rested.length > 0 && (
-        <p className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-4">
+        <p className="mt-3 flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-4">
           <Moon className="size-3" aria-hidden />
           Resting today:
           {rested.map((habit) => (
@@ -210,7 +216,7 @@ function HabitPill({
         <span className={cn("text-[13px] font-medium", complete ? "text-[var(--tint-ink)]" : "text-ink")}>
           {habit.name}
         </span>
-        {target > 1 && <span className="text-[11.5px] text-ink-3 tnum">{count}/{target}</span>}
+        {target > 1 && <span className="text-[11.5px] text-ink-4 tnum">{count}/{target}</span>}
         {complete && <Check className="size-3.5 shrink-0 stroke-[2.5] text-[var(--tint)] anim-pop" />}
       </button>
 

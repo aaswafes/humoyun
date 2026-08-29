@@ -120,7 +120,7 @@ export function PlannedVsActual({
   const legend: LegendItem[] = [
     { key: "planned", label: "Planned", color: "var(--accent)", pattern: "hatch", mark: "var(--raised)" },
     { key: "focus", label: "Focus logged", color: "var(--accent)" },
-    { key: "over", label: `Ran over plan (${totals.over})`, color: "var(--warn)" },
+    { key: "over", label: `Ran over plan (${totals.over})`, color: "var(--ink-3)" },
     ...(ghost
       ? [{ key: "prev", label: previousLabel ?? "Previous window", color: "var(--ink-4)", pattern: "dots" as const, mark: "var(--raised)" }]
       : []),
@@ -203,7 +203,7 @@ export function PlannedVsActual({
                         {over && (
                           <path
                             d={`M${cx + g.gap + g.barW / 2} ${g.baseY - focusH - 7} l3.2 5 h-6.4 Z`}
-                            fill="var(--warn)"
+                            fill="var(--ink-3)"
                           />
                         )}
                         {ghost && ghost[i].focusMin > 0 && (

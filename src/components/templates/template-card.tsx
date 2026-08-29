@@ -2,21 +2,19 @@
 
 import * as React from "react";
 import {
-  ArrowDown, ArrowUp, Braces, CalendarPlus, Copy, Download, Filter,
-  Layers, MoreHorizontal, Pencil, Trash2,
+  ArrowDown, ArrowUp, CalendarPlus, Copy, Download, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import { friendlyDate } from "@/lib/date";
+import { friendlyDate, formatDuration } from "@/lib/date";
 import type { Template } from "@/lib/types";
-import { Badge, Button, IconButton, Progress } from "@/components/ui/primitives";
+import { Badge, Button, IconButton } from "@/components/ui/primitives";
 import { ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Popover, TintPicker } from "@/components/ui/overlays";
 import { TemplateIcon } from "./icons";
 import { EMPTY_INSIGHT, percent, verdict, type Insight } from "./insights";
 import { collectVars, hasRule, itemsOf } from "./model";
 import { downloadJson, fileNameFor, serialize } from "./transfer";
 import { SCOPE_LABELS, itemLead, nextOrder, offsetLabel, plural, totalMinutes } from "./util";
-import { formatDuration } from "@/lib/date";
 
 const PREVIEW_ROWS = 4;
 
@@ -43,14 +41,40 @@ export function TemplateCard({
   const [confirming, setConfirming] = React.useState(false);
 
   const items = itemsOf(template);
-  const shown = items.slice(0, PREVIEW_ROWS);
-  const rest = items.length - shown.length;
-
   const vars = collectVars(items).user;
   const conditional = items.filter((i) => hasRule(i.rule)).length;
   const nested = items.filter((i) => i.ref_template_id).length;
   const minutes = totalMinutes(items);
-  const read = verdict(insight);
+
+  /** The usage read in one phrase — the card no longer spends a bar on it. */
+  const usage = insight.created > 0
+    ? `${percent(insight.rate)} finished`
+    : template.use_count > 0
+      ? `applied ${template.use_count}×`
+      : "never applied";
+
+  // Everything the card used to print at rest, now one quiet line on hover.
+  const facts = [
+    minutes > 0 ? formatDuration(minutes) : null,
+    vars.length > 0 ? plural(vars.length, "variable") : null,
+    conditional > 0 ? plural(conditional, "condition") : null,
+    nested > 0 ? `${nested} linked` : null,
+    usage,
+  ].filter(Boolean).join(" · ");
+
+  // The item preview, as the tooltip of the card that opens it.
+  const tip = [
+    `${SCOPE_LABELS[template.scope]} · ${plural(items.length, "item")}${minutes > 0 ? ` · ${formatDuration(minutes)}` : ""}`,
+    ...items.slice(0, PREVIEW_ROWS).map((item) => {
+      const day = template.scope === "week" ? `${offsetLabel(item.day_offset ?? 0, weekStart)} ` : "";
+      return `${day}${itemLead(item, hour12)}  ${item.title || "Untitled item"}`;
+    }),
+    items.length > PREVIEW_ROWS ? `+${items.length - PREVIEW_ROWS} more` : null,
+    insight.created > 0
+      ? `${insight.done} of ${insight.created} tasks done — ${verdict(insight).text.toLowerCase()}`
+      : null,
+    insight.lastApplied ? `Last applied ${friendlyDate(insight.lastApplied).toLowerCase()}` : null,
+  ].filter(Boolean).join("\n");
 
   function duplicate() {
     const copy = insert("templates", {
@@ -77,13 +101,13 @@ export function TemplateCard({
       className={cn(
         `tint-${template.color}`,
         "group/card flex flex-col surface overflow-hidden",
-        "transition-[box-shadow,transform] duration-200 ease-[var(--ease-out-apple)]",
-        "hover:shadow-md",
+        "transition-[box-shadow] duration-200 ease-[var(--ease-out-apple)] hover:shadow-md",
       )}
     >
       <button
         onClick={() => onEdit(template)}
-        className="flex-1 cursor-pointer px-3.5 pb-3 pt-3.5 text-left"
+        title={tip}
+        className="flex-1 cursor-pointer px-4 pb-2 pt-4 text-left"
       >
         <div className="flex items-start gap-2.5">
           <span className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-[var(--tint-soft)] text-[var(--tint-ink)]">
@@ -93,109 +117,41 @@ export function TemplateCard({
             <p className="truncate text-[13.5px] font-semibold tracking-[-0.01em] text-ink">
               {template.name || "Untitled template"}
             </p>
-            <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-relaxed text-ink-3">
+            <p className="mt-0.5 line-clamp-1 text-[12.5px] leading-relaxed text-ink-3">
               {template.description || "No description yet."}
             </p>
           </div>
         </div>
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <Badge tint={template.color} dot>{SCOPE_LABELS[template.scope]}</Badge>
-          <span className="text-[11.5px] text-ink-3 tnum">{plural(items.length, "item")}</span>
-          {minutes > 0 && (
-            <>
-              <span className="text-ink-4">·</span>
-              <span className="text-[11.5px] text-ink-3 tnum">{formatDuration(minutes)}</span>
-            </>
-          )}
-          {vars.length > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-[11.5px] text-ink-3 tnum">
-              <Braces className="size-3" aria-hidden />
-              {vars.length}
-            </span>
-          )}
-          {conditional > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-[11.5px] text-ink-3 tnum">
-              <Filter className="size-3" aria-hidden />
-              {conditional}
-            </span>
-          )}
-          {nested > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-[11.5px] text-ink-3 tnum">
-              <Layers className="size-3" aria-hidden />
-              {nested}
-            </span>
-          )}
-        </div>
-
-        {items.length > 0 && (
-          <div className="mt-3 space-y-[3px] border-t border-line pt-2.5">
-            {shown.map((item, i) => (
-              <div key={`${item.title}-${i}`} className="flex items-baseline gap-2">
-                {template.scope === "week" && (
-                  <span className="w-[26px] shrink-0 text-[11px] font-medium text-ink-4">
-                    {offsetLabel(item.day_offset ?? 0, weekStart)}
-                  </span>
-                )}
-                <span className="w-[58px] shrink-0 text-[11.5px] text-ink-4 tnum">
-                  {itemLead(item, hour12)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-2">{item.title}</span>
-              </div>
-            ))}
-            {rest > 0 && (
-              <p className="pt-0.5 text-[11.5px] text-ink-4 tnum">+{rest} more</p>
+        {/* One line, two readings: what it is at rest, what it costs on hover.
+            The hover layer repeats what the editor shows, so nothing lives only here. */}
+        <div className="relative mt-3 h-[19px]">
+          <span
+            className={cn(
+              "absolute inset-0 flex items-center gap-1.5 transition-opacity duration-200 ease-[var(--ease-out-apple)]",
+              "group-hover/card:opacity-0 group-focus-within/card:opacity-0",
             )}
-          </div>
-        )}
-
-        {/* Usage insight: the part that tells you whether the plan is honest. */}
-        <div className="mt-3 border-t border-line pt-2.5">
-          {insight.created > 0 ? (
-            <>
-              <div className="flex items-baseline gap-2">
-                <span className="text-[11.5px] font-medium text-ink tnum">{percent(insight.rate)} done</span>
-                <span className="text-[11.5px] text-ink-4 tnum">
-                  {insight.done}/{insight.created}
-                </span>
-                <div className="flex-1" />
-                <span
-                  className={cn(
-                    "text-[11px]",
-                    read.tone === "success" ? "text-success"
-                      : read.tone === "warn" ? "text-warn"
-                        : read.tone === "danger" ? "text-danger"
-                          : "text-ink-4",
-                  )}
-                >
-                  {read.text}
-                </span>
-              </div>
-              <Progress
-                value={insight.done}
-                max={Math.max(1, insight.created)}
-                className="mt-1.5"
-                height={3}
-              />
-              <p className="mt-1.5 text-[11px] text-ink-4 tnum">
-                Applied {insight.applied}×
-                {insight.lastApplied && ` · last ${friendlyDate(insight.lastApplied).toLowerCase()}`}
-              </p>
-            </>
-          ) : (
-            <p className="text-[11.5px] text-ink-4">
-              {template.use_count > 0
-                ? `Applied ${template.use_count}× — its tasks are gone, so there is nothing left to measure.`
-                : "Never applied. Drop it on a date and this becomes a completion score."}
-            </p>
-          )}
+          >
+            <Badge tint={template.color} dot>{SCOPE_LABELS[template.scope]}</Badge>
+            <span className="text-[11.5px] text-ink-3 tnum">{plural(items.length, "item")}</span>
+          </span>
+          <span
+            aria-hidden
+            className={cn(
+              "absolute inset-0 flex items-center truncate text-[11.5px] text-ink-3 tnum opacity-0",
+              "transition-opacity duration-200 ease-[var(--ease-out-apple)]",
+              "group-hover/card:opacity-100 group-focus-within/card:opacity-100",
+            )}
+          >
+            {facts}
+          </span>
         </div>
       </button>
 
-      <div className="flex items-center gap-1 border-t border-line px-2.5 py-2">
+      <div className="flex items-center gap-1 px-3 pb-2.5">
         <Button
           size="sm"
-          variant="subtle"
+          variant="ghost"
           onClick={() => onApply(template)}
           disabled={items.length === 0}
           title={items.length ? undefined : "Add an item first"}

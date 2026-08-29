@@ -131,7 +131,10 @@ export function ConsistencyHeatmap({
       `${digest.perfect} of them clean sweeps, longest strong run ${digest.longest} days. ` +
       (digest.weakest
         ? `${digest.weakest.label} is the part holding the average down, at ${Math.round(digest.weakest.rate * 100)}%.`
-        : "Each cell blends that day's tasks, habits and salah.")
+        : "Each cell blends that day's tasks, habits and salah.") +
+      (digest.best
+        ? ` Best day ${formatDate(digest.best.date, { weekday: false })}, at ${Math.round((digest.best.score ?? 0) * 100)}%.`
+        : "")
     : "Nothing has been tracked in this window yet.";
 
   const dowHeaders = weekdayHeaders(weekStart, "min");
@@ -173,7 +176,7 @@ export function ConsistencyHeatmap({
           description="Plan tasks, keep a habit or log your salah, and every day here fills in with how much of it you actually closed out."
         />
       ) : (
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3">
           {/* A month of squares shouldn't stretch to fill a 1300px panel. */}
           <div className={cn("min-w-0 flex-1", orientation === "calendar" && "sm:max-w-[430px]")}>
             <Chart
@@ -321,53 +324,9 @@ export function ConsistencyHeatmap({
               }}
             </Chart>
 
-            <PanelNote>
-              Click a day — or press Enter on it — to open the calendar there.
-            </PanelNote>
           </div>
 
-          <div className="flex shrink-0 flex-row flex-wrap gap-x-8 gap-y-4 sm:w-[164px] sm:flex-col">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                Average day
-              </p>
-              <p className="mt-1 text-[15px] font-medium text-ink tnum">
-                {Math.round(digest.mean * 100)}%
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                Perfect days
-              </p>
-              <p className="mt-1 text-[15px] font-medium text-ink tnum">
-                {digest.perfect}
-                <span className="ml-1 text-[12px] text-ink-4">of {digest.tracked}</span>
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                Longest strong run
-              </p>
-              <p className="mt-1 text-[15px] font-medium text-ink tnum">
-                {digest.longest}
-                <span className="ml-1 text-[12px] text-ink-4">
-                  {digest.longest === 1 ? "day" : "days"} at 80%+
-                </span>
-              </p>
-            </div>
-            {digest.best && (
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                  Best day
-                </p>
-                <p className="mt-1 text-[13px] text-ink tnum">
-                  {formatDate(digest.best.date, { weekday: false })}
-                  <span className="ml-1.5 text-[12px] text-ink-3">
-                    {Math.round((digest.best.score ?? 0) * 100)}%
-                  </span>
-                </p>
-              </div>
-            )}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-ink-4">Less</span>
               <span className="size-2.5 rounded-[3px] bg-hover" />
@@ -386,6 +345,10 @@ export function ConsistencyHeatmap({
               ]}
             />
           </div>
+
+          <PanelNote>
+            Click a day — or press Enter on it — to open the calendar there.
+          </PanelNote>
         </div>
       )}
     </Panel>

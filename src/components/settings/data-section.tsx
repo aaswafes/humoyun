@@ -15,7 +15,7 @@ import {
 } from "@/lib/types";
 import { Badge, Button, Checkbox, Input, Segmented } from "@/components/ui/primitives";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
-import { Callout, DANGER_SOLID, Group, Pane, Row } from "./ui";
+import { Callout, DANGER_SOLID, FoldGroup, Pane, Row } from "./ui";
 import { loadSampleData, resetSampleData, sampleDataPresent } from "./sample-data";
 
 const KEYS = Object.keys(TABLE_OF) as CollectionKey[];
@@ -475,8 +475,14 @@ export function DataSection() {
       )}
 
       {/* ---------- export ---------- */}
-      <Group
+      <FoldGroup
         title="Export"
+        storageKey="humoyun.settings.exportOpen"
+        summary={
+          populated.length
+            ? `${total} rows across ${populated.length} collection${populated.length === 1 ? "" : "s"}, as JSON or CSV`
+            : "Nothing to export yet"
+        }
         description="A Humoyun backup is plain JSON — every row, exactly as stored. Importing one rebuilds the workspace."
       >
         <div className="mt-1 overflow-hidden rounded-lg border border-line">
@@ -533,12 +539,14 @@ export function DataSection() {
             Include preferences
           </span>
         </div>
-      </Group>
+      </FoldGroup>
 
       {/* ---------- import ---------- */}
-      <Group
+      <FoldGroup
         title="Import"
-        description="Nothing is written until you have seen exactly what the file will do. Invalid rows are named and dropped, never guessed at."
+        storageKey="humoyun.settings.importOpen"
+        summary="Read a backup back in — you see the plan before anything is written"
+        description="Invalid rows are named and dropped, never guessed at."
       >
         <Row
           label="Choose a backup"
@@ -558,11 +566,13 @@ export function DataSection() {
             </Button>
           </>
         </Row>
-      </Group>
+      </FoldGroup>
 
       {/* ---------- sample data ---------- */}
-      <Group
+      <FoldGroup
         title="Sample data"
+        storageKey="humoyun.settings.sampleOpen"
+        summary={seeded ? "Ninety-one days of sample data are loaded" : "Ninety-one days of a believable life, in one click"}
         description={
           SOLO
             ? "This build runs entirely in your browser, so the sample is the workspace until you replace it with your own."
@@ -589,10 +599,14 @@ export function DataSection() {
             hint="Clears every collection and the local snapshot, then lays a fresh copy of the sample down. Anything of your own in here goes with it."
           />
         )}
-      </Group>
+      </FoldGroup>
 
       {/* ---------- danger ---------- */}
-      <Group title="Danger zone">
+      <FoldGroup
+        title="Danger zone"
+        storageKey="humoyun.settings.dangerOpen"
+        summary="Delete every row in this workspace"
+      >
         <Row
           label="Delete all my data"
           hint="Removes every task, book, habit, prayer, goal, node and template. Your sign-in and preferences stay. There is no undo — export first."
@@ -602,7 +616,7 @@ export function DataSection() {
             Delete everything
           </Button>
         </Row>
-      </Group>
+      </FoldGroup>
 
       {/* ---------- import report ---------- */}
       <Modal open={!!pending} onClose={() => setPending(null)} width={520} title="What this import will do">

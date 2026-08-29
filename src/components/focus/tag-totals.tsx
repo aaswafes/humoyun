@@ -5,7 +5,7 @@ import { Tags } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { formatDuration } from "@/lib/date";
 import type { Tint } from "@/lib/types";
-import { Button, SectionLabel } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/primitives";
 import { MiniEmpty } from "@/components/ui/form";
 import { tagTotals, type DayGroup } from "./focus-data";
 
@@ -38,14 +38,11 @@ export const TagTotals = React.memo(function TagTotals({
 
   return (
     <section>
-      <div className="mb-2.5 flex items-baseline justify-between gap-3">
-        <SectionLabel>By tag</SectionLabel>
-        {breakdown.untaggedMinutes > 0 && (
-          <p className="text-[11.5px] text-ink-4 tnum">
-            {formatDuration(breakdown.untaggedMinutes)} untagged
-          </p>
-        )}
-      </div>
+      {breakdown.untaggedMinutes > 0 && (
+        <p className="mb-3 text-[11.5px] text-ink-4 tnum">
+          {formatDuration(breakdown.untaggedMinutes)} untagged
+        </p>
+      )}
 
       {!shown.length ? (
         <MiniEmpty

@@ -9,7 +9,7 @@ import type { Task } from "@/lib/types";
 import { Button, EmptyState } from "@/components/ui/primitives";
 import { openQuickAdd } from "@/components/shell/quick-add";
 import { InlineComposer } from "@/components/tasks/task-list";
-import { useTriage, useRegisterRows, useRegisterRowDrop } from "./triage-context";
+import { useTriage, useRegisterRows, useRegisterRowDrop, useRegisterSummary } from "./triage-context";
 import { useTriageActions } from "./actions";
 import { TriageRow, DateDropZone } from "./triage-dnd";
 import { QuickSchedule } from "./quick-schedule";
@@ -50,6 +50,14 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
   const scheduled = React.useMemo(
     () => days.reduce((n, d) => n + d.items.filter((t) => t.status !== "done").length, 0),
     [days],
+  );
+
+  // One line, in the surface's one slot. The overdue count is not repeated
+  // here — the tab badge carries that alarm, and the section below names it.
+  useRegisterSummary(
+    days.length
+      ? `${scheduled} open across ${days.length} ${days.length === 1 ? "day" : "days"}`
+      : "",
   );
 
   // A collapsed day's rows are not on screen, so the keyboard must not walk into them.
@@ -107,20 +115,11 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
 
   return (
     <div>
-      <p className="mb-1 px-1.5 text-[12.5px] text-ink-3">
-        <span className="tnum text-ink-2">{scheduled}</span> open across{" "}
-        <span className="tnum text-ink-2">{days.length}</span> {days.length === 1 ? "day" : "days"}
-        {overdue.length > 0 && (
-          <> · <span className="tnum text-danger">{overdue.length}</span> overdue</>
-        )}
-      </p>
-
       {overdue.length > 0 && (
-        <section aria-label="Overdue" className="mb-5">
+        <section aria-label="Overdue" className="mb-8">
           <LabelHeader
             title="Overdue"
             count={overdue.length}
-            tone="danger"
             action={
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="xs" onClick={pullOverdueForward}>
@@ -158,7 +157,7 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
         const isOpen = !collapsed.has(iso);
         const done = items.filter((t) => t.status === "done").length;
         return (
-          <section key={iso} aria-label={`${friendlyDate(iso)}, ${items.length} tasks`} className="mb-5">
+          <section key={iso} aria-label={`${friendlyDate(iso)}, ${items.length} tasks`} className="mb-6">
             <DateDropZone iso={iso}>
               {({ isOver }) => (
                 <DayHeader
@@ -186,7 +185,7 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
                   <InlineComposer
                     date={iso}
                     placeholder={`Add to ${friendlyDate(iso)}`}
-                    className="mt-0.5 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
+                    className="mt-1 opacity-50 transition-opacity hover:opacity-100 focus-within:opacity-100"
                   />
                 )}
               </>
@@ -195,7 +194,7 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
         );
       })}
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button variant="secondary" size="sm" onClick={() => setHorizon((h) => h + STEP)}>
           Show {STEP} more days
         </Button>

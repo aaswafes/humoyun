@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDuration, formatRange, friendlyDate } from "@/lib/date";
 import type { FocusSession } from "@/lib/types";
-import { Badge, Button, IconButton, SectionLabel } from "@/components/ui/primitives";
+import { Badge, Button, IconButton } from "@/components/ui/primitives";
 import { MenuItem, MenuSeparator, Popover } from "@/components/ui/overlays";
 import { MiniEmpty, Select, VisuallyHidden } from "@/components/ui/form";
 import { visibleTags, type DayGroup, type SessionView } from "./focus-data";
@@ -89,7 +89,7 @@ function Row({
 
       {view.interruptions > 0 && (
         <span
-          className="hidden shrink-0 items-center gap-1 text-[11.5px] text-warn tnum sm:flex"
+          className="hidden shrink-0 items-center gap-1 text-[11.5px] text-ink-3 tnum sm:flex"
           title={`${view.interruptions} interruption${view.interruptions === 1 ? "" : "s"}`}
         >
           <Zap className="size-3" aria-hidden />
@@ -192,9 +192,7 @@ export const SessionHistory = React.memo(function SessionHistory({
 
   return (
     <section>
-      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <SectionLabel>History</SectionLabel>
-
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
         <div className="flex items-center gap-2">
           <div className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2 transition-colors focus-within:border-accent">
             <Search className="size-3.5 shrink-0 text-ink-4" aria-hidden />

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarPlus, Sun } from "lucide-react";
 import { useStore, overdueTasks, tasksOn } from "@/lib/store";
-import { addDays, formatDate, formatDuration, toISO } from "@/lib/date";
+import { addDays, formatDate, toISO } from "@/lib/date";
 import { useNow } from "@/hooks/use-hotkeys";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { openQuickAdd } from "@/components/shell/quick-add";
@@ -19,7 +19,6 @@ import { ReadingCard } from "@/components/today/reading-card";
 import { FocusCard } from "@/components/today/focus-card";
 import { LeftoversCard } from "@/components/today/leftovers-card";
 import { ComingUpCard } from "@/components/today/coming-up-card";
-import { budgetFor, estimateOf } from "@/components/today/day-math";
 
 export default function TodayPage() {
   const router = useRouter();
@@ -42,10 +41,6 @@ export default function TodayPage() {
   const timed = list.filter((t) => t.start_min != null);
   const anytime = list.filter((t) => t.start_min == null);
   const open = list.filter((t) => t.status !== "done" && t.status !== "dropped").length;
-  const budget = budgetFor(list, minutesNow);
-
-  const sumEstimates = (rows: typeof list) =>
-    rows.reduce((total, t) => total + (t.status === "done" ? 0 : estimateOf(t) ?? 0), 0);
 
   function rescheduleOverdue() {
     const snapshot = overdue.map((t) => ({ id: t.id, date: t.date }));
@@ -63,14 +58,10 @@ export default function TodayPage() {
     router.push("/calendar");
   }
 
-  const subtitle = [
-    overdue.length ? `${open} open · ${overdue.length} overdue` : open ? `${open} open` : "All clear",
-    budget.planned > 0 ? `${formatDuration(budget.planned)} planned` : null,
-  ].filter(Boolean).join(" · ");
-
   return (
     <>
-      <PageHeader title="Today" subtitle={subtitle} />
+      {/* One fact in the chrome — the hours and the overdue count have their own homes below. */}
+      <PageHeader title="Today" subtitle={open ? `${open} open` : "All clear"} />
 
       <PageBody wide>
         <Masthead date={today} now={now} />
@@ -79,100 +70,79 @@ export default function TodayPage() {
           <NowStrip date={today} now={now} />
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-x-8 gap-y-8 min-[1100px]:grid-cols-[minmax(0,1fr)_312px]">
-          {/* ---- the day itself ---- */}
+        <div className="mt-8 grid grid-cols-1 gap-x-10 gap-y-10 min-[1100px]:grid-cols-[minmax(0,1fr)_300px]">
+          {/* ---- the day itself: the tasks are the page ---- */}
           <div className="min-w-0">
             {list.length > 0 && <PlanStrip date={today} minutesNow={minutesNow} />}
 
-            {overdue.length > 0 && (
-              <TaskSection
-                title="Overdue"
-                count={overdue.length}
-                tone="danger"
-                accessory={
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    className="text-danger hover:bg-danger-soft hover:text-danger"
-                    onClick={rescheduleOverdue}
-                  >
-                    Reschedule all to today
-                  </Button>
-                }
-              >
-                <TaskList tasks={overdue} showDate sortable={false} />
-              </TaskSection>
-            )}
-
-            {list.length === 0 ? (
-              <EmptyState
-                icon={Sun}
-                title="Nothing planned for today"
-                description="Write down the one thing that would make today count, then build the rest around it."
-                action={
-                  <Button variant="primary" size="sm" onClick={openQuickAdd}>
-                    Add a task
-                  </Button>
-                }
-                className="rounded-lg border border-line py-12"
-              />
-            ) : (
-              <>
-                {timed.length > 0 && (
-                  <TaskSection
-                    title="Timed"
-                    count={timed.length}
-                    accessory={
-                      sumEstimates(timed) > 0 ? (
-                        <span className="text-[11.5px] text-ink-4 tnum">
-                          {formatDuration(sumEstimates(timed))} booked
-                        </span>
-                      ) : undefined
-                    }
-                  >
-                    <TaskList tasks={timed} sortable={false} />
-                  </TaskSection>
-                )}
-
+            <div className="mt-6">
+              {overdue.length > 0 && (
                 <TaskSection
-                  title={timed.length ? "Anytime" : "Tasks"}
-                  count={anytime.length}
+                  title="Overdue"
+                  count={overdue.length}
+                  tone="danger"
                   accessory={
-                    budget.unestimated > 0 ? (
-                      <span className="text-[11.5px] text-ink-4 tnum">
-                        {budget.unestimated} without an estimate
-                      </span>
-                    ) : undefined
+                    <Button size="xs" variant="ghost" onClick={rescheduleOverdue}>
+                      Reschedule all to today
+                    </Button>
                   }
                 >
-                  <TaskList
-                    tasks={anytime}
-                    composer
-                    composerDate={today}
-                    emptyDescription="Everything today has a time on it."
-                  />
+                  <TaskList tasks={overdue} showDate sortable={false} />
                 </TaskSection>
-              </>
-            )}
+              )}
 
-            <DayLogPanel key={today} date={today} />
+              {list.length === 0 ? (
+                <EmptyState
+                  icon={Sun}
+                  title="Nothing planned for today"
+                  description="Write down the one thing that would make today count, then build the rest around it."
+                  action={
+                    <Button variant="primary" size="sm" onClick={openQuickAdd}>
+                      Add a task
+                    </Button>
+                  }
+                  className="rounded-lg border border-line py-12"
+                />
+              ) : (
+                <>
+                  {timed.length > 0 && (
+                    <TaskSection title="Timed" count={timed.length}>
+                      <TaskList tasks={timed} sortable={false} />
+                    </TaskSection>
+                  )}
 
-            <button
-              type="button"
-              onClick={planTomorrow}
-              className="mt-3 flex w-full items-center gap-2.5 rounded-lg border border-line bg-raised px-3.5 py-3 text-left cursor-pointer transition-[background-color,transform] duration-200 ease-[var(--ease-out-apple)] hover:bg-hover active:scale-[0.99]"
-            >
-              <CalendarPlus className="size-4 shrink-0 text-ink-3" />
-              <span className="text-[13.5px] font-medium text-ink">Plan tomorrow</span>
-              <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-ink-3 tnum">
-                {formatDate(tomorrow)}
-                <ArrowRight className="size-3.5" />
-              </span>
-            </button>
+                  <TaskSection title={timed.length ? "Anytime" : "Tasks"} count={anytime.length}>
+                    <TaskList
+                      tasks={anytime}
+                      composer
+                      composerDate={today}
+                      emptyDescription="Everything today has a time on it."
+                    />
+                  </TaskSection>
+                </>
+              )}
+            </div>
+
+            <div className="mt-8">
+              <DayLogPanel key={today} date={today} />
+
+              <button
+                type="button"
+                onClick={planTomorrow}
+                className="-mx-2 mt-1 flex w-[calc(100%+1rem)] items-center gap-1.5 rounded-md px-2 py-2 text-left cursor-pointer transition-colors duration-150 ease-[var(--ease-out-apple)] hover:bg-hover"
+              >
+                <CalendarPlus className="size-3.5 shrink-0 text-ink-4" />
+                <span className="text-[12.5px] font-medium text-ink-2">Plan tomorrow</span>
+                <span className="ml-auto flex items-center gap-1.5 text-[12px] text-ink-3 tnum">
+                  {formatDate(tomorrow)}
+                  <ArrowRight className="size-3" />
+                </span>
+              </button>
+            </div>
           </div>
 
-          {/* ---- rail ---- */}
-          <aside className="flex min-w-0 flex-col gap-3">
+          {/* ---- rail: folded sections on hairlines, not a stack of cards ---- */}
+          <aside className="flex min-w-0 flex-col divide-y divide-line min-[1100px]:hairline-l min-[1100px]:pl-8">
             <SalahCard date={today} minutesNow={minutesNow} />
             <LeftoversCard date={today} />
             <HabitsCard date={today} />

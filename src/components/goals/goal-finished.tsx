@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Ban, ChevronRight, CircleCheck, Pause, Target, Trophy, Undo2 } from "lucide-react";
+import { Ban, CircleCheck, Pause, Target, Trophy, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { diffDays, formatDate, monthName, yearOf } from "@/lib/date";
 import type { Goal } from "@/lib/types";
 import { Badge, Button, EmptyState, IconButton } from "@/components/ui/primitives";
+import { Fold, useFold } from "./goal-fold";
 import {
   finishedOn, formatTarget, HORIZON_LABEL, STATUS_LABEL, type GoalIndex,
 } from "./goal-model";
@@ -24,7 +25,7 @@ export function GoalFinished({
 }) {
   const patch = useStore((s) => s.patch);
   const toast = useStore((s) => s.toast);
-  const [showArchive, setShowArchive] = React.useState(false);
+  const archive = useFold("finished.archive", false);
 
   const done = React.useMemo(
     () => goals.filter((g) => g.status === "done").sort((a, b) => finishedOn(b).localeCompare(finishedOn(a))),
@@ -78,106 +79,100 @@ export function GoalFinished({
     );
   }
 
+  // One headline, and the rest of the receipts on the line under it. Four
+  // numerals of the same size were four headlines fighting each other.
+  const receipts = [
+    `${tallies.tasks} ${tallies.tasks === 1 ? "task" : "tasks"} closed`,
+    `${tallies.targetsHit} ${tallies.targetsHit === 1 ? "target" : "targets"} hit`,
+    tallies.milestones > 0
+      ? `${tallies.milestones} ${tallies.milestones === 1 ? "milestone" : "milestones"} reached`
+      : null,
+  ].filter(Boolean).join(" · ");
+
   return (
-    <div>
+    <div className="space-y-8">
       {done.length > 0 && (
         <>
-          <div className="mb-6 flex flex-wrap gap-x-10 gap-y-4">
-            <Tally value={done.length} label={done.length === 1 ? "goal finished" : "goals finished"} />
-            <Tally value={tallies.tasks} label={tallies.tasks === 1 ? "task closed" : "tasks closed"} />
-            <Tally value={tallies.targetsHit} label={tallies.targetsHit === 1 ? "target hit" : "targets hit"} />
-            {tallies.milestones > 0 && (
-              <Tally
-                value={tallies.milestones}
-                label={tallies.milestones === 1 ? "milestone reached" : "milestones reached"}
-              />
-            )}
+          <div>
+            <div className="flex items-baseline gap-2.5">
+              <span className="display-serif text-[32px] leading-none text-ink tnum">{done.length}</span>
+              <span className="text-[13px] text-ink-2">
+                {done.length === 1 ? "goal finished" : "goals finished"}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[12px] text-ink-3 tnum">{receipts}</p>
           </div>
 
-          {groups.map((group) => (
-            <section key={group.key} className="mb-6">
-              <div className="mb-1 flex items-baseline gap-2">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{group.label}</h2>
-                <span className="text-[11px] text-ink-4 tnum">{group.goals.length}</span>
-              </div>
-              <div className="-mx-2">
-                {group.goals.map((goal) => (
-                  <FinishedRow
-                    key={goal.id}
-                    goal={goal}
-                    index={index}
-                    onOpen={onOpen}
-                    onRestore={() => restore(goal)}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+          <div className="space-y-6">
+            {groups.map((group) => (
+              <section key={group.key}>
+                <div className="mb-1.5 flex items-baseline gap-2">
+                  <h2 className="text-[12.5px] font-medium text-ink-2">{group.label}</h2>
+                  <span className="text-[11px] text-ink-4 tnum">{group.goals.length}</span>
+                </div>
+                <div className="-mx-2">
+                  {group.goals.map((goal) => (
+                    <FinishedRow
+                      key={goal.id}
+                      goal={goal}
+                      index={index}
+                      onOpen={onOpen}
+                      onRestore={() => restore(goal)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         </>
       )}
 
       {archived.length > 0 && (
-        <section className="mt-2 border-t border-line pt-4">
-          <button
-            onClick={() => setShowArchive((v) => !v)}
-            aria-expanded={showArchive}
-            aria-controls="goal-archive-panel"
-            className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 transition-colors hover:text-ink-2"
-          >
-            <ChevronRight className={cn("size-3 transition-transform duration-200", showArchive && "rotate-90")} />
-            Paused &amp; dropped
-            <span className="text-ink-4 tnum">{archived.length}</span>
-          </button>
-
-          {showArchive && (
-            <div id="goal-archive-panel" className="-mx-2 mt-1.5">
-              {archived.map((goal) => (
-                <div
-                  key={goal.id}
-                  className="group/row flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-hover"
+        <Fold
+          id="goal-archive-panel"
+          label="Paused and dropped"
+          summary={`${archived.length} set aside`}
+          open={archive.open}
+          onToggle={archive.toggle}
+        >
+          <div className="-mx-2">
+            {archived.map((goal) => (
+              <div
+                key={goal.id}
+                className="group/row flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-hover"
+              >
+                {goal.status === "paused"
+                  ? <Pause className="size-3.5 shrink-0 text-ink-3" />
+                  : <Ban className="size-3.5 shrink-0 text-ink-4" />}
+                <button
+                  onClick={() => onOpen(goal.id)}
+                  className="min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] text-ink-2"
                 >
-                  {goal.status === "paused"
-                    ? <Pause className="size-3.5 shrink-0 text-warn" />
-                    : <Ban className="size-3.5 shrink-0 text-ink-4" />}
-                  <button
-                    onClick={() => onOpen(goal.id)}
-                    className="min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] text-ink-2"
-                  >
-                    {goal.title || "Untitled goal"}
-                  </button>
-                  <span className="shrink-0 text-[11.5px] text-ink-4">{STATUS_LABEL[goal.status]}</span>
-                  <IconButton
-                    label={`Reactivate ${goal.title || "goal"}`}
-                    size="sm"
-                    className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
-                    onClick={() => restore(goal)}
-                  >
-                    <Undo2 />
-                  </IconButton>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+                  {goal.title || "Untitled goal"}
+                </button>
+                <span className="shrink-0 text-[11.5px] text-ink-4">{STATUS_LABEL[goal.status]}</span>
+                <IconButton
+                  label={`Reactivate ${goal.title || "goal"}`}
+                  size="sm"
+                  className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
+                  onClick={() => restore(goal)}
+                >
+                  <Undo2 />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        </Fold>
       )}
 
       {!done.length && (
         <EmptyState
           icon={Trophy}
           title="Nothing finished yet"
-          description="Everything you have set aside is below. Finish a goal and it gets its own entry here."
+          description="Everything you have set aside is above. Finish a goal and it gets its own entry here."
           action={<Button variant="primary" size="sm" onClick={onBrowse}>Open the ladder</Button>}
         />
       )}
-    </div>
-  );
-}
-
-function Tally({ value, label }: { value: number; label: string }) {
-  return (
-    <div>
-      <div className="display-serif text-[32px] leading-none text-ink tnum">{value}</div>
-      <div className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</div>
     </div>
   );
 }
@@ -195,6 +190,15 @@ function FinishedRow({
   const target = formatTarget(goal);
   const hit = goal.target != null && goal.current >= goal.target;
   const ran = goal.start_date ? diffDays(on, goal.start_date) + 1 : null;
+
+  // The receipts read as one sentence rather than six separate chips.
+  const receipts = [
+    stats.subtreeTotal > 0 ? `${stats.subtreeDone}/${stats.subtreeTotal} tasks` : null,
+    stats.childCount > 0 ? `${stats.childDone}/${stats.childCount} sub-goals` : null,
+    stats.milestoneTotal > 0 ? `${stats.milestoneDone}/${stats.milestoneTotal} milestones` : null,
+    stats.meta.checkins.length > 0 ? `${stats.meta.checkins.length} check-ins` : null,
+    ran != null && ran > 0 ? `ran ${ran} days` : null,
+  ].filter(Boolean).join(" · ");
 
   return (
     <div className="group/row flex items-start gap-2.5 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-hover">
@@ -216,19 +220,7 @@ function FinishedRow({
               {target}
             </span>
           )}
-          {stats.subtreeTotal > 0 && (
-            <span className="tnum">{stats.subtreeDone}/{stats.subtreeTotal} tasks</span>
-          )}
-          {stats.childCount > 0 && (
-            <span className="tnum">{stats.childDone}/{stats.childCount} sub-goals</span>
-          )}
-          {stats.milestoneTotal > 0 && (
-            <span className="tnum">{stats.milestoneDone}/{stats.milestoneTotal} milestones</span>
-          )}
-          {stats.meta.checkins.length > 0 && (
-            <span className="tnum">{stats.meta.checkins.length} check-ins</span>
-          )}
-          {ran != null && ran > 0 && <span className="tnum">ran {ran} days</span>}
+          {receipts && <span className="min-w-0 truncate tnum text-ink-4">{receipts}</span>}
         </div>
       </div>
 

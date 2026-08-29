@@ -66,10 +66,11 @@ export function SalahPanel({
     SEGMENTS.reduce((sum, s) => (isolated.has(s.key) ? sum + p[s.key] : sum), 0);
 
   const summary = hasData
-    ? `${kept} of ${total} prayers kept on time — ${pctOf(kept, total)}%` +
+    ? `${pctOf(kept, total)}% of your ${total} prayers were kept on time` +
       (jamaah ? `, ${jamaah} of them in jamaah` : "") +
       (qadha ? `, plus ${qadha} made up as qadha` : "") +
-      (weakest ? `. ${PRAYER_LABELS[weakest.name]} slips most, missing ${weakest.missing} of ${weakest.total} days.` : ".")
+      (weakest ? `. ${PRAYER_LABELS[weakest.name]} slips most, missing ${weakest.missing} of ${weakest.total} days` : "") +
+      (streak > 0 ? `. ${streak} full days in a row so far.` : ". No full day has been kept end to end yet.")
     : "No salah has been logged in this window.";
 
   const describe = React.useCallback((i: number) => {
@@ -124,20 +125,17 @@ export function SalahPanel({
       ) : (
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
           <div className="flex shrink-0 flex-col items-center gap-2">
-            <Ring value={kept} max={Math.max(1, total)} size={132} stroke={9}>
+            <Ring value={kept} max={Math.max(1, total)} size={112} stroke={8}>
               <div className="text-center">
-                <p className="display-serif text-[32px] leading-none text-ink tnum">
+                <p className="display-serif text-[22px] leading-none text-ink tnum">
                   {pctOf(kept, total)}
-                  <span className="text-[15px]">%</span>
+                  <span className="text-[12.5px]">%</span>
                 </p>
-                <p className="mt-1 text-[10.5px] uppercase tracking-[0.06em] text-ink-4">on time</p>
+                <p className="mt-0.5 text-[10.5px] text-ink-4">on time</p>
               </div>
             </Ring>
-            <p className="text-[11.5px] text-ink-3 tnum">
-              {streak > 0 ? `${streak}-day full streak` : "No full day streak"}
-            </p>
             <p className="text-[11px] text-ink-4 tnum">
-              {pctOf(jamaah, Math.max(1, kept))}% of kept prayers in jamaah
+              {pctOf(jamaah, Math.max(1, kept))}% of those in jamaah
             </p>
           </div>
 

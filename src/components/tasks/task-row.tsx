@@ -6,7 +6,7 @@ import {
   Clock, Flag, GripVertical, MoreHorizontal, Play, Copy, Trash2, Calendar,
   ChevronRight, BookOpen, Repeat, Timer as TimerIcon, ArrowRight,
   Sun, Sunrise, X, AlignLeft, Ban, CircleDot, Inbox, CornerDownRight,
-  Milestone, CalendarDays, Check, Pencil, Hash,
+  Milestone, CalendarDays, Check, Pencil, Hash, ListTree, CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, subtasksOf } from "@/lib/store";
@@ -14,7 +14,7 @@ import {
   addDays, diffDays, formatDuration, formatRange, formatTime, friendlyDate, parseTime, todayISO,
 } from "@/lib/date";
 import { PRIORITY_LABELS, type Profile, type Task } from "@/lib/types";
-import { Checkbox, Badge, IconButton, Button, Ring } from "@/components/ui/primitives";
+import { Checkbox, Badge, IconButton, Button } from "@/components/ui/primitives";
 import { Popover, MenuItem, MenuSeparator, MenuLabel, TintPicker } from "@/components/ui/overlays";
 import { Field } from "@/components/ui/form";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
@@ -97,14 +97,30 @@ export function blockedByThis(links: TaskLinks, taskId: string): string[] {
 // =========================================================
 const PRIORITY_CLASS = ["", "text-ink-3", "text-warn", "text-danger"];
 
-/** Chip padding is negative-margined so a 27px hit box costs the row no height. */
+/** Chip padding is negative-margined so a 28px hit box costs the row no height. */
 const CHIP =
-  "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-1.5 -my-1.5 " +
+  "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-2 -my-2 " +
   "text-[11.5px] leading-none cursor-pointer transition-colors duration-120 " +
   "hover:bg-active text-ink-3";
 
 const CHIP_STATIC =
-  "inline-flex max-w-full items-center gap-1 px-1.5 py-1.5 -my-1.5 text-[11.5px] leading-none text-ink-3";
+  "inline-flex max-w-full items-center gap-1 px-1.5 py-2 -my-2 text-[11.5px] leading-none text-ink-3";
+
+/**
+ * The calm pass: a row states at most three facts about itself. Everything else
+ * keeps working — it just lives one click away, under the "…" at the end of the
+ * meta line, rendered by exactly the same controls.
+ */
+const META_VISIBLE = 3;
+
+interface MetaChip {
+  key: string;
+  /** plain-text name of the fact, used for the overflow button's label */
+  label: string;
+  node: React.ReactNode;
+  /** used inside the overflow popover, where there is room to show everything */
+  expandedNode?: React.ReactNode;
+}
 
 const TIME_PRESETS: { label: string; min: number }[] = [
   { label: "7:00", min: 420 },
@@ -516,10 +532,6 @@ function TaskRowBase({
     });
   }
 
-  function cyclePriority(step = 1) {
-    patch("tasks", task.id, { priority: (((task.priority + step) % 4) + 4) % 4 });
-  }
-
   function duplicate() {
     const copy = duplicateTask(task.id);
     if (!copy) return;
@@ -596,12 +608,268 @@ function TaskRowBase({
   }
 
   const showQuickBar = quickBar !== "none" && !selectionActive;
-  const minimalBar = quickBar === "minimal" || (quickBar === "auto" && !!compact);
 
-  const hasMeta =
-    task.start_min != null || showDate || task.tags.length > 0 || subtasks.length > 0 ||
-    task.checklist.length > 0 || task.duration_min != null || task.actual_min > 0 ||
-    !!book || !!task.notes || blocked || dropped;
+  function removeTag(tag: string) {
+    const previous = task.tags;
+    patch("tasks", task.id, { tags: task.tags.filter((t) => t !== tag) });
+    toast({
+      title: `Removed #${tag}`,
+      action: { label: "Undo", run: () => patch("tasks", task.id, { tags: previous }) },
+    });
+  }
+
+  const tagChip = (tag: string) => (
+    <button
+      key={tag}
+      onClick={() => removeTag(tag)}
+      aria-label={`Remove tag ${tag}`}
+      className="group/tag -my-2 flex h-7 max-w-[150px] items-center px-1 cursor-pointer"
+    >
+      <Badge tint="slate" className="group-hover/tag:brightness-95 dark:group-hover/tag:brightness-110">
+        <Hash className="size-2.5 shrink-0 opacity-60" />
+        {tag}
+        <X className="size-2.5 shrink-0 opacity-0 transition-opacity duration-120 group-hover/tag:opacity-100" />
+      </Badge>
+    </button>
+  );
+
+  // ---- meta line ----------------------------------------------------------
+  // Built in order of relevance. The first three are shown; the rest keep every
+  // control they had, one click away under the "…".
+  const metas: MetaChip[] = [];
+  const dateISO = task.date;
+
+  if (blocked) {
+    metas.push({
+      key: "blocked",
+      label: `blocked by ${openBlockers.length === 1 ? openBlockers[0].title || "Untitled" : `${openBlockers.length} tasks`}`,
+      node: (
+        <button
+          onClick={() => openInspector(openBlockers[0].id)}
+          className={cn(CHIP, "text-ink-2")}
+          aria-label={`Blocked by ${openBlockers.map((b) => b.title || "Untitled").join(", ")} — open the blocker`}
+        >
+          <Ban className="size-3 shrink-0" />
+          <span className="truncate">
+            Blocked by {openBlockers.length > 1 ? `${openBlockers.length} tasks` : openBlockers[0].title || "Untitled"}
+          </span>
+        </button>
+      ),
+    });
+  }
+
+  if (showDate && dateISO) {
+    metas.push({
+      key: "date",
+      label: friendlyDate(dateISO) + (lateBy > 1 ? ` · ${lateBy}d late` : ""),
+      node: (
+        <Popover
+          className="w-[256px]"
+          trigger={
+            <button
+              className={cn(CHIP, overdue && "text-ink-2")}
+              aria-label={`Reschedule — currently ${friendlyDate(dateISO)}${lateBy > 1 ? `, ${lateBy} days late` : ""}`}
+            >
+              <Calendar className="size-3 shrink-0" />
+              <span className="truncate">{friendlyDate(dateISO)}</span>
+              {lateBy > 1 && <span className="tnum">· {lateBy}d late</span>}
+            </button>
+          }
+        >
+          {(close) => (
+            <TaskDatePicker
+              value={dateISO}
+              onPick={(iso) => { moveTo(iso); close(); }}
+              onClear={() => { moveTo(null); close(); }}
+            />
+          )}
+        </Popover>
+      ),
+    });
+  } else if (showDate) {
+    metas.push({
+      key: "inbox",
+      label: "Inbox",
+      node: (
+        <Popover
+          className="w-[256px]"
+          trigger={
+            <button className={cn(CHIP, "text-ink-4")} aria-label="Schedule this task">
+              <Calendar className="size-3 shrink-0" /> Inbox
+            </button>
+          }
+        >
+          {(close) => <TaskDatePicker value={null} onPick={(iso) => { moveTo(iso); close(); }} />}
+        </Popover>
+      ),
+    });
+  }
+
+  if (task.start_min != null) {
+    metas.push({
+      key: "time",
+      label: formatRange(task.start_min, task.end_min, hour12),
+      node: (
+        <Popover
+          className="w-[236px]"
+          trigger={
+            <button
+              className={cn(CHIP, "tnum")}
+              aria-label={`Edit time — currently ${formatRange(task.start_min, task.end_min, hour12)}`}
+            >
+              <Clock className="size-3 shrink-0" />
+              {formatRange(task.start_min, task.end_min, hour12)}
+            </button>
+          }
+        >
+          {(close) => <TimeEditor task={task} onDone={close} />}
+        </Popover>
+      ),
+    });
+  } else if (task.duration_min != null) {
+    metas.push({
+      key: "estimate",
+      label: `${formatDuration(task.duration_min)} estimated`,
+      node: (
+        <Popover
+          className="w-[236px]"
+          trigger={
+            <button
+              className={cn(CHIP, "tnum")}
+              aria-label={`Give this a start time — estimated ${formatDuration(task.duration_min)}`}
+            >
+              <TimerIcon className="size-3 shrink-0" />
+              {formatDuration(task.duration_min)}
+            </button>
+          }
+        >
+          {(close) => <TimeEditor task={task} onDone={close} />}
+        </Popover>
+      ),
+    });
+  }
+
+  if (subtasks.length > 0) {
+    metas.push({
+      key: "subtasks",
+      label: `${doneSubs}/${subtasks.length} subtasks`,
+      node: (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className={cn(CHIP, "tnum")}
+          aria-label={`${doneSubs} of ${subtasks.length} subtasks done — ${expanded ? "collapse" : "expand"}`}
+        >
+          <ListTree className="size-3 shrink-0" />
+          {doneSubs}/{subtasks.length}
+        </button>
+      ),
+    });
+  }
+
+  if (task.checklist.length > 0) {
+    metas.push({
+      key: "checklist",
+      label: `${checklistDone}/${task.checklist.length} checklist`,
+      node: (
+        <button
+          onClick={open}
+          className={cn(CHIP, "tnum")}
+          aria-label={`Checklist ${checklistDone} of ${task.checklist.length} — open task`}
+        >
+          <CheckSquare className="size-3 shrink-0" />
+          {checklistDone}/{task.checklist.length}
+        </button>
+      ),
+    });
+  }
+
+  if (task.actual_min > 0) {
+    metas.push({
+      key: "spent",
+      label: `${formatDuration(task.actual_min)} spent`,
+      node: (
+        <span className={cn(CHIP_STATIC, "tnum")} title="Time logged against this task">
+          <TimerIcon className="size-3 shrink-0" />
+          {formatDuration(task.actual_min)} spent
+          {task.duration_min ? (
+            <span className="text-ink-4"> / {formatDuration(task.duration_min)}</span>
+          ) : null}
+        </span>
+      ),
+    });
+  }
+
+  if (book) {
+    metas.push({
+      key: "book",
+      label: book.title,
+      node: (
+        <span className={cn(CHIP_STATIC, "min-w-0")}>
+          <BookOpen className="size-3 shrink-0" />
+          <span className="truncate">{book.title}</span>
+        </span>
+      ),
+    });
+  }
+
+  if (task.tags.length > 0) {
+    const [firstTag, ...restTags] = task.tags;
+    metas.push({
+      key: "tags",
+      label: task.tags.map((t) => `#${t}`).join(", "),
+      node: (
+        <span className="inline-flex items-center gap-0.5">
+          {tagChip(firstTag)}
+          {restTags.length > 0 && (
+            <Popover
+              className="w-[210px]"
+              trigger={
+                <button
+                  className={cn(CHIP, "tnum text-ink-4")}
+                  aria-label={`${restTags.length} more tags: ${restTags.map((t) => `#${t}`).join(", ")}`}
+                >
+                  +{restTags.length}
+                </button>
+              }
+            >
+              <div className="flex flex-wrap items-center gap-1 p-1">{restTags.map(tagChip)}</div>
+            </Popover>
+          )}
+        </span>
+      ),
+      expandedNode: (
+        <span className="inline-flex flex-wrap items-center gap-0.5">{task.tags.map(tagChip)}</span>
+      ),
+    });
+  }
+
+  if (dropped) {
+    metas.push({
+      key: "dropped",
+      label: "dropped",
+      node: (
+        <span className={cn(CHIP_STATIC, "text-ink-4")}>
+          <CircleDot className="size-3 shrink-0" /> Dropped
+        </span>
+      ),
+    });
+  }
+
+  if (task.notes) {
+    metas.push({
+      key: "notes",
+      label: "has notes",
+      node: (
+        <span className={cn(CHIP_STATIC, "text-ink-4")} title="Has notes">
+          <AlignLeft className="size-3 shrink-0" /> Notes
+        </span>
+      ),
+    });
+  }
+
+  const metaShown = metas.slice(0, META_VISIBLE);
+  const metaRest = metas.slice(META_VISIBLE);
 
   return (
     <div
@@ -708,208 +976,42 @@ function TaskRowBase({
             {task.kind === "milestone" && <Milestone className="size-3 shrink-0 text-ink-4" aria-label="Milestone" />}
           </div>
 
-          {/* meta row — only rendered when it has something to say */}
-          {hasMeta && (
-            <div className="mt-1 -ml-1.5 flex flex-wrap items-center gap-x-0.5 gap-y-1">
-              {showDate && task.date && (
+          {/* meta line — three facts, the rest one click away */}
+          {metas.length > 0 && (
+            <div className="mt-1 -ml-1.5 flex flex-wrap items-center gap-x-0.5 gap-y-1.5">
+              {metaShown.map((m) => (
+                <React.Fragment key={m.key}>{m.node}</React.Fragment>
+              ))}
+
+              {metaRest.length > 0 && (
                 <Popover
-                  className="w-[256px]"
+                  className="w-[232px]"
                   trigger={
                     <button
-                      className={cn(CHIP, overdue && "text-danger hover:bg-danger-soft")}
-                      aria-label={`Reschedule — currently ${friendlyDate(task.date)}`}
+                      className={cn(CHIP, "text-ink-4")}
+                      aria-label={`${metaRest.length} more details — ${metaRest.map((m) => m.label).join(", ")}`}
                     >
-                      <Calendar className="size-3 shrink-0" />
-                      <span className="truncate">{friendlyDate(task.date)}</span>
-                      {lateBy > 1 && <span className="tnum">· {lateBy}d late</span>}
+                      <MoreHorizontal className="size-3 shrink-0" />
                     </button>
                   }
                 >
-                  {(close) => (
-                    <TaskDatePicker
-                      value={task.date}
-                      onPick={(iso) => { moveTo(iso); close(); }}
-                      onClear={() => { moveTo(null); close(); }}
-                    />
-                  )}
+                  <div className="flex flex-col items-start gap-0.5 p-1">
+                    {metaRest.map((m) => (
+                      <div key={m.key} className="flex min-h-7 max-w-full items-center px-0.5">
+                        {m.expandedNode ?? m.node}
+                      </div>
+                    ))}
+                  </div>
                 </Popover>
               )}
-
-              {showDate && !task.date && (
-                <Popover
-                  className="w-[256px]"
-                  trigger={
-                    <button className={cn(CHIP, "text-ink-4")} aria-label="Schedule this task">
-                      <Calendar className="size-3 shrink-0" /> Inbox
-                    </button>
-                  }
-                >
-                  {(close) => <TaskDatePicker value={null} onPick={(iso) => { moveTo(iso); close(); }} />}
-                </Popover>
-              )}
-
-              {task.start_min != null && (
-                <Popover
-                  className="w-[236px]"
-                  trigger={
-                    <button className={cn(CHIP, "tnum")} aria-label={`Edit time — currently ${formatRange(task.start_min, task.end_min, hour12)}`}>
-                      <Clock className="size-3 shrink-0" />
-                      {formatRange(task.start_min, task.end_min, hour12)}
-                    </button>
-                  }
-                >
-                  {(close) => <TimeEditor task={task} onDone={close} />}
-                </Popover>
-              )}
-
-              {task.duration_min != null && task.start_min == null && (
-                <Popover
-                  className="w-[236px]"
-                  trigger={
-                    <button className={cn(CHIP, "tnum")} aria-label={`Give this a start time — estimated ${formatDuration(task.duration_min)}`}>
-                      <TimerIcon className="size-3 shrink-0" />
-                      {formatDuration(task.duration_min)}
-                    </button>
-                  }
-                >
-                  {(close) => <TimeEditor task={task} onDone={close} />}
-                </Popover>
-              )}
-
-              {task.actual_min > 0 && (
-                <span className={cn(CHIP_STATIC, "text-success tnum")} title="Time logged against this task">
-                  <TimerIcon className="size-3 shrink-0" />
-                  {formatDuration(task.actual_min)} spent
-                  {task.duration_min ? (
-                    <span className={task.actual_min > task.duration_min ? "text-warn" : "text-ink-4"}>
-                      {" "}/ {formatDuration(task.duration_min)}
-                    </span>
-                  ) : null}
-                </span>
-              )}
-
-              {blocked && (
-                <button
-                  onClick={() => openInspector(openBlockers[0].id)}
-                  className={cn(CHIP, "text-warn hover:bg-warn-soft")}
-                  aria-label={`Blocked by ${openBlockers.map((b) => b.title || "Untitled").join(", ")} — open the blocker`}
-                >
-                  <Ban className="size-3 shrink-0" />
-                  <span className="truncate">
-                    Blocked by {openBlockers.length > 1 ? `${openBlockers.length} tasks` : openBlockers[0].title || "Untitled"}
-                  </span>
-                </button>
-              )}
-
-              {dropped && (
-                <span className={cn(CHIP_STATIC, "text-ink-4")}>
-                  <CircleDot className="size-3 shrink-0" /> Dropped
-                </span>
-              )}
-
-              {book && (
-                <span className={cn(CHIP_STATIC, "min-w-0")}>
-                  <BookOpen className="size-3 shrink-0" />
-                  <span className="truncate">{book.title}</span>
-                </span>
-              )}
-
-              {task.notes && (
-                <span className={CHIP_STATIC} title="Has notes">
-                  <AlignLeft className="size-3 shrink-0" />
-                </span>
-              )}
-
-              {subtasks.length > 0 && (
-                <button
-                  onClick={() => setExpanded((v) => !v)}
-                  className={cn(CHIP, "tnum")}
-                  aria-label={`${doneSubs} of ${subtasks.length} subtasks done — ${expanded ? "collapse" : "expand"}`}
-                >
-                  <Ring
-                    value={doneSubs}
-                    max={subtasks.length}
-                    size={12}
-                    stroke={2}
-                    tint={task.color}
-                    className="shrink-0"
-                  />
-                  {doneSubs}/{subtasks.length}
-                </button>
-              )}
-
-              {task.checklist.length > 0 && (
-                <button onClick={open} className={cn(CHIP, "tnum")} aria-label={`Checklist ${checklistDone} of ${task.checklist.length} — open task`}>
-                  <Ring
-                    value={checklistDone}
-                    max={task.checklist.length}
-                    size={12}
-                    stroke={2}
-                    tint={task.color}
-                    className="shrink-0"
-                  />
-                  {checklistDone}/{task.checklist.length}
-                </button>
-              )}
-
-              {task.tags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => {
-                    const previous = task.tags;
-                    patch("tasks", task.id, { tags: task.tags.filter((t) => t !== tag) });
-                    toast({
-                      title: `Removed #${tag}`,
-                      action: { label: "Undo", run: () => patch("tasks", task.id, { tags: previous }) },
-                    });
-                  }}
-                  aria-label={`Remove tag ${tag}`}
-                  className="group/tag -my-1.5 flex h-7 max-w-[150px] items-center px-1 cursor-pointer"
-                >
-                  <Badge tint="slate" className="group-hover/tag:brightness-95 dark:group-hover/tag:brightness-110">
-                    <Hash className="size-2.5 shrink-0 opacity-60" />
-                    {tag}
-                    <X className="size-2.5 shrink-0 opacity-0 transition-opacity duration-120 group-hover/tag:opacity-100" />
-                  </Badge>
-                </button>
-              ))}
             </div>
           )}
         </div>
 
-        {/* hover actions */}
+        {/* Hover actions: two direct ones. Everything the bar used to carry —
+            today, tomorrow, priority, duplicate, delete — is in the menu. */}
         {showQuickBar && (
           <QuickBar>
-            {!minimalBar && (
-              <IconButton
-                label="Move to today"
-                size="md"
-                disabled={task.date === today}
-                onClick={() => moveTo(today)}
-              >
-                <Sun />
-              </IconButton>
-            )}
-            {!minimalBar && (
-              <IconButton
-                label="Push to tomorrow"
-                size="md"
-                onClick={() => moveTo(addDays(task.date ?? today, 1))}
-              >
-                <Sunrise />
-              </IconButton>
-            )}
-            {!minimalBar && (
-              <IconButton
-                label={`Priority: ${PRIORITY_LABELS[task.priority]} — click for ${PRIORITY_LABELS[(task.priority + 1) % 4]}`}
-                size="md"
-                active={task.priority > 0}
-                className={task.priority > 0 ? PRIORITY_CLASS[task.priority] : undefined}
-                onClick={() => cyclePriority()}
-              >
-                <Flag fill={task.priority > 0 ? "currentColor" : "none"} />
-              </IconButton>
-            )}
             <IconButton
               label={running ? "Timer running" : "Start focus timer"}
               size="md"
@@ -921,16 +1023,6 @@ function TaskRowBase({
             >
               <Play />
             </IconButton>
-            {!minimalBar && (
-              <IconButton label="Duplicate task" size="md" onClick={duplicate}>
-                <Copy />
-              </IconButton>
-            )}
-            {!minimalBar && (
-              <IconButton label="Delete task" size="md" tone="danger" onClick={deleteWithUndo}>
-                <Trash2 />
-              </IconButton>
-            )}
 
             <Popover
               align="end"

@@ -95,13 +95,12 @@ export function OutlinePanel({
     <div
       data-no-zoom
       onPointerDown={(e) => e.stopPropagation()}
-      className="flex h-full w-[248px] flex-col border-r border-line bg-sunken"
+      style={{ animationDuration: "200ms" }}
+      className="anim-fade flex h-full w-[248px] flex-col bg-sunken hairline-r"
     >
-      <div className="flex items-center gap-1.5 px-2.5 py-2 hairline-b">
-        <ListTree className="size-3.5 text-ink-3" aria-hidden />
-        <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-          Outline
-        </span>
+      <div className="flex items-center gap-1.5 px-2.5 py-2">
+        <ListTree className="size-3.5 text-ink-4" aria-hidden />
+        <span className="flex-1 text-[11px] font-medium text-ink-3">Outline</span>
         <span className="text-[11px] text-ink-4 tnum">{nodes.length}</span>
         <IconButton label="Hide outline" size="sm" onClick={onClose}>
           <X />

@@ -4,17 +4,25 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Fold, useFold } from "./fold";
 
 /**
- * The rail's shared shell: hairline-separated header, tight body, optional
- * footer for the one line of context a card wants to leave behind.
- * Cards never nest another card inside themselves — rows only.
+ * The rail is a list of foldable sections, not a stack of cards: one quiet
+ * header row each, the summary standing in for the content while it is folded,
+ * and rows that sit on spacing. Nothing here draws a border — the rail's own
+ * hairlines do the separating.
  */
 export function RailCard({
-  icon: Icon, title, accessory, href, hrefLabel, children, footer, className,
+  icon, title, summary, foldKey, defaultOpen = false,
+  accessory, href, hrefLabel, children, footer, className,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
+  /** What the section says while folded. Always states its own value. */
+  summary?: React.ReactNode;
+  /** localStorage key, namespaced under `humoyun.today.` */
+  foldKey: string;
+  defaultOpen?: boolean;
   accessory?: React.ReactNode;
   href?: string;
   hrefLabel?: string;
@@ -22,36 +30,45 @@ export function RailCard({
   footer?: React.ReactNode;
   className?: string;
 }) {
+  const { open, toggle } = useFold(foldKey, defaultOpen);
+
   return (
-    <section className={cn("surface", className)}>
-      <div className="flex h-9 items-center gap-2 px-3 hairline-b">
-        <Icon className="size-3.5 shrink-0 text-ink-3" />
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{title}</h2>
-        <div className="ml-auto flex items-center gap-2">
-          {accessory}
-          {href && (
-            <Link
-              href={href}
-              aria-label={hrefLabel ?? `Open ${title}`}
-              title={hrefLabel ?? `Open ${title}`}
-              className={cn(
-                "-mr-1 grid size-6 place-items-center rounded-md text-ink-4 cursor-pointer",
-                "transition-[color,background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
-                "hover:bg-hover hover:text-ink-2 active:scale-[0.94]",
-              )}
-            >
-              <ArrowUpRight className="size-3.5" />
-            </Link>
-          )}
-        </div>
-      </div>
-      <div className="p-1.5">{children}</div>
-      {footer && <div className="px-3 py-2 hairline-t">{footer}</div>}
-    </section>
+    <Fold
+      icon={icon}
+      title={title}
+      summary={summary}
+      open={open}
+      onToggle={toggle}
+      className={cn("py-1.5", className)}
+      accessory={
+        open ? (
+          <>
+            {accessory}
+            {href && (
+              <Link
+                href={href}
+                aria-label={hrefLabel ?? `Open ${title}`}
+                title={hrefLabel ?? `Open ${title}`}
+                className={cn(
+                  "grid size-7 place-items-center rounded-md text-ink-4 cursor-pointer",
+                  "transition-[color,background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
+                  "hover:bg-hover hover:text-ink-2 active:scale-[0.94]",
+                )}
+              >
+                <ArrowUpRight className="size-3.5" />
+              </Link>
+            )}
+          </>
+        ) : undefined
+      }
+    >
+      <div className="pb-1 pt-1">{children}</div>
+      {footer && <div className="px-2 pb-1.5">{footer}</div>}
+    </Fold>
   );
 }
 
-/** Compact empty state — the page-level EmptyState is far too tall for a rail card. */
+/** Compact empty state — the page-level EmptyState is far too tall for a rail section. */
 export function RailEmpty({
   children, action,
 }: {
@@ -59,7 +76,7 @@ export function RailEmpty({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="px-2 pb-1.5 pt-1">
+    <div className="px-2 pb-1 pt-0.5">
       <p className="text-[12.5px] leading-relaxed text-ink-3">{children}</p>
       {action && <div className="mt-2.5">{action}</div>}
     </div>
@@ -134,7 +151,7 @@ export function RailItem({
   );
 }
 
-/** The small print a card leaves in its footer: label on the left, number on the right. */
+/** The small print a section leaves behind: label on the left, number on the right. */
 export function RailMeta({
   children, value, className,
 }: {
@@ -145,7 +162,7 @@ export function RailMeta({
   return (
     <p className={cn("flex items-baseline justify-between gap-2 text-[11.5px] text-ink-3 tnum", className)}>
       <span className="min-w-0 truncate">{children}</span>
-      {value != null && <span className="shrink-0 font-medium text-ink-2">{value}</span>}
+      {value != null && <span className="shrink-0 font-medium text-ink-3">{value}</span>}
     </p>
   );
 }

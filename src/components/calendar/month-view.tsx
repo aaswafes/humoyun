@@ -2,9 +2,7 @@
 
 import * as React from "react";
 import { useDroppable } from "@dnd-kit/core";
-import {
-  ChevronsLeft, ChevronsRight, Hash, Plus, Rows2, Rows3, Rows4, TriangleAlert, X,
-} from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   addDays, dayNumber, daysBetween, formatDate, isSameMonth, monthGrid, monthName,
@@ -13,7 +11,7 @@ import {
 import { parseTask } from "@/lib/parse";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
-import { Button, IconButton, Input, Segmented } from "@/components/ui/primitives";
+import { Button, IconButton, Input } from "@/components/ui/primitives";
 import { Popover } from "@/components/ui/overlays";
 import { VisuallyHidden } from "@/components/ui/form";
 import { bucketByDate, type DropPreview } from "./calendar-utils";
@@ -37,18 +35,14 @@ interface DensitySpec {
    * precisely because you would rather scroll than summarise.
    */
   allowance: number;
-  label: string;
-  hint: string;
-  icon: React.ComponentType<{ className?: string }>;
 }
 
+/** The page owns the setting — see the View popover in the calendar header. */
 const DENSITY: Record<ChipDensity, DensitySpec> = {
-  compact: { chips: 3, allowance: 1.15, label: "Compact", hint: "up to 3 a day", icon: Rows4 },
-  comfortable: { chips: 5, allowance: 1.3, label: "Comfortable", hint: "up to 5 a day", icon: Rows3 },
-  spacious: { chips: 7, allowance: 1.8, label: "Spacious", hint: "up to 7 a day", icon: Rows2 },
+  compact: { chips: 3, allowance: 1.15 },
+  comfortable: { chips: 5, allowance: 1.3 },
+  spacious: { chips: 7, allowance: 1.8 },
 };
-
-const DENSITIES: ChipDensity[] = ["compact", "comfortable", "spacious"];
 
 const HEADER_H = 28;  // the day-number row
 const FOOTER_H = 13;  // the completion meter
@@ -79,21 +73,6 @@ function chipsThatFit(density: ChipDensity, avail: number): number {
   const room = avail * allowance - HEADER_H - FOOTER_H - CELL_PAD;
   const fit = Math.floor((room - slotHeight(density)) / CHIP_METRICS[density].hit) + 1;
   return Math.max(1, Math.min(cap, fit));
-}
-
-// ---------------------------------------------------------
-// Preferences. Read after mount rather than in the initialiser: the server
-// render has no localStorage, and disagreeing with it costs a hydration error.
-// ---------------------------------------------------------
-const DENSITY_KEY = "humoyun.calendar.monthDensity";
-const WEEKNUM_KEY = "humoyun.calendar.weekNumbers";
-
-function readPref(key: string): string | null {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-
-function writePref(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch { /* private mode */ }
 }
 
 // ---------------------------------------------------------
@@ -195,7 +174,7 @@ function MoreButton({
       {(close) => (
         <>
           <div className="flex items-baseline gap-2 px-1.5 pb-1.5 pt-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+            <p className="text-[12px] font-medium text-ink-2">
               {formatDate(date)}
             </p>
             <p className="ml-auto text-[11px] text-ink-4 tnum">
@@ -307,8 +286,10 @@ function DayCell({
       className={cn(
         "group/cell relative flex min-h-0 min-w-0 flex-col border-b border-l border-line",
         "transition-colors duration-150",
-        !inMonth && "bg-sunken/70",
-        inMonth && weekend && "bg-sunken/40",
+        // Weekends used to carry their own wash too, which made the month read
+        // as a checkerboard before it read as a calendar. The day number and
+        // the column header still mark them.
+        !inMonth && "bg-sunken/60",
         selected && "bg-selected",
         inRange && "bg-accent-soft",
         previewed && !isOver && "bg-accent-soft",
@@ -353,19 +334,19 @@ function DayCell({
           </span>
 
           {firstOfMonth && !isToday && (
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+            <span className="text-[11px] font-medium text-ink-3">
               {monthName(date, true)}
             </span>
           )}
 
           {stale && (
+            // A past day with loose ends is a fact, not an emergency: a quiet
+            // dot, with the count in the cell's own label and its tooltip.
             <span
               aria-hidden
               title={`${unfinished} still open on a day that has passed`}
-              className="grid shrink-0 place-items-center text-warn"
-            >
-              <TriangleAlert className="size-3" />
-            </span>
+              className="size-1.5 shrink-0 rounded-full bg-ink-4"
+            />
           )}
 
           {total > 0 && (
@@ -434,8 +415,20 @@ function DayCell({
         </div>
 
         {total > 0 && (
-          <div className="flex items-center gap-1.5" style={{ height: FOOTER_H }}>
-            <div aria-hidden className="h-[2px] min-w-0 flex-1 overflow-hidden rounded-full bg-line">
+          // Under three items the meter is a fourth mark in a cell that already
+          // shows everything it counts, so it waits for a hover or a focus.
+          // The row still budgets its height, so nothing shifts when it appears.
+          <div
+            aria-hidden
+            className={cn(
+              "flex items-center gap-1.5 transition-opacity duration-150",
+              total > 2
+                ? "opacity-100"
+                : "opacity-0 group-focus-within/cell:opacity-100 group-hover/cell:opacity-100",
+            )}
+            style={{ height: FOOTER_H }}
+          >
+            <div className="h-[2px] min-w-0 flex-1 overflow-hidden rounded-full bg-line">
               <div
                 className="h-full rounded-full transition-[width] duration-500 ease-[var(--ease-out-apple)]"
                 style={{
@@ -505,10 +498,8 @@ function SelectionBar({
         <span className="text-[12.5px] font-medium text-ink tnum">
           {dates.length} days
         </span>
-        <span className="text-[11.5px] text-ink-3 tnum">
+        <span className="text-[11.5px] text-ink-4 tnum">
           {formatDate(dates[0], { weekday: false })} – {formatDate(dates[dates.length - 1], { weekday: false })}
-          {" · "}
-          {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
         </span>
       </div>
 
@@ -565,11 +556,14 @@ function SelectionBar({
 // Month
 // =========================================================
 export function MonthView({
-  anchor, weekStart, hour12, preview, onPeek, onOpenDay,
+  anchor, weekStart, hour12, density, weekNums, preview, onPeek, onOpenDay,
 }: {
   anchor: string;
   weekStart: number;
   hour12: boolean;
+  /** Chips per day. Owned by the page's View popover, remembered there. */
+  density: ChipDensity;
+  weekNums: boolean;
   preview: DropPreview | null;
   onPeek: (date: string) => void;
   onOpenDay: (date: string) => void;
@@ -581,8 +575,6 @@ export function MonthView({
   const patch = useStore((s) => s.patch);
   const toast = useStore((s) => s.toast);
 
-  const [density, setDensityState] = React.useState<ChipDensity>("comfortable");
-  const [weekNums, setWeekNumsState] = React.useState(false);
   const [composing, setComposing] = React.useState<string | null>(null);
   const [range, setRange] = React.useState<{ anchor: string; head: string } | null>(null);
   const [availPerRow, setAvailPerRow] = React.useState(0);
@@ -603,25 +595,6 @@ export function MonthView({
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-
-  // Restored once, after hydration — see the note on readPref.
-  React.useEffect(() => {
-    const d = readPref(DENSITY_KEY);
-    if (d === "compact" || d === "comfortable" || d === "spacious") setDensityState(d);
-    if (readPref(WEEKNUM_KEY) === "on") setWeekNumsState(true);
-  }, []);
-
-  const setDensity = React.useCallback((next: ChipDensity) => {
-    setDensityState(next);
-    writePref(DENSITY_KEY, next);
-  }, []);
-
-  const toggleWeekNums = React.useCallback(() => {
-    setWeekNumsState((v) => {
-      writePref(WEEKNUM_KEY, v ? "off" : "on");
-      return !v;
-    });
   }, []);
 
   const grid = React.useMemo(() => monthGrid(anchor, weekStart), [anchor, weekStart]);
@@ -775,44 +748,15 @@ export function MonthView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* ---- view controls ---- */}
-      <div className="flex shrink-0 items-center gap-2 pb-2">
-        <IconButton
-          label={weekNums ? "Hide week numbers" : "Show week numbers"}
-          active={weekNums}
-          onClick={toggleWeekNums}
-        >
-          <Hash />
-        </IconButton>
-
-        <p className="min-w-0 truncate text-[11.5px] text-ink-3" role="status">
+      {/* Density, week numbers and the how-to now live in the header's View
+          popover, so the month opens on the grid and nothing else. What the
+          old status line said out loud is still announced here. */}
+      <div aria-live="polite" aria-atomic="true">
+        <VisuallyHidden>
           {rangeActive
-            ? `${rangeDates.length} days selected · Shift+arrows to extend, Esc to clear`
-            : "Click a day to peek · double-click to open it · drag across days to select a span"}
-        </p>
-
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-            Density
-          </span>
-          <Segmented
-            value={density}
-            onChange={setDensity}
-            options={DENSITIES.map((d) => {
-              const Icon = DENSITY[d].icon;
-              return {
-                value: d,
-                title: `${DENSITY[d].label} — ${DENSITY[d].hint}`,
-                label: (
-                  <>
-                    <Icon className="size-3.5" />
-                    <VisuallyHidden>{`${DENSITY[d].label}, ${DENSITY[d].hint}`}</VisuallyHidden>
-                  </>
-                ),
-              };
-            })}
-          />
-        </div>
+            ? `${rangeDates.length} days selected. Shift and the arrow keys extend it, Escape clears it.`
+            : ""}
+        </VisuallyHidden>
       </div>
 
       {/* ---- the grid ---- */}
@@ -830,7 +774,7 @@ export function MonthView({
             style={{ gridTemplateColumns: cols }}
           >
             {weekNums && (
-              <div className="border-b border-l border-line px-1 py-1.5 text-center text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-4">
+              <div className="border-b border-l border-line px-1 py-1.5 text-center text-[10.5px] font-medium text-ink-4">
                 Wk
               </div>
             )}
@@ -838,7 +782,7 @@ export function MonthView({
               <div
                 key={label + i}
                 className={cn(
-                  "border-b border-l border-line px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em]",
+                  "border-b border-l border-line px-2 py-1.5 text-[11px] font-medium",
                   (i + weekStart) % 7 === 0 || (i + weekStart) % 7 === 6 ? "text-ink-4" : "text-ink-3",
                 )}
               >

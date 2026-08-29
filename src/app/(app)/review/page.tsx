@@ -18,7 +18,7 @@ import { Guided, type GuidedStep } from "@/components/review/guided";
 import { useReviewPrefs } from "@/components/review/prefs";
 import { answeredCount, draftOf, findReview, isWritten } from "@/components/review/review-doc";
 import {
-  buildPeriod, periodStart, SCOPES, SCOPE_LABEL, SCOPE_NOUN, shiftPeriod,
+  buildPeriod, measurementNote, periodStart, SCOPES, SCOPE_LABEL, SCOPE_NOUN, shiftPeriod,
   type ReviewScope,
 } from "@/components/review/period";
 
@@ -77,7 +77,8 @@ export default function ReviewPage() {
     {
       id: "recap",
       label: "Recap",
-      hint: `The numbers first, each one next to the same number from the ${SCOPE_NOUN[scope]} before.`,
+      // The step hint carries what the section header used to repeat.
+      hint: measurementNote(period),
       done: period.phase !== "future",
       content: <Recap period={period} weekStartDay={weekStartDay} onGoToCurrent={() => goto(currentStart)} />,
     },
@@ -91,7 +92,7 @@ export default function ReviewPage() {
     {
       id: "log",
       label: "The log",
-      hint: `What closed, day by day — then everything dated this ${SCOPE_NOUN[scope]} that did not. Deal with each one before you write.`,
+      hint: `What closed, day by day — then everything dated this ${SCOPE_NOUN[scope]} that did not. Open either list to work through it.`,
       done: slippedCount === 0,
       content: <PeriodLog period={period} weekStartDay={weekStartDay} />,
     },
@@ -153,8 +154,8 @@ export default function ReviewPage() {
               value={prefs.layout}
               onChange={(layout) => setPrefs({ layout })}
               options={[
-                { value: "full", label: "Full", title: "See everything at once (V)" },
                 { value: "guided", label: "Guided", title: "Step through it one part at a time (V)" },
+                { value: "full", label: "Everything", title: "See everything at once (V)" },
               ]}
             />
             <IconButton label="Copy or print this review as plain text (P)" onClick={() => setSummaryOpen(true)}>
@@ -187,27 +188,29 @@ export default function ReviewPage() {
       </PageHeader>
 
       <PageBody>
+        {/* The one hero on this screen. Everything under it is grey until you
+            reach the prompts, which are the only thing here you actually write. */}
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
             <h2 className="display-serif text-[44px] leading-none text-ink tnum">
               {period.title}
             </h2>
-            <p className="mt-2.5 text-[13px] text-ink-3 tnum">
+            <p className="mt-2.5 text-[12.5px] text-ink-4 tnum">
               {period.rangeLabel} · {period.relative}
             </p>
           </div>
 
           {written ? (
-            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
-              <Check className="size-3.5" strokeWidth={2.5} />
-              Reviewed · {answered}/6 written
+            <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-3">
+              <Check className="size-3.5 text-ink-4" strokeWidth={2.5} />
+              Reviewed
             </span>
           ) : (
-            <span className="text-[12.5px] text-ink-4">Not written yet</span>
+            <span className="text-[12px] text-ink-4">Not written yet</span>
           )}
         </div>
 
-        <div className="mt-8">
+        <div className="mt-10">
           {prefs.layout === "guided" ? (
             <Guided
               steps={steps}

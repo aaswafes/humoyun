@@ -11,7 +11,7 @@ import { useNow } from "@/hooks/use-hotkeys";
 import { Button, Input, Segmented } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
 import { MenuItem, Popover } from "@/components/ui/overlays";
-import { Callout, Group, Pane, Row, SelectField, StaticField } from "./ui";
+import { Callout, FoldGroup, Group, Pane, Row, SelectField, StaticField } from "./ui";
 
 const COORD = /^-?\d{1,3}(\.\d+)?$/;
 const COMPARE_METHODS = ["MuslimWorldLeague", "Egyptian", "Karachi", "UmmAlQura", "NorthAmerica", "Turkey"];
@@ -147,9 +147,9 @@ export function SalahSection() {
       title="Salah"
       description="Prayer times are calculated on your device from your coordinates. Nothing is sent anywhere and nothing is looked up online."
     >
-      <div className="mb-5 rounded-lg border border-line bg-sunken p-4">
+      <div className="mb-6 rounded-lg bg-sunken p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+          <p className="text-[12.5px] font-semibold text-ink-2">
             Today in {city.trim() || "your location"}
           </p>
           <p className="text-[12px] text-ink-3">
@@ -171,7 +171,7 @@ export function SalahSection() {
               >
                 <p
                   className={cn(
-                    "text-[10.5px] font-semibold uppercase tracking-[0.06em]",
+                    "text-[11px] font-medium",
                     active ? "text-accent" : "text-ink-3",
                   )}
                 >
@@ -185,17 +185,25 @@ export function SalahSection() {
           })}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-line pt-2.5 text-[12px] text-ink-3">
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-ink-4">
           <span className="inline-flex items-center gap-1.5">
             <Sunrise className="size-3.5" />
-            Sunrise <span className="tnum text-ink-2">{formatTime(times.sunrise, hour12)}</span>
+            Sunrise <span className="tnum text-ink-3">{formatTime(times.sunrise, hour12)}</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
             <MoonStar className="size-3.5" />
-            Last third <span className="tnum text-ink-2">{formatTime(times.lastThird, hour12)}</span>
+            Last third <span className="tnum text-ink-3">{formatTime(times.lastThird, hour12)}</span>
           </span>
         </div>
       </div>
+
+      {/* A caution about the times themselves stays with the times, not inside a fold. */}
+      {Math.abs(latitude) > 55 && (
+        <Callout tone="warn" title="High latitude" className="mb-6">
+          Above about 55 degrees the twilight never fully ends for part of the year, and every method
+          starts guessing at Fajr and Isha. Check the times against your local mosque before relying on them.
+        </Callout>
+      )}
 
       <Group title="Where you are">
         <Row label="City" hint="Only a label — it does not change the calculation. Pick a preset to fill everything in one go.">
@@ -321,7 +329,11 @@ export function SalahSection() {
         </Row>
       </Group>
 
-      <Group title="How they are worked out">
+      <FoldGroup
+        title="How they are worked out"
+        storageKey="humoyun.settings.salahMethodOpen"
+        summary={`${CALC_METHODS.find((m) => m.id === method)?.label ?? method} \u00b7 ${madhab === "hanafi" ? "Hanafi" : "Shafi"} Asr \u00b7 compare six authorities`}
+      >
         <Row label="Calculation method" hint="Different authorities use different twilight angles for Fajr and Isha.">
           <SelectField
             label="Calculation method"
@@ -381,9 +393,14 @@ export function SalahSection() {
             </table>
           </div>
         </Row>
-      </Group>
+      </FoldGroup>
 
-      <Group title="The coming week" description="Calculated the same way, seven days ahead, so you can see the drift.">
+      <FoldGroup
+        title="The coming week"
+        storageKey="humoyun.settings.salahWeekOpen"
+        summary="Seven days ahead, so you can see the drift"
+        description="Calculated exactly the same way as today."
+      >
         <div className="mt-1 overflow-x-auto">
           <table className="w-full min-w-[420px] text-[12.5px]">
             <caption className="sr-only">Prayer times for the next seven days</caption>
@@ -410,13 +427,7 @@ export function SalahSection() {
           </table>
         </div>
 
-        {Math.abs(latitude) > 55 && (
-          <Callout tone="warn" title="High latitude" className="mt-3">
-            Above about 55 degrees the twilight never fully ends for part of the year, and every method
-            starts guessing at Fajr and Isha. Check the times against your local mosque before relying on them.
-          </Callout>
-        )}
-      </Group>
+      </FoldGroup>
     </Pane>
   );
 }

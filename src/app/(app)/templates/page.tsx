@@ -16,7 +16,9 @@ import { TemplateEditor } from "@/components/templates/template-editor";
 import { ApplyDialog } from "@/components/templates/apply-dialog";
 import { SaveDayDialog } from "@/components/templates/save-day-dialog";
 import { ImportDialog } from "@/components/templates/import-dialog";
-import { StarterGallery, StartersModal } from "@/components/templates/starter-gallery";
+import { StartersModal } from "@/components/templates/starter-gallery";
+import { Fold } from "@/components/templates/fold";
+import { STARTERS } from "@/components/templates/starters";
 import { EMPTY_INSIGHT, buildInsights, percent } from "@/components/templates/insights";
 import { collectVars, itemsOf } from "@/components/templates/model";
 import { downloadJson, fileNameFor, serialize } from "@/components/templates/transfer";
@@ -35,12 +37,14 @@ const SORT_LABELS: Record<Sort, string> = {
 
 const SORTS = Object.keys(SORT_LABELS) as Sort[];
 
+const STARTER_COUNT = STARTERS.length;
+
 function Stat({ value, label, hint }: { value: React.ReactNode; label: string; hint?: string }) {
   return (
-    <div className="flex flex-col gap-1 border-l border-line px-5 first:border-l-0 first:pl-0">
+    <div className="flex min-w-[104px] flex-col gap-0.5">
       <span className="display-serif text-[32px] leading-none text-ink tnum">{value}</span>
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</span>
-      {hint && <span className="text-[11px] text-ink-4 tnum">{hint}</span>}
+      <span className="text-[12px] text-ink-3">{label}</span>
+      {hint && <span className="text-[11.5px] text-ink-4 tnum">{hint}</span>}
     </div>
   );
 }
@@ -204,48 +208,47 @@ export default function TemplatesPage() {
         title="Templates"
         subtitle={templates.length ? plural(templates.length, "plan") : "Reusable day, week and block plans"}
         actions={headerActions}
-      >
-        <Button variant="ghost" size="sm" onClick={() => setShowStarters(true)}>
-          <Sparkles className="size-3.5" />
-          Starters
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setSavingDay(true)}>
-          <CalendarPlus className="size-3.5" />
-          From a day
-        </Button>
-      </PageHeader>
+      />
 
       <PageBody wide>
         {templates.length === 0 ? (
-          <div className="space-y-8">
-            <EmptyState
-              icon={LayoutTemplate}
-              title="Plan it once, then drop it on any date"
-              description="A template holds a shape — a deep work day, a study block, a weekly reset. Apply it and every task appears on the calendar with its times, priorities and tags already set."
-              action={
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Button variant="primary" size="sm" onClick={createBlank}>
-                    <Plus className="size-3.5" />
-                    New template
-                  </Button>
-                  <Button size="sm" onClick={() => setSavingDay(true)}>
-                    <CalendarPlus className="size-3.5" />
-                    Capture a day
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
-                    <Upload className="size-3.5" />
-                    Import JSON
-                  </Button>
-                </div>
-              }
-              className="py-10"
-            />
-            <StarterGallery onInstalled={(t) => setEditingId(t.id)} />
-          </div>
+          <EmptyState
+            icon={LayoutTemplate}
+            title="Plan it once, then drop it on any date"
+            description="A template holds a shape — a deep work day, a study block, a weekly reset. Apply it and every task appears on the calendar with its times, priorities and tags already set."
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button variant="primary" size="sm" onClick={createBlank}>
+                  <Plus className="size-3.5" />
+                  New template
+                </Button>
+                <Button size="sm" onClick={() => setShowStarters(true)}>
+                  <Sparkles className="size-3.5" />
+                  Browse {STARTER_COUNT} starters
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSavingDay(true)}>
+                  <CalendarPlus className="size-3.5" />
+                  Capture a day
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setImporting(true)}>
+                  <Upload className="size-3.5" />
+                  Import JSON
+                </Button>
+              </div>
+            }
+            className="py-12"
+          />
         ) : (
-          <>
-            <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-              <div className="flex items-end">
+          <div className="space-y-6">
+            <Fold
+              label="Library"
+              storageKey="humoyun.templates.statsOpen"
+              summary={
+                `${plural(totalItems, "item")} · applied ${totalUses}×` +
+                (totalCreated > 0 ? ` · ${percent(overallRate)} of their tasks finished` : "")
+              }
+            >
+              <div className="flex flex-wrap gap-x-10 gap-y-4 py-1">
                 <Stat
                   value={templates.length}
                   label="Templates"
@@ -259,9 +262,9 @@ export default function TemplatesPage() {
                   hint={totalCreated > 0 ? `${totalDone} of ${totalCreated} tasks` : "nothing to measure yet"}
                 />
               </div>
-            </div>
+            </Fold>
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative min-w-[200px] flex-1 sm:max-w-[280px]">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" aria-hidden />
                 <Input
@@ -352,7 +355,7 @@ export default function TemplatesPage() {
                 }
               />
             )}
-          </>
+          </div>
         )}
       </PageBody>
 

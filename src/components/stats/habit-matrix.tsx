@@ -93,13 +93,11 @@ function HabitCard({ series, days }: { series: HabitSeries; days: string[] }) {
         <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
           {series.habit.name}
         </p>
-        <p className="shrink-0 text-[11.5px] text-ink-3 tnum">
-          {pct}%
-          {series.streak > 0 && <span className="text-ink-4"> · {series.streak}d</span>}
-        </p>
+        <p className="shrink-0 text-[11.5px] text-ink-3 tnum">{pct}%</p>
       </div>
       <p className="mt-0.5 text-[11px] text-ink-4 tnum">
-        {cadence} · {series.hit} of {series.due} due days kept
+        {cadence}
+        {series.streak > 0 && ` · ${series.streak}-day streak`}
       </p>
 
       <Chart
@@ -239,6 +237,10 @@ export function HabitMatrix({ series, days }: { series: HabitSeries[]; days: str
 
   const totalDue = series.reduce((s, x) => s + x.due, 0);
   const totalHit = series.reduce((s, x) => s + x.hit, 0);
+  const longestStreak = React.useMemo(
+    () => [...series].sort((a, b) => b.streak - a.streak)[0],
+    [series],
+  );
 
   const summary = series.length
     ? `${series.length} live ${series.length === 1 ? "habit" : "habits"}, ${totalHit} of ${totalDue} due days kept ` +
@@ -246,7 +248,10 @@ export function HabitMatrix({ series, days }: { series: HabitSeries[]; days: str
       (best ? `${best.habit.name} leads at ${pctOf(best.hit, best.due)}%` : "") +
       (worst && best && worst.habit.id !== best.habit.id
         ? `, ${worst.habit.name} trails at ${pctOf(worst.hit, worst.due)}%.`
-        : ".")
+        : ".") +
+      (longestStreak && longestStreak.streak > 0
+        ? ` Longest run going is ${longestStreak.habit.name}, ${longestStreak.streak} days.`
+        : "")
     : "No habits are being tracked yet.";
 
   const table: TableSpec = {

@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Keyboard } from "lucide-react";
+import { ChevronRight, Keyboard } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { Kbd } from "@/components/ui/primitives";
+import { FoldRegion, useFold } from "./ui";
 
 interface Shortcut {
   label: string;
@@ -34,10 +36,12 @@ const GO_TO: Shortcut[] = [
   { label: "Stats", keys: ["A"] },
 ];
 
+const TOTAL = GLOBAL.length + GO_TO.length;
+
 function ShortcutRow({ item }: { item: Shortcut }) {
   return (
     <li className="flex items-center gap-3 py-[3.5px]">
-      <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-2">{item.label}</span>
+      <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-3">{item.label}</span>
       <span className="flex shrink-0 items-center gap-1">
         {item.keys.map((k, i) => <Kbd key={`${k}-${i}`}>{k}</Kbd>)}
         {item.alt && (
@@ -51,40 +55,60 @@ function ShortcutRow({ item }: { item: Shortcut }) {
   );
 }
 
+/** The whole reference, resting as one line. Nothing here is a setting — it is a reminder. */
 export function ShortcutsCard() {
+  const [open, setOpen] = useFold("humoyun.settings.shortcutsOpen", false);
+
   return (
     <section aria-labelledby="shortcuts-heading" className="mt-12">
-      <div className="mb-3 flex items-center gap-2">
-        <Keyboard className="size-4 text-ink-3" />
-        <h2
-          id="shortcuts-heading"
-          className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3"
-        >
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "-mx-1.5 flex min-h-[28px] w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left",
+          "transition-colors duration-150 hover:bg-hover",
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            "size-3.5 shrink-0 text-ink-4 transition-transform duration-200 ease-[var(--ease-out-apple)]",
+            open && "rotate-90",
+          )}
+          aria-hidden
+        />
+        <Keyboard className="size-3.5 shrink-0 text-ink-4" aria-hidden />
+        <span id="shortcuts-heading" className="shrink-0 text-[12.5px] font-semibold text-ink-2">
           Keyboard shortcuts
-        </h2>
-      </div>
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3 tnum">
+          {TOTAL} of them · ⌘K opens the palette
+        </span>
+      </button>
 
-      <div className="grid gap-x-12 gap-y-7 rounded-lg border border-line bg-sunken px-5 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-        <div>
-          <p className="text-[12px] font-medium text-ink">Anywhere</p>
-          <ul className="mt-2">
-            {GLOBAL.map((s) => <ShortcutRow key={s.label} item={s} />)}
-          </ul>
-        </div>
+      <FoldRegion open={open}>
+        <div className="grid gap-x-12 gap-y-7 pl-[22px] pt-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+          <div>
+            <p className="text-[12px] font-medium text-ink-2">Anywhere</p>
+            <ul className="mt-2">
+              {GLOBAL.map((s) => <ShortcutRow key={s.label} item={s} />)}
+            </ul>
+          </div>
 
-        <div>
-          <p className="text-[12px] font-medium text-ink">
-            Go to <span className="font-normal text-ink-4">— press G, then</span>
+          <div>
+            <p className="text-[12px] font-medium text-ink-2">
+              Go to <span className="font-normal text-ink-4">— press G, then</span>
+            </p>
+            <ul className="mt-2 grid gap-x-8 sm:grid-cols-2">
+              {GO_TO.map((s) => <ShortcutRow key={s.label} item={s} />)}
+            </ul>
+          </div>
+
+          <p className="text-[11.5px] leading-relaxed text-ink-4 md:col-span-2">
+            ⌘ is Ctrl on Windows and Linux. Shortcuts pause while you are typing in a field.
           </p>
-          <ul className="mt-2 grid gap-x-8 sm:grid-cols-2">
-            {GO_TO.map((s) => <ShortcutRow key={s.label} item={s} />)}
-          </ul>
         </div>
-      </div>
-
-      <p className="mt-2.5 text-[11.5px] leading-relaxed text-ink-4">
-        ⌘ is Ctrl on Windows and Linux. Shortcuts pause while you are typing in a field.
-      </p>
+      </FoldRegion>
     </section>
   );
 }

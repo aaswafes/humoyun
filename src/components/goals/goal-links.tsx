@@ -7,9 +7,10 @@ import { useStore } from "@/lib/store";
 import { dayNameOf, todayISO } from "@/lib/date";
 import { buildLogIndex, cadenceLabel, habitStreakOn, NO_COUNTS } from "@/lib/habits";
 import type { Goal } from "@/lib/types";
-import { Button, IconButton, Progress, SectionLabel } from "@/components/ui/primitives";
+import { Button, IconButton, Progress } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { MiniEmpty } from "@/components/ui/form";
+import { SubLabel } from "./goal-fold";
 import type { GoalStats } from "./goal-model";
 import { useGoalMeta } from "./use-goal-actions";
 
@@ -77,7 +78,7 @@ export function GoalLinks({ goal, stats }: { goal: Goal; stats: GoalStats }) {
   return (
     <section>
       <div className="flex items-center gap-2">
-        <SectionLabel>Also connected</SectionLabel>
+        <SubLabel>Also connected</SubLabel>
         <span className="text-[11px] text-ink-4 tnum">
           {linkedBooks.length + linkedHabits.length + linkedNodes.length}
         </span>

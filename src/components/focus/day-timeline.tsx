@@ -4,7 +4,6 @@ import * as React from "react";
 import { useStore } from "@/lib/store";
 import { formatDuration, formatTime } from "@/lib/date";
 import { cn } from "@/lib/cn";
-import { SectionLabel } from "@/components/ui/primitives";
 import { VisuallyHidden } from "@/components/ui/form";
 import type { SessionView } from "./focus-data";
 
@@ -31,11 +30,10 @@ function windowFor(points: number[]) {
  * that is running right now drawn live at the end.
  */
 export const DayTimeline = React.memo(function DayTimeline({
-  items, breaks, minutes, nowMin, live, onOpen,
+  items, breaks, nowMin, live, onOpen,
 }: {
   items: SessionView[];
   breaks: SessionView[];
-  minutes: number;
   nowMin: number;
   live: LiveBlock | null;
   onOpen: (sessionId: string) => void;
@@ -59,22 +57,9 @@ export const DayTimeline = React.memo(function DayTimeline({
   const ticks: number[] = [];
   for (let h = from / 60; h <= to / 60; h += stepHours) ticks.push(h * 60);
 
-  const interrupted = items.reduce((sum, i) => sum + i.interruptions, 0);
-  const restMinutes = breaks.reduce((sum, b) => sum + b.minutes, 0);
-
+  // The day's totals are stated once, on the row that folds this section open.
   return (
     <section>
-      <div className="mb-2.5 flex items-baseline justify-between gap-3">
-        <SectionLabel>Today</SectionLabel>
-        <p className="text-[11.5px] text-ink-3 tnum">
-          {items.length
-            ? `${formatDuration(minutes)} across ${items.length} ${items.length === 1 ? "session" : "sessions"}` +
-              (restMinutes ? ` · ${formatDuration(restMinutes)} rest` : "") +
-              (interrupted ? ` · ${interrupted} interrupted` : "")
-            : "Nothing logged yet"}
-        </p>
-      </div>
-
       <div
         className="relative h-12 rounded-md bg-hover"
         role="group"
@@ -110,7 +95,7 @@ export const DayTimeline = React.memo(function DayTimeline({
               {item.interruptions > 0 && (
                 <span
                   aria-hidden
-                  className="absolute inset-x-0 top-0 h-[2px] rounded-t-xs bg-warn"
+                  className="absolute inset-x-0 top-0 h-[2px] rounded-t-xs bg-canvas opacity-70"
                 />
               )}
             </button>

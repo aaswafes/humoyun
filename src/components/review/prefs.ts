@@ -17,14 +17,16 @@ export interface ReviewPrefs {
   scope: ReviewScope;
 }
 
-const DEFAULTS: ReviewPrefs = { layout: "full", scope: "week" };
+// Guided is the resting state: one part of the ritual at a time is calmer
+// than the whole page at once. "Full" is a deliberate choice, and remembered.
+const DEFAULTS: ReviewPrefs = { layout: "guided", scope: "week" };
 
 function read(prefs: Record<string, unknown> | undefined): ReviewPrefs {
   const raw = prefs?.review;
   if (!raw || typeof raw !== "object") return DEFAULTS;
   const rec = raw as Record<string, unknown>;
   return {
-    layout: rec.layout === "guided" ? "guided" : "full",
+    layout: rec.layout === "full" ? "full" : "guided",
     scope: isScope(rec.scope) ? rec.scope : "week",
   };
 }

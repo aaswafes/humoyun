@@ -10,7 +10,8 @@ import {
 } from "@/lib/date";
 import type { Goal } from "@/lib/types";
 import { Button, EmptyState, IconButton, Segmented } from "@/components/ui/primitives";
-import { GoalDot } from "./goal-card";
+import { ATTENTION_ICON, GoalDot } from "./goal-card";
+import { Fold, useFold } from "./goal-fold";
 import { MilestoneMark } from "./goal-milestones";
 import { sortMilestones, type Milestone } from "./goal-meta";
 import {
@@ -52,6 +53,7 @@ export function GoalTimeline({
   const [zoom, setZoom] = React.useState<Zoom>("year");
   const [anchor, setAnchor] = React.useState(today);
   const [showAll, setShowAll] = React.useState(false);
+  const loose = useFold("timeline.undated", false);
 
   const range = React.useMemo(() => {
     if (zoom === "quarter") return { start: quarterStart(anchor), end: quarterEnd(anchor) };
@@ -189,7 +191,7 @@ export function GoalTimeline({
           {/* month scale */}
           <div className="flex hairline-b">
             <div className="w-[212px] shrink-0 px-3 py-2 hairline-r">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Goal</span>
+              <span className="text-[11.5px] font-medium text-ink-4">Goal</span>
             </div>
             <div className="relative flex flex-1">
               {columns.map((column, i) => (
@@ -280,15 +282,16 @@ export function GoalTimeline({
                       >
                         {bar.goal.title || "Untitled goal"}
                       </span>
-                      {(stats.overdue || stats.needsCheckIn || stats.stalled) && (
-                        <span
-                          className={cn(
-                            "size-1.5 shrink-0 rounded-full",
-                            stats.overdue ? "bg-danger" : "bg-warn",
-                          )}
-                          title={stats.overdue ? "Overdue" : stats.needsCheckIn ? "Check-in due" : "Stalled"}
-                        />
-                      )}
+                      {(() => {
+                        const kind = stats.overdue ? "overdue" : stats.needsCheckIn ? "checkin" : stats.stalled ? "stalled" : null;
+                        if (!kind) return null;
+                        const Icon = ATTENTION_ICON[kind];
+                        return (
+                          <Icon
+                            className={cn("size-3 shrink-0", kind === "overdue" ? "text-danger" : "text-ink-4")}
+                          />
+                        );
+                      })()}
                       <span className="shrink-0 text-[11px] text-ink-3 tnum">{pct(bar.progress)}</span>
                     </button>
 
@@ -340,12 +343,15 @@ export function GoalTimeline({
       )}
 
       {undated.length > 0 && (
-        <div className="mt-5">
-          <div className="mb-1.5 flex items-baseline gap-2">
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Not on the calendar</h3>
-            <span className="text-[11px] text-ink-4 tnum">{undated.length}</span>
-          </div>
-          <p className="mb-2 text-[12.5px] text-ink-3">
+        <Fold
+          id="goal-timeline-undated"
+          className="mt-6"
+          label="Not on the calendar"
+          summary={`${undated.length} ${undated.length === 1 ? "goal has" : "goals have"} no dates`}
+          open={loose.open}
+          onToggle={loose.toggle}
+        >
+          <p className="mb-2 text-[12.5px] leading-relaxed text-ink-3">
             These have no start or end date, so they cannot overlap with anything. Open one to give it a range.
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -364,7 +370,7 @@ export function GoalTimeline({
               </button>
             ))}
           </div>
-        </div>
+        </Fold>
       )}
     </div>
   );

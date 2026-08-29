@@ -8,7 +8,7 @@ import {
 } from "@/lib/date";
 import { Button, Segmented } from "@/components/ui/primitives";
 import { VisuallyHidden } from "@/components/ui/form";
-import { Group, Pane, Row, TimeField } from "./ui";
+import { FoldGroup, Group, Pane, Row, TimeField } from "./ui";
 
 const DEFAULT_WORK_START = 9 * 60;
 const DEFAULT_WORK_END = 18 * 60;
@@ -320,17 +320,20 @@ export function CalendarSection() {
           </div>
         </Row>
 
-        <Row
-          label="This week against those hours"
-          hint={
-            totalBlocks === 0
-              ? "Nothing with a time on it this week."
-              : totalOutside === 0
-                ? "Everything with a time on it lands inside the window."
-                : `${totalOutside} of ${totalBlocks} timed items fall outside it.`
-          }
-          stacked
-        >
+      </Group>
+
+      <FoldGroup
+        title="This week against those hours"
+        storageKey="humoyun.settings.weekLoadOpen"
+        summary={
+          totalBlocks === 0
+            ? "Nothing with a time on it this week"
+            : totalOutside === 0
+              ? "Everything timed lands inside the window"
+              : `${totalOutside} of ${totalBlocks} timed items fall outside it`
+        }
+      >
+        <div className="pt-1">
           <>
             <WeekLoad
               days={load}
@@ -346,8 +349,8 @@ export function CalendarSection() {
                   .join(" ")}
             </VisuallyHidden>
           </>
-        </Row>
-      </Group>
+        </div>
+      </FoldGroup>
     </Pane>
   );
 }

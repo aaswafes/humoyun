@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { VisuallyHidden } from "@/components/ui/form";
+import { isSectionOpen, toggleSection, useSectionState } from "./sections";
 
 // =========================================================
 // Chart kit — the only drawing primitives the Stats page uses.
@@ -339,7 +340,7 @@ const TABLE_LIMIT = 400;
 function DataTable({ spec }: { spec: TableSpec }) {
   const rows = spec.rows.slice(0, TABLE_LIMIT);
   return (
-    <div className="mt-3 max-h-[320px] overflow-auto rounded-md border border-line">
+    <div className="mt-4 max-h-[320px] overflow-auto rounded-md border border-line">
       <table className="w-full border-collapse text-left">
         <caption className="px-2.5 py-1.5 text-left text-[11.5px] text-ink-4">{spec.caption}</caption>
         <thead>
@@ -390,8 +391,10 @@ function DataTable({ spec }: { spec: TableSpec }) {
 export function Panel({
   id, title, subtitle, actions, table, children, className,
 }: {
-  id?: string;
+  /** Also the fold key this panel is remembered under. */
+  id: string;
   title: string;
+  /** The one sentence that says what the chart says, readable while folded. */
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   /** Renders a "Data table" disclosure holding every value the chart draws. */
@@ -399,55 +402,79 @@ export function Panel({
   children: React.ReactNode;
   className?: string;
 }) {
-  const [open, setOpen] = React.useState(false);
-  const headingId = React.useId();
+  const sections = useSectionState();
+  const open = isSectionOpen(sections, id);
+  const [showTable, setShowTable] = React.useState(false);
+  const reduced = useReducedMotion();
+  const hasTable = !!table && table.rows.length > 0;
 
   return (
-    <section
-      id={id}
-      aria-labelledby={headingId}
-      className={cn("surface scroll-mt-[68px] p-4 md:p-5", className)}
-    >
-      <div className="flex items-start gap-3">
-        <div className="min-w-0">
-          <h2
-            id={headingId}
-            tabIndex={-1}
-            className="text-[13.5px] font-semibold tracking-[-0.01em] text-ink outline-none"
-          >
-            {title}
-          </h2>
-          {subtitle && (
-            <p className="mt-1 max-w-[62ch] text-[12px] leading-[1.5] text-ink-3">{subtitle}</p>
+    <section id={id} aria-label={title} className={cn("scroll-mt-[64px] py-5", className)}>
+      <h2>
+        <button
+          type="button"
+          data-panel-toggle
+          aria-expanded={open}
+          onClick={() => toggleSection(id)}
+          className={cn(
+            "group -mx-2 flex w-[calc(100%+1rem)] cursor-pointer items-start gap-3 rounded-lg px-2 py-1.5",
+            "text-left transition-colors duration-150 hover:bg-hover",
           )}
-        </div>
-        {(actions || (table && table.rows.length > 0)) && (
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            {actions}
-            {table && table.rows.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                aria-expanded={open}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11.5px] font-medium",
-                  "cursor-pointer transition-colors duration-150",
-                  open ? "bg-accent-soft text-accent" : "text-ink-3 hover:bg-hover hover:text-ink",
-                )}
-              >
-                <ChevronDown
-                  className={cn("size-3 transition-transform duration-200", open && "rotate-180")}
-                  aria-hidden
-                />
-                Data table
-              </button>
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13.5px] font-semibold tracking-[-0.01em] text-ink">
+              {title}
+            </span>
+            {subtitle && (
+              <span className="mt-1.5 block max-w-[76ch] text-[12.5px] leading-[1.6] text-ink-3">
+                {subtitle}
+              </span>
             )}
-          </div>
-        )}
-      </div>
+          </span>
+          <ChevronDown
+            className={cn(
+              "mt-0.5 size-4 shrink-0 text-ink-4 transition-transform duration-200",
+              "ease-[var(--ease-out-apple)] group-hover:text-ink-3",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </button>
+      </h2>
 
-      <div className="mt-4">{children}</div>
-      {table && open && <DataTable spec={table} />}
+      {open && (
+        <div
+          className="pt-4"
+          style={reduced ? undefined : { animation: "hm-pop-in 200ms var(--ease-out-apple) both" }}
+        >
+          {(actions || hasTable) && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {actions}
+              {hasTable && (
+                <button
+                  type="button"
+                  onClick={() => setShowTable((v) => !v)}
+                  aria-expanded={showTable}
+                  className={cn(
+                    "ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11.5px]",
+                    "cursor-pointer transition-colors duration-150",
+                    showTable ? "bg-hover text-ink" : "text-ink-4 hover:bg-hover hover:text-ink-2",
+                  )}
+                >
+                  <ChevronDown
+                    className={cn("size-3 transition-transform duration-200", showTable && "rotate-180")}
+                    aria-hidden
+                  />
+                  Data table
+                </button>
+              )}
+            </div>
+          )}
+
+          {children}
+          {table && hasTable && showTable && <DataTable spec={table} />}
+        </div>
+      )}
     </section>
   );
 }
@@ -546,7 +573,7 @@ export function niceMax(v: number): number {
   return step * mag;
 }
 
-export function axisTicks(max: number, steps = 3): number[] {
+export function axisTicks(max: number, steps = 2): number[] {
   return Array.from({ length: steps + 1 }, (_, i) => (max / steps) * i);
 }
 
@@ -577,8 +604,9 @@ export function GridY({
         <g key={t}>
           <line
             x1={x0} x2={x1} y1={y(t)} y2={y(t)}
-            stroke={t === 0 ? "var(--line-strong)" : "var(--line)"}
+            stroke="var(--line)"
             strokeWidth={1}
+            opacity={t === 0 ? 1 : 0.7}
             shapeRendering="crispEdges"
           />
           <text
@@ -615,8 +643,8 @@ export function AxisText({
 }
 
 /**
- * Small uppercase unit caption. The one place this size exists — axis captions
- * and in-plot annotations both come through here.
+ * Small unit caption. Axis captions and in-plot annotations both come through
+ * here, so they stay on the type scale and stay quiet.
  */
 export function UnitLabel({
   x, y, children, anchor = "start", fill = "var(--ink-4)",
@@ -630,7 +658,7 @@ export function UnitLabel({
   return (
     <text
       x={x} y={y} textAnchor={anchor}
-      className="text-[9.5px] font-semibold uppercase tracking-[0.08em]"
+      className="text-[10.5px]"
       fill={fill}
       aria-hidden
     >

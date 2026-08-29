@@ -8,7 +8,7 @@ import { todayISO } from "@/lib/date";
 import type { Review } from "@/lib/types";
 import { Badge, Button, EmptyState, IconButton, Input, Segmented } from "@/components/ui/primitives";
 import { Field, MiniEmpty } from "@/components/ui/form";
-import { Section } from "./section";
+import { Fold, Section, useHeadless } from "./section";
 import { Delta } from "./sparkline";
 import { formatHours, metricsFor, plural, type Metrics } from "./metrics";
 import { useMetricSource } from "./recap";
@@ -48,6 +48,7 @@ export function PastReviews({
   onStartWriting: () => void;
 }) {
   const reviews = useStore((s) => s.reviews);
+  const headless = useHeadless();
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [showAll, setShowAll] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -84,102 +85,112 @@ export function PastReviews({
     });
   }
 
-  return (
-    <Section
-      id="review-past"
-      label="Past reviews"
-      note={rows.length ? `${rows.length} written` : undefined}
+  const latest = rows[0];
+  const body = rows.length === 0 ? (
+    <EmptyState
+      icon={PenLine}
+      title="No reviews written yet"
+      description="Once you write your first reflection it lands here, so you can read the last three months of your own advice in one scroll."
       action={
-        compare.length > 0 ? (
-          <Button size="sm" variant="ghost" onClick={() => setCompare([])}>
-            <X className="size-3.5" />
-            Clear comparison
-          </Button>
-        ) : undefined
+        <Button size="sm" variant="primary" onClick={onStartWriting}>
+          Start this review
+        </Button>
       }
-    >
-      {rows.length === 0 ? (
-        <EmptyState
-          icon={PenLine}
-          title="No reviews written yet"
-          description="Once you write your first reflection it lands here, so you can read the last three months of your own advice in one scroll."
-          action={
-            <Button size="sm" variant="primary" onClick={onStartWriting}>
-              Start this review
+    />
+  ) : (
+    <>
+      {compared.length === 2 && (
+        <div className="mb-5">
+          <div className="mb-1.5 flex justify-end">
+            <Button size="xs" variant="ghost" onClick={() => setCompare([])}>
+              <X className="size-3" />
+              Clear comparison
             </Button>
-          }
-        />
-      ) : (
-        <>
-          {compared.length === 2 && (
-            <ComparePanel
-              left={compared[1]}
-              right={compared[0]}
-              weekStartDay={weekStartDay}
-              onOpenPeriod={onOpenPeriod}
-            />
-          )}
-
-          <div className="mb-3 flex flex-wrap items-end gap-3">
-            <Field label="Find a review" className="min-w-[200px] flex-1" hint={query ? `${matches.length} found` : undefined}>
-              {(wiring) => (
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
-                  <Input
-                    {...wiring}
-                    value={query}
-                    onChange={(e) => { setQuery(e.target.value); setShowAll(true); }}
-                    placeholder="A word you wrote, or a week number"
-                    className="pl-7"
-                  />
-                </div>
-              )}
-            </Field>
-            <Segmented
-              size="sm"
-              value={filter}
-              onChange={setFilter}
-              className="mb-0.5"
-              options={[
-                { value: "all" as ScopeFilter, label: "All" },
-                ...SCOPES.map((s) => ({ value: s as ScopeFilter, label: SCOPE_LABEL[s].replace("ly", "") })),
-              ]}
-            />
           </div>
+          <ComparePanel
+            left={compared[1]}
+            right={compared[0]}
+            weekStartDay={weekStartDay}
+            onOpenPeriod={onOpenPeriod}
+          />
+        </div>
+      )}
 
-          {matches.length === 0 ? (
-            <MiniEmpty action={<Button size="xs" variant="secondary" onClick={() => { setQuery(""); setFilter("all"); }}>Clear filters</Button>}>
-              Nothing matches “{query}”.
-            </MiniEmpty>
-          ) : (
-            <div>
-              {visible.map((row, i) => (
-                <PastReviewRow
-                  key={row.review.id}
-                  review={row.review}
-                  period={row.period}
-                  divided={i > 0}
-                  viewing={row.review.week_start === period.start && row.period.scope === period.scope}
-                  open={openId === row.review.id}
-                  comparing={compare.includes(row.review.id)}
-                  onToggle={() => setOpenId((id) => (id === row.review.id ? null : row.review.id))}
-                  onCompare={() => toggleCompare(row.review.id)}
-                  onOpenPeriod={onOpenPeriod}
-                />
-              ))}
-
-              {matches.length > visible.length && (
-                <div className="mt-3 flex justify-center">
-                  <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
-                    Show {matches.length - visible.length} older {plural(matches.length - visible.length, "review")}
-                  </Button>
-                </div>
-              )}
+      <div className="mb-3 flex flex-wrap items-end gap-3">
+        <Field label="Find a review" className="min-w-[200px] flex-1" hint={query ? `${matches.length} found` : undefined}>
+          {(wiring) => (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
+              <Input
+                {...wiring}
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setShowAll(true); }}
+                placeholder="A word you wrote, or a week number"
+                className="pl-7"
+              />
             </div>
           )}
-        </>
+        </Field>
+        <Segmented
+          size="sm"
+          value={filter}
+          onChange={setFilter}
+          className="mb-0.5"
+          options={[
+            { value: "all" as ScopeFilter, label: "All" },
+            ...SCOPES.map((s) => ({ value: s as ScopeFilter, label: SCOPE_LABEL[s].replace("ly", "") })),
+          ]}
+        />
+      </div>
+
+      {matches.length === 0 ? (
+        <MiniEmpty action={<Button size="xs" variant="secondary" onClick={() => { setQuery(""); setFilter("all"); }}>Clear filters</Button>}>
+          Nothing matches “{query}”.
+        </MiniEmpty>
+      ) : (
+        <div>
+          {visible.map((row, i) => (
+            <PastReviewRow
+              key={row.review.id}
+              review={row.review}
+              period={row.period}
+              divided={i > 0}
+              viewing={row.review.week_start === period.start && row.period.scope === period.scope}
+              open={openId === row.review.id}
+              comparing={compare.includes(row.review.id)}
+              onToggle={() => setOpenId((id) => (id === row.review.id ? null : row.review.id))}
+              onCompare={() => toggleCompare(row.review.id)}
+              onOpenPeriod={onOpenPeriod}
+            />
+          ))}
+
+          {matches.length > visible.length && (
+            <div className="mt-3 flex justify-center">
+              <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
+                Show {matches.length - visible.length} older {plural(matches.length - visible.length, "review")}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
+    </>
+  );
+
+  // Guided mode gives this its own step, so it opens with the step. Everywhere
+  // else it stays folded behind a row that says how much is in there.
+  return headless ? (
+    <Section id="review-past" label="Past reviews" note={rows.length ? `${rows.length} written` : undefined}>
+      {body}
     </Section>
+  ) : (
+    <Fold
+      id="review-past"
+      storageKey="past"
+      label="Past reviews"
+      summary={rows.length ? `${rows.length} written · latest ${latest.period.title}` : "none written yet"}
+    >
+      {body}
+    </Fold>
   );
 }
 
@@ -242,7 +253,7 @@ function PastReviewRow({
           {ENTRIES.map((entry) =>
             draft[entry.key] ? (
               <div key={entry.key}>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+                <div className="text-[11.5px] font-medium text-ink-4">
                   {entry.label}
                 </div>
                 <p className="mt-1 whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-2">
@@ -291,7 +302,7 @@ function ComparePanel({
   const rightDraft = draftOf(right.review);
 
   return (
-    <div className="mb-5 surface overflow-hidden">
+    <div className="surface overflow-hidden">
       <div className="grid grid-cols-2 gap-px bg-line">
         {[left, right].map((side) => (
           <div key={side.review.id} className="bg-raised px-3.5 py-3">
@@ -344,7 +355,7 @@ function ComparePanel({
         if (!leftDraft[entry.key] && !rightDraft[entry.key]) return null;
         return (
           <div key={entry.key} className="hairline-t">
-            <div className="px-3.5 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+            <div className="px-3.5 pt-2.5 text-[11.5px] font-medium text-ink-4">
               {entry.label}
             </div>
             <div className="grid grid-cols-2 gap-px">

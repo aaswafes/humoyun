@@ -168,7 +168,7 @@ export function WeekdayPanel({
                   </UnitLabel>
                   <GridY
                     x0={WD_PAD.l} x1={WD_PAD.l + g.plotW}
-                    ticks={axisTicks(g.max, metric === "rate" ? 2 : 3)} y={g.y}
+                    ticks={axisTicks(g.max, 2)} y={g.y}
                     format={(v) => (metric === "rate" ? `${Math.round(v * 100)}` : fmt(v, g.max <= 3 ? 1 : 0))}
                   />
 
@@ -350,7 +350,7 @@ export function HourPanel({
                   <UnitLabel x={0} y={9}>minutes</UnitLabel>
                   <GridY
                     x0={HR_PAD.l} x1={HR_PAD.l + g.plotW}
-                    ticks={axisTicks(g.max, 3)} y={g.y}
+                    ticks={axisTicks(g.max, 2)} y={g.y}
                     format={(v) => fmt(v)}
                   />
 

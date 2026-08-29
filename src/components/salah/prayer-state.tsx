@@ -41,7 +41,8 @@ export const PRAYER_STATE: Record<PrayerStatus, StateStyle> = {
     meaning: "Prayed on time, alone",
     icon: Check,
     chip: "bg-accent-soft text-accent",
-    text: "text-accent",
+    // The mark carries the state; the word under the name is only support.
+    text: "text-ink-3",
     bar: "bg-accent",
   },
   jamaah: {
@@ -53,19 +54,21 @@ export const PRAYER_STATE: Record<PrayerStatus, StateStyle> = {
     bar: "bg-success",
   },
   qadha: {
+    // Made up afterwards is handled, not a failure — so it is not amber
+    // anywhere the user reads their own day. The chart keeps its own fill.
     label: "Qadha",
     meaning: "Made up afterwards",
     icon: RotateCcw,
-    chip: "bg-warn-soft text-warn",
-    text: "text-warn",
+    chip: "bg-hover text-ink-2",
+    text: "text-ink-3",
     bar: "bg-warn",
   },
   late: {
     label: "Late",
     meaning: "Prayed near the end of its window",
     icon: Clock,
-    chip: "bg-warn-soft text-warn",
-    text: "text-warn",
+    chip: "bg-hover text-ink-2",
+    text: "text-ink-3",
     bar: "bg-accent-soft",
   },
   missed: {

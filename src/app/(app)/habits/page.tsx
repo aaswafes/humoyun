@@ -17,15 +17,14 @@ import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import type { Habit, HabitLog } from "@/lib/types";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
-import { Button, EmptyState, SectionLabel, Segmented, Skeleton } from "@/components/ui/primitives";
+import { Button, EmptyState, SectionLabel, Skeleton } from "@/components/ui/primitives";
 import { ConfirmDialog } from "@/components/ui/overlays";
-import {
-  buildLogIndex, isComplete, NO_COUNTS, scheduledOn,
-} from "@/components/habits/habit-utils";
+import { buildLogIndex, NO_COUNTS } from "@/components/habits/habit-utils";
 import {
   normaliseOrder, slotOf, SLOT_HINT, SLOT_ICON, SLOT_LABEL, stackOrder,
   useHabitMeta, type HabitMeta, type Slot,
 } from "@/components/habits/habit-meta";
+import { Fold, useFold } from "@/components/habits/fold";
 import { HabitsSummary } from "@/components/habits/habits-summary";
 import { TodayStrip } from "@/components/habits/today-strip";
 import { HabitCard } from "@/components/habits/habit-card";
@@ -45,12 +44,12 @@ export default function HabitsPage() {
   const toast = useStore((s) => s.toast);
   const { meta, metaOf, skipsOf, setMeta, setSkip, clearMeta } = useHabitMeta();
 
-  const [view, setView] = React.useState<"active" | "archived">("active");
   const [editor, setEditor] = React.useState<{ habit: Habit | null } | null>(null);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [detailId, setDetailId] = React.useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<Habit | null>(null);
   const [pendingArchive, setPendingArchive] = React.useState<Habit | null>(null);
+  const archive = useFold("humoyun.habits.archivedOpen");
 
   const today = todayISO();
   const index = React.useMemo(() => buildLogIndex(habitLogs), [habitLogs]);
@@ -76,11 +75,6 @@ export default function HabitsPage() {
     [habits],
   );
 
-  const scheduled = scheduledOn(active, index, today, weekStart);
-  const resting = scheduled.filter((h) => skipsOf(h.id).has(today));
-  const due = scheduled.filter((h) => !skipsOf(h.id).has(today));
-  const doneToday = due.filter((h) => isComplete(h, (index.get(h.id) ?? NO_COUNTS).get(today))).length;
-
   // Slot headers only earn their space once the day has more than one part.
   // A stacked habit takes its heading from the chain it belongs to.
   const present = new Set(active.map((h) => h.id));
@@ -88,9 +82,6 @@ export default function HabitsPage() {
   const usedSlots = new Set<Slot>();
   for (const habit of active) usedSlots.add(slotFor(habit));
   const grouped = usedSlots.size > 1;
-
-  // Archived tab has nothing to show once the last archived habit is restored.
-  const tab = view === "archived" && !archived.length ? "active" : view;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -192,90 +183,70 @@ export default function HabitsPage() {
     toast({ title: `${habit.name} deleted`, description: "Its history went with it.", tone: "danger" });
   }
 
-  const subtitle = !ready
-    ? undefined
-    : due.length
-      ? `${doneToday} of ${due.length} done today${resting.length ? ` · ${resting.length} resting` : ""}`
-      : active.length
-        ? resting.length ? `${resting.length} resting today` : "Nothing scheduled today"
-        : undefined;
+  // The archive used to be a second tab in the header; it is a fold now, so it
+  // sits at the foot of whichever state the page is in.
+  const archivedFold = archived.length > 0 && (
+    <Fold
+      label="Archived"
+      summary={`${archived.length} kept, with every log`}
+      open={archive.open}
+      onToggle={archive.toggle}
+      className="hairline-t pt-3"
+    >
+      <p className="mb-1 max-w-[64ch] text-[12.5px] leading-relaxed text-ink-4">
+        Archived habits stop appearing on your day but keep every log, every note and the reason you
+        put them down. Restore one and the streak picks up exactly where it left off.
+      </p>
+      <ArchivedList
+        habits={archived}
+        index={index}
+        skipsOf={skipsOf}
+        weekStart={weekStart}
+        onOpenDetail={setDetailId}
+        onDelete={setPendingDelete}
+      />
+    </Fold>
+  );
 
   return (
     <>
+      {/* No subtitle: today's progress is stated once, by the Today block below. */}
       <PageHeader
         title="Habits"
-        subtitle={subtitle}
         actions={
           <Button variant="primary" size="sm" onClick={() => setEditor({ habit: null })}>
             <Plus className="size-3.5" />
             New habit
           </Button>
         }
-      >
-        {archived.length > 0 && (
-          <Segmented
-            size="sm"
-            value={tab}
-            onChange={setView}
-            className="mr-1"
-            options={[
-              { value: "active", label: "Active" },
-              {
-                value: "archived",
-                label: <>Archived <span className="text-ink-4 tnum">{archived.length}</span></>,
-              },
-            ]}
-          />
-        )}
-      </PageHeader>
+      />
 
       <PageBody wide>
         {!ready ? (
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-[130px] rounded-lg" />
-            <Skeleton className="h-9 w-64 rounded-full" />
-            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+          <div className="space-y-8">
+            <Skeleton className="h-[92px] rounded-lg" />
+            <div className="space-y-2">
+              {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+            </div>
           </div>
-        ) : tab === "archived" ? (
-          <>
-            <SectionLabel className="mb-2">Archived</SectionLabel>
-            <p className="mb-4 max-w-[56ch] text-[13px] leading-relaxed text-ink-3">
-              Archived habits stop appearing on your day but keep every log, every note and the
-              reason you put them down. Restore one and the streak picks up exactly where it left off.
-            </p>
-            <ArchivedList
-              habits={archived}
-              index={index}
-              skipsOf={skipsOf}
-              weekStart={weekStart}
-              onOpenDetail={setDetailId}
-              onDelete={setPendingDelete}
-            />
-          </>
         ) : !active.length ? (
-          <EmptyState
-            icon={Flame}
-            title="No habits yet"
-            description="Habits are the things you want to do on a rhythm — every day, on set weekdays, or a few times a week. Add one and the streak starts tonight."
-            action={
-              <Button variant="primary" onClick={() => setEditor({ habit: null })}>
-                <Plus className="size-4" />
-                New habit
-              </Button>
-            }
-            className="py-20"
-          />
-        ) : (
-          <>
-            <HabitsSummary
-              habits={active}
-              archivedCount={archived.length}
-              index={index}
-              skipsOf={skipsOf}
-              weekStart={weekStart}
-              className="mb-8"
+          <div className="space-y-8">
+            <EmptyState
+              icon={Flame}
+              title="No habits yet"
+              description="Habits are the things you want to do on a rhythm — every day, on set weekdays, or a few times a week. Add one and the streak starts tonight."
+              action={
+                <Button variant="primary" onClick={() => setEditor({ habit: null })}>
+                  <Plus className="size-4" />
+                  New habit
+                </Button>
+              }
+              className="py-16"
             />
-
+            {archivedFold}
+          </div>
+        ) : (
+          <div className="space-y-8">
             <TodayStrip
               habits={active}
               index={index}
@@ -289,7 +260,7 @@ export default function HabitsPage() {
             />
 
             <section>
-              <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
+              <div className="mb-2 flex flex-wrap items-baseline gap-2">
                 <SectionLabel>All habits</SectionLabel>
                 <span className="text-[11px] text-ink-4 tnum">{active.length}</span>
                 <div className="flex-1" />
@@ -349,7 +320,17 @@ export default function HabitsPage() {
                 </SortableContext>
               </DndContext>
             </section>
-          </>
+
+            <HabitsSummary
+              habits={active}
+              index={index}
+              skipsOf={skipsOf}
+              weekStart={weekStart}
+              className="hairline-t pt-3"
+            />
+
+            {archivedFold}
+          </div>
         )}
       </PageBody>
 
@@ -393,15 +374,19 @@ export default function HabitsPage() {
 
 const EMPTY_LOGS: HabitLog[] = [];
 
+/**
+ * Which part of the day the rows below belong to. Quiet by design — the list is
+ * the content, this is only where one part of the day ends and the next begins.
+ */
 function SlotHeader({ slot, first }: { slot: Slot; first: boolean }) {
   const Icon = SLOT_ICON[slot];
   return (
-    <div className={cn("flex items-baseline gap-2 px-2", first ? "pb-1.5" : "pb-1.5 pt-5")}>
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-        <Icon className="size-3" aria-hidden />
-        {SLOT_LABEL[slot]}
-      </span>
-      <span className="text-[11.5px] text-ink-4">{SLOT_HINT[slot]}</span>
+    <div
+      title={SLOT_HINT[slot]}
+      className={cn("flex items-center gap-1.5 px-2", first ? "pb-2" : "pb-2 pt-6")}
+    >
+      <Icon className="size-3 shrink-0 text-ink-4" aria-hidden />
+      <span className="text-[11.5px] font-medium text-ink-3">{SLOT_LABEL[slot]}</span>
     </div>
   );
 }

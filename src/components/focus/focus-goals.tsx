@@ -4,7 +4,7 @@ import * as React from "react";
 import { Check, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { dayName, formatDuration, isToday } from "@/lib/date";
-import { Button, Progress, Ring, SectionLabel } from "@/components/ui/primitives";
+import { Button, Ring } from "@/components/ui/primitives";
 import { VisuallyHidden } from "@/components/ui/form";
 import { goalProgress, type DayGroup } from "./focus-data";
 
@@ -33,29 +33,23 @@ export const FocusGoals = React.memo(function FocusGoals({
   return (
     <section aria-labelledby={`${summaryId}-label`}>
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <SectionLabel className="shrink-0">
-          <span id={`${summaryId}-label`}>Targets</span>
-        </SectionLabel>
+        <p id={`${summaryId}-label`} className="shrink-0 text-[12.5px] font-medium text-ink-2">
+          Targets
+        </p>
         <Button variant="ghost" size="xs" onClick={onEdit}>
           <SlidersHorizontal className="size-3" />
           Adjust
         </Button>
       </div>
 
-      <div className="grid gap-6 rounded-lg border border-line p-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-8">
-        {/* today */}
+      <div className="grid gap-7 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-9">
+        {/* today — the ring carries the proportion, so it does not repeat it as a number */}
         <div className="flex items-center gap-3.5">
           <Ring value={g.dailyPct} max={1} size={68} stroke={5}>
-            {dailyDone ? (
-              <Check className="size-5 text-success" aria-hidden />
-            ) : (
-              <span className="text-[12.5px] font-medium text-ink-2 tnum">
-                {Math.round(g.dailyPct * 100)}%
-              </span>
-            )}
+            {dailyDone && <Check className="size-5 text-success" aria-hidden />}
           </Ring>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Today</p>
+            <p className="text-[12px] text-ink-3">Today</p>
             <p className="display-serif tnum mt-1 text-[22px] leading-none text-ink">
               {formatDuration(g.todayMinutes)}
             </p>
@@ -70,8 +64,8 @@ export const FocusGoals = React.memo(function FocusGoals({
         {/* this week */}
         <div className="min-w-0">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">This week</p>
-            <p className="text-[11.5px] text-ink-3 tnum">
+            <p className="text-[12px] text-ink-3">This week</p>
+            <p className="text-[11.5px] text-ink-4 tnum">
               <span className="text-ink-2">{formatDuration(g.weekMinutes)}</span> of {formatDuration(weeklyGoal)}
             </p>
           </div>
@@ -111,15 +105,14 @@ export const FocusGoals = React.memo(function FocusGoals({
             })}
           </div>
 
-          <div className="mt-3">
-            <Progress value={g.weeklyPct} max={1} height={4} />
-            <p className="mt-1.5 text-[11.5px] text-ink-4 tnum">
-              {g.daysHit} {g.daysHit === 1 ? "day" : "days"} at target
-              {g.pacePerDay != null
-                ? ` · ${formatDuration(g.pacePerDay)} a day to land it`
-                : " · weekly target met"}
-            </p>
-          </div>
+          {/* The seven bars against the dashed target already draw the week, so
+              there is no second bar underneath saying the same thing. */}
+          <p className="mt-2.5 text-[11.5px] text-ink-4 tnum">
+            {g.daysHit} {g.daysHit === 1 ? "day" : "days"} at target
+            {g.pacePerDay != null
+              ? ` · ${formatDuration(g.pacePerDay)} a day to land it`
+              : " · weekly target met"}
+          </p>
 
           <VisuallyHidden id={summaryId}>
             {`This week: ${formatDuration(g.weekMinutes)} of a ${formatDuration(weeklyGoal)} target, ` +

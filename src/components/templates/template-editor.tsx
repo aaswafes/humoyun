@@ -19,10 +19,11 @@ import { parseTask } from "@/lib/parse";
 import { friendlyDate } from "@/lib/date";
 import type { Template, Tint } from "@/lib/types";
 import {
-  AutoTextarea, Badge, Button, IconButton, InlineInput, Progress, Segmented, Tooltip,
+  AutoTextarea, Badge, Button, IconButton, InlineInput, Segmented, Tooltip,
 } from "@/components/ui/primitives";
 import { ConfirmDialog, MenuItem, MenuSeparator, Sheet, TintPicker } from "@/components/ui/overlays";
 import { LayeredPopover } from "./layered";
+import { Fold, useFold } from "./fold";
 import { MiniEmpty } from "@/components/ui/form";
 import { IconPicker, TemplateIcon } from "./icons";
 import { TimelinePreview } from "./timeline-preview";
@@ -39,6 +40,11 @@ import {
 import { formatDuration } from "@/lib/date";
 
 type EditorView = "list" | "board";
+
+// Namespaced per surface so the editor's three panels remember themselves.
+const DETAILS_FOLD = "humoyun.templates.detailsOpen";
+const ITEMS_FOLD = "humoyun.templates.itemsOpen";
+const PREVIEW_FOLD = "humoyun.templates.previewOpen";
 
 /** Move a row onto another day, landing it just before `overKey` when there is one. */
 function relocate(rows: Row[], key: string, offset: number, overKey: string | null): Row[] {
@@ -62,15 +68,15 @@ function relocate(rows: Row[], key: string, offset: number, overKey: string | nu
 // ---------------------------------------------------------
 // Panels
 // ---------------------------------------------------------
-function VariablesPanel({ items }: { items: RichItem[] }) {
-  const { builtin, user } = React.useMemo(() => collectVars(items), [items]);
+function VariablesPanel({ vars }: { vars: { builtin: string[]; user: string[] } }) {
+  const { builtin, user } = vars;
   const total = builtin.length + user.length;
 
   return (
-    <div className="rounded-lg border border-line bg-sunken p-2.5">
+    <div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Braces className="size-3.5 text-ink-3" aria-hidden />
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Variables</span>
+        <Braces className="size-3.5 text-ink-4" aria-hidden />
+        <span className="text-[12px] font-medium text-ink-2">Variables</span>
         <div className="flex-1" />
         <LayeredPopover
           align="end"
@@ -84,7 +90,7 @@ function VariablesPanel({ items }: { items: RichItem[] }) {
             in an item title, its notes or a tag. When you apply the template you are asked for the value
             once and it is filled in everywhere.
           </p>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Filled in for you</p>
+          <p className="mt-2 text-[12px] font-medium text-ink-2">Filled in for you</p>
           <ul className="mt-1 space-y-1">
             {Object.entries(BUILT_IN_VARS).map(([name, description]) => (
               <li key={name} className="flex gap-2 text-[12px] leading-snug">
@@ -97,7 +103,7 @@ function VariablesPanel({ items }: { items: RichItem[] }) {
       </div>
 
       {total === 0 ? (
-        <p className="mt-1.5 text-[12px] leading-relaxed text-ink-4">
+        <p className="mt-1 text-[12px] leading-relaxed text-ink-4">
           None yet. Type {"{{book}}"} into an item and the apply dialog will ask for it.
         </p>
       ) : (
@@ -120,16 +126,11 @@ function VariablesPanel({ items }: { items: RichItem[] }) {
 
 function TruthPanel({ insight }: { insight: Insight }) {
   const read = verdict(insight);
-  const tone =
-    read.tone === "success" ? "text-success"
-      : read.tone === "warn" ? "text-warn"
-        : read.tone === "danger" ? "text-danger"
-          : "text-ink-3";
 
   if (insight.applied === 0 && insight.created === 0) {
     return (
-      <MiniEmpty className="rounded-lg border border-dashed border-line py-3">
-        Apply it once and this panel starts telling you how much of it you actually do.
+      <MiniEmpty className="text-left">
+        Apply it once and this starts telling you how much of it you actually do.
       </MiniEmpty>
     );
   }
@@ -137,34 +138,29 @@ function TruthPanel({ insight }: { insight: Insight }) {
   const worst = insight.items.filter((s) => s.created >= 2).slice(0, 3);
 
   return (
-    <div className="rounded-lg border border-line bg-sunken p-2.5">
+    <div>
       <div className="flex items-baseline gap-2">
         <span className="display-serif text-[22px] leading-none text-ink tnum">{percent(insight.rate)}</span>
-        <span className="text-[12px] text-ink-2">of its tasks get finished</span>
+        <span className="text-[12px] text-ink-3">of its tasks get finished</span>
         <div className="flex-1" />
-        <span className={cn("text-[11.5px] font-medium", tone)}>{read.text}</span>
+        {/* A plan you only half do is information, not an emergency — it stays grey. */}
+        <span className="text-[11.5px] text-ink-3">{read.text}</span>
       </div>
-      <Progress value={insight.done} max={Math.max(1, insight.created)} className="mt-2" />
-      <p className="mt-1.5 text-[11.5px] text-ink-3 tnum">
+      <p className="mt-1.5 text-[11.5px] text-ink-4 tnum">
         Applied {insight.applied}× · {insight.done} done · {insight.open} still open
         {insight.lastApplied && ` · last ${friendlyDate(insight.lastApplied).toLowerCase()}`}
       </p>
 
       {worst.length > 0 && (
-        <div className="mt-2.5 border-t border-line pt-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Weakest items</p>
+        <div className="mt-3">
+          <p className="text-[12px] font-medium text-ink-2">Weakest items</p>
           <ul className="mt-1 space-y-1">
             {worst.map((stat) => (
               <li key={stat.title} className="flex items-baseline gap-2">
-                <span
-                  className={cn(
-                    "w-[34px] shrink-0 text-[11.5px] tnum",
-                    stat.rate >= 0.7 ? "text-success" : stat.rate >= 0.4 ? "text-warn" : "text-danger",
-                  )}
-                >
+                <span className="w-[34px] shrink-0 text-[11.5px] text-ink-3 tnum">
                   {Math.round(stat.rate * 100)}%
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-2">{stat.title}</span>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-3">{stat.title}</span>
                 <span className="shrink-0 text-[11px] text-ink-4 tnum">{stat.done}/{stat.created}</span>
               </li>
             ))}
@@ -209,6 +205,9 @@ export function TemplateEditor({
   const [view, setView] = React.useState<EditorView>("list");
   const [confirming, setConfirming] = React.useState(false);
   const [composer, setComposer] = React.useState("");
+  // Items is the panel the sheet opens on; the other two rest folded. Anything
+  // that jumps to a row has to be able to unfold it first.
+  const [, setItemsOpen] = useFold(ITEMS_FOLD, true);
 
   const dirty = React.useRef(false);
   const touch = () => { dirty.current = true; };
@@ -297,8 +296,9 @@ export function TemplateEditor({
     setComposer("");
   }
 
-  /** Switch to the list, open that item, and put it in front of the reader. */
+  /** Unfold the items, switch to the list, open that row, put it in front of the reader. */
   function revealItem(key: string) {
+    setItemsOpen(true);
     setView("list");
     setOpenKey(key);
     // The scroll has to wait for the list to exist; the click has already committed by then.
@@ -364,6 +364,31 @@ export function TemplateEditor({
 
   const minutes = totalMinutes(expanded.map((e) => e.item));
   const nested = expanded.filter((e) => e.source).length;
+  const vars = React.useMemo(() => collectVars(expanded.map((e) => e.item)), [expanded]);
+  const timed = expanded.filter((e) => e.item.start_min != null).length;
+
+  // Each folded panel says what is inside it, so nothing is a dead end.
+  const detailsSummary = [
+    SCOPE_LABELS[scope],
+    color,
+    vars.user.length > 0 ? plural(vars.user.length, "variable") : null,
+    insight && insight.created > 0
+      ? `${percent(insight.rate)} finished`
+      : insight && insight.applied > 0 ? `applied ${insight.applied}×` : null,
+  ].filter(Boolean).join(" · ");
+
+  const itemsSummary = [
+    plural(rows.length, "item"),
+    nested > 0 ? `+${nested} from linked templates` : null,
+  ].filter(Boolean).join(" · ");
+
+  const previewSummary = expanded.length === 0
+    ? "Nothing to draw yet"
+    : [
+        minutes > 0 ? `${formatDuration(minutes)} planned` : null,
+        timed > 0 ? `${timed} on the clock` : "nothing on the clock",
+        scope === "week" ? `across ${plural(perDay.filter((c) => c > 0).length, "day")}` : null,
+      ].filter(Boolean).join(" · ");
 
   function exportOne() {
     const text = serialize([draft], templates);
@@ -432,46 +457,148 @@ export function TemplateEditor({
         </IconButton>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
         <AutoTextarea
           value={description}
           onChange={(v) => { touch(); setDescription(v); }}
-          minRows={2}
+          minRows={1}
           placeholder="What is this plan for? One line is plenty."
           aria-label="Template description"
-          className="rounded-md px-1 py-1 text-[13px] text-ink-2 placeholder:text-ink-4 hover:bg-hover focus:bg-hover"
+          className="rounded-md px-1 py-1 text-[13px] text-ink-3 placeholder:text-ink-4 hover:bg-hover focus:bg-hover"
         />
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Segmented
-            size="sm"
-            value={scope}
-            onChange={changeScope}
-            options={SCOPES.map((s) => ({ value: s, label: SCOPE_LABELS[s] }))}
-          />
-          <LayeredPopover
-            align="start"
-            className="w-[188px]"
-            trigger={
-              <ColourTrigger
-                tint={color}
-                label="Template colour"
-                name={color}
-                className="w-[124px]"
+        {/* ---- what it is ---- */}
+        <Fold label="Details" summary={detailsSummary} storageKey={DETAILS_FOLD}>
+          <div className="space-y-4">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Segmented
+                  size="sm"
+                  value={scope}
+                  onChange={changeScope}
+                  options={SCOPES.map((s) => ({ value: s, label: SCOPE_LABELS[s] }))}
+                />
+                <LayeredPopover
+                  align="start"
+                  className="w-[188px]"
+                  trigger={
+                    <ColourTrigger
+                      tint={color}
+                      label="Template colour"
+                      name={color}
+                      className="w-[124px]"
+                    />
+                  }
+                >
+                  <TintPicker value={color} onChange={(t) => { if (t) { touch(); setColor(t); } }} />
+                </LayeredPopover>
+              </div>
+              <p className="mt-1.5 px-0.5 text-[12px] text-ink-3">{SCOPE_HINTS[scope]}</p>
+            </div>
+
+            <VariablesPanel vars={vars} />
+            {insight && <TruthPanel insight={insight} />}
+          </div>
+        </Fold>
+
+        {/* ---- items: the one panel that opens with the sheet ---- */}
+        <Fold label="Items" summary={itemsSummary} storageKey={ITEMS_FOLD} defaultOpen>
+          <div>
+            {scope === "week" && (
+              <div className="mb-1.5 flex justify-end">
+                <Segmented
+                  size="sm"
+                  value={view}
+                  onChange={setView}
+                  options={[
+                    { value: "list" as EditorView, label: "List" },
+                    { value: "board" as EditorView, label: "Board" },
+                  ]}
+                />
+              </div>
+            )}
+
+            {view === "board" && scope === "week" ? (
+              <WeekBoard
+                rows={rows}
+                weekStart={weekStart}
+                hour12={hour12}
+                fallbackTint={color}
+                refNameOf={(row) => (row.item.ref_template_id ? nameOfTemplate(row.item.ref_template_id) : null)}
+                onRelocate={(key, offset, overKey) => mutate(relocate(rows, key, offset, overKey))}
+                onEdit={revealItem}
+                onAdd={addOnDay}
               />
-            }
-          >
-            <TintPicker value={color} onChange={(t) => { if (t) { touch(); setColor(t); } }} />
-          </LayeredPopover>
-        </div>
-        <p className="mt-1.5 px-0.5 text-[12px] text-ink-3">{SCOPE_HINTS[scope]}</p>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis]}
+                onDragEnd={onDragEnd}
+              >
+                <SortableContext items={rows.map((r) => r.key)} strategy={verticalListSortingStrategy}>
+                  {rows.map((row) => (
+                    <ItemRow
+                      key={row.key}
+                      row={row}
+                      scope={scope}
+                      weekStart={weekStart}
+                      hour12={hour12}
+                      fallbackTint={color}
+                      open={openKey === row.key}
+                      refOptions={refOptions}
+                      refName={row.item.ref_template_id ? nameOfTemplate(row.item.ref_template_id) : null}
+                      stat={statFor(row.item.title)}
+                      onOpenRef={(id) => { save(); onOpenTemplate(id); }}
+                      onToggle={() => setOpenKey(openKey === row.key ? null : row.key)}
+                      onChange={(change) => updateItem(row.key, change)}
+                      onDuplicate={() => {
+                        const at = rows.findIndex((r) => r.key === row.key);
+                        const copy = { key: uid(), item: { ...row.item } };
+                        mutate([...rows.slice(0, at + 1), copy, ...rows.slice(at + 1)]);
+                      }}
+                      onDelete={() => {
+                        if (openKey === row.key) setOpenKey(null);
+                        mutate(rows.filter((r) => r.key !== row.key));
+                      }}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
+
+            {view === "list" && (
+              <div className="mt-1 flex items-center gap-2 rounded-md px-1.5 py-1 focus-within:bg-hover">
+                <Plus className="size-4 shrink-0 text-ink-4" />
+                <input
+                  value={composer}
+                  onChange={(e) => setComposer(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); addItem(composer); }
+                    if (e.key === "Escape") setComposer("");
+                  }}
+                  onBlur={() => addItem(composer)}
+                  placeholder="Add an item — try “Deep work 9am for 90m !high #deep”"
+                  aria-label="Add a template item"
+                  className="min-w-0 flex-1 bg-transparent py-0.5 text-[13.5px] text-ink outline-none placeholder:text-ink-4"
+                />
+              </div>
+            )}
+
+            {rows.length === 0 && (
+              <p className="mt-2 px-1.5 text-[12.5px] leading-relaxed text-ink-3">
+                An empty template has nothing to apply. Add the first thing you do, then build outwards —
+                times, durations, conditions and variables are all optional.
+              </p>
+            )}
+          </div>
+        </Fold>
 
         {/* ---- shape of the day ---- */}
-        <div className="mt-5">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Preview</span>
+        <Fold label="Preview" summary={previewSummary} storageKey={PREVIEW_FOLD}>
+          <div>
             {scope === "week" && (
-              <div className="flex gap-0.5">
+              <div className="mb-2 flex flex-wrap justify-end gap-0.5">
                 {Array.from({ length: 7 }, (_, offset) => {
                   const count = perDay[offset];
                   const selected = previewDay === offset;
@@ -492,7 +619,7 @@ export function TemplateEditor({
                         selected
                           ? "bg-accent-soft text-accent"
                           : count > 0
-                            ? "text-ink-2 hover:bg-hover"
+                            ? "text-ink-3 hover:bg-hover"
                             : "text-ink-4 hover:bg-hover",
                       )}
                     >
@@ -503,128 +630,18 @@ export function TemplateEditor({
                 })}
               </div>
             )}
-          </div>
-          <TimelinePreview
-            items={previewItems}
-            color={color}
-            hour12={hour12}
-            emptyHint={
-              scope === "week"
-                ? `Nothing on ${offsetLabel(previewDay, weekStart, "long")} yet.`
-                : "Add an item and the shape of the day appears here."
-            }
-          />
-        </div>
-
-        {/* ---- items ---- */}
-        <div className="mt-6">
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Items</span>
-            <span className="text-[11px] text-ink-4 tnum">{rows.length}</span>
-            {nested > 0 && (
-              <span className="text-[11px] text-ink-4 tnum">+{nested} from linked templates</span>
-            )}
-            <div className="flex-1" />
-            {scope === "week" && (
-              <Segmented
-                size="sm"
-                value={view}
-                onChange={setView}
-                options={[
-                  { value: "list" as EditorView, label: "List" },
-                  { value: "board" as EditorView, label: "Board" },
-                ]}
-              />
-            )}
-          </div>
-
-          {view === "board" && scope === "week" ? (
-            <WeekBoard
-              rows={rows}
-              weekStart={weekStart}
+            <TimelinePreview
+              items={previewItems}
+              color={color}
               hour12={hour12}
-              fallbackTint={color}
-              refNameOf={(row) => (row.item.ref_template_id ? nameOfTemplate(row.item.ref_template_id) : null)}
-              onRelocate={(key, offset, overKey) => mutate(relocate(rows, key, offset, overKey))}
-              onEdit={revealItem}
-              onAdd={addOnDay}
+              emptyHint={
+                scope === "week"
+                  ? `Nothing on ${offsetLabel(previewDay, weekStart, "long")} yet.`
+                  : "Add an item and the shape of the day appears here."
+              }
             />
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={onDragEnd}
-            >
-              <SortableContext items={rows.map((r) => r.key)} strategy={verticalListSortingStrategy}>
-                {rows.map((row) => (
-                  <ItemRow
-                    key={row.key}
-                    row={row}
-                    scope={scope}
-                    weekStart={weekStart}
-                    hour12={hour12}
-                    fallbackTint={color}
-                    open={openKey === row.key}
-                    refOptions={refOptions}
-                    refName={row.item.ref_template_id ? nameOfTemplate(row.item.ref_template_id) : null}
-                    stat={statFor(row.item.title)}
-                    onOpenRef={(id) => { save(); onOpenTemplate(id); }}
-                    onToggle={() => setOpenKey(openKey === row.key ? null : row.key)}
-                    onChange={(change) => updateItem(row.key, change)}
-                    onDuplicate={() => {
-                      const at = rows.findIndex((r) => r.key === row.key);
-                      const copy = { key: uid(), item: { ...row.item } };
-                      mutate([...rows.slice(0, at + 1), copy, ...rows.slice(at + 1)]);
-                    }}
-                    onDelete={() => {
-                      if (openKey === row.key) setOpenKey(null);
-                      mutate(rows.filter((r) => r.key !== row.key));
-                    }}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )}
-
-          {view === "list" && (
-            <div className="mt-1 flex items-center gap-2 rounded-md px-1.5 py-1 focus-within:bg-hover">
-              <Plus className="size-4 shrink-0 text-ink-4" />
-              <input
-                value={composer}
-                onChange={(e) => setComposer(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); addItem(composer); }
-                  if (e.key === "Escape") setComposer("");
-                }}
-                onBlur={() => addItem(composer)}
-                placeholder="Add an item — try “Deep work 9am for 90m !high #deep”"
-                aria-label="Add a template item"
-                className="min-w-0 flex-1 bg-transparent py-0.5 text-[13.5px] text-ink outline-none placeholder:text-ink-4"
-              />
-            </div>
-          )}
-
-          {rows.length === 0 && (
-            <p className="mt-2 px-1.5 text-[12.5px] leading-relaxed text-ink-3">
-              An empty template has nothing to apply. Add the first thing you do, then build outwards —
-              times, durations, conditions and variables are all optional.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-5 space-y-2.5">
-          <VariablesPanel items={expanded.map((e) => e.item)} />
-          {insight && <TruthPanel insight={insight} />}
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
-          <Badge tint={color}>{SCOPE_LABELS[scope]}</Badge>
-          <span className="text-[12px] text-ink-3 tnum">{plural(rows.length, "item")}</span>
-          {minutes > 0 && (
-            <span className="text-[12px] text-ink-3 tnum">{formatDuration(minutes)} planned</span>
-          )}
-        </div>
+          </div>
+        </Fold>
       </div>
 
       <footer className="flex shrink-0 items-center gap-2 px-3 py-2.5 hairline-t">

@@ -164,8 +164,8 @@ function SequenceBar({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">In sequence</span>
-        <span className="text-[11.5px] text-ink-2 tnum">{formatDuration(total)} total</span>
+        <span className="text-[12px] text-ink-3">In sequence</span>
+        <span className="text-[11.5px] text-ink-3 tnum">{formatDuration(total)} total</span>
       </div>
       <div className="flex h-[22px] w-full gap-[2px] overflow-hidden rounded-[5px]">
         {items.map((item, i) => {
@@ -231,7 +231,7 @@ export function TimelinePreview({
 
   if (!items.length && !before.length) {
     return (
-      <div className={cn("rounded-lg border border-dashed border-line px-3 py-4 text-center", className)}>
+      <div className={cn("rounded-lg bg-sunken px-3 py-4 text-center", className)}>
         <p className="text-[12.5px] text-ink-4">
           {emptyHint ?? "Add an item and the shape of the day appears here."}
         </p>
@@ -245,7 +245,7 @@ export function TimelinePreview({
 
   return (
     <div
-      className={cn("rounded-lg border border-line bg-sunken p-2.5", className)}
+      className={cn("rounded-lg bg-sunken p-2.5", className)}
       aria-describedby={describedBy}
     >
       <VisuallyHidden id={describedBy}>{summarise(items, before, hour12)}</VisuallyHidden>

@@ -391,7 +391,7 @@ function SinksPanel({ sinks }: { sinks: ReturnType<typeof timeSinks> }) {
             {top.map((s, i) => (
               <div key={s.key} className={cn(s.tint ? `tint-${s.tint}` : "", "min-w-0")}>
                 <div className="flex items-baseline gap-2">
-                  <span className="display-serif w-4 shrink-0 text-[17px] leading-none text-ink-4 tnum">{i + 1}</span>
+                  <span className="w-4 shrink-0 text-[12.5px] leading-none text-ink-4 tnum">{i + 1}</span>
                   <span className="min-w-0 flex-1 truncate text-[13px] text-ink" title={s.label}>{s.label}</span>
                   <span className="shrink-0 text-[12.5px] font-medium text-ink tnum">{formatHours(s.minutes)}</span>
                   <span className="w-9 shrink-0 text-right text-[11px] text-ink-4 tnum">
@@ -458,12 +458,10 @@ export function Evidence({
         label="Evidence"
         note={`What the ${SCOPE_NOUN[period.scope]} actually contained`}
       >
-        <div className="surface px-4 py-5">
-          <MiniEmpty>
-            Nothing has happened in this {SCOPE_NOUN[period.scope]} yet, so there is no evidence to show.
-            Come back once it has started.
-          </MiniEmpty>
-        </div>
+        <MiniEmpty>
+          Nothing has happened in this {SCOPE_NOUN[period.scope]} yet, so there is no evidence to show.
+          Come back once it has started.
+        </MiniEmpty>
       </Section>
     );
   }
@@ -474,12 +472,11 @@ export function Evidence({
       label="Evidence"
       note={`What the ${SCOPE_NOUN[period.scope]} actually contained`}
     >
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      {/* One grid, no cards — the panels are told apart by space, not by edges. */}
+      <div className="grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-2">
         <GoalsPanel advanced={data.goals} untouched={data.untouched} />
         <BooksPanel books={data.books} />
-      </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Panel
           title="Habits by day"
           meta={
@@ -509,9 +506,7 @@ export function Evidence({
           <SalahGrid rows={data.salah} columns={data.columns} />
           <SalahLegend />
         </Panel>
-      </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <TagsPanel slices={data.tags} total={tagTotal} />
         <SinksPanel sinks={data.sinks} />
       </div>

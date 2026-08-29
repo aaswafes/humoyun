@@ -8,7 +8,9 @@ import {
   type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { ChevronLeft, ChevronRight, PanelRight, Plus } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Hash, PanelRight, Plus, Rows2, Rows3, Rows4, SlidersHorizontal,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   addDays, addMonths, endOfMonth, endOfWeek, formatDate, friendlyDate,
@@ -18,6 +20,7 @@ import { useStore } from "@/lib/store";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import type { CalendarView } from "@/lib/store";
 import { Button, IconButton, Segmented } from "@/components/ui/primitives";
+import { MenuItem, MenuLabel, MenuSeparator, Popover } from "@/components/ui/overlays";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { DndBoundary } from "@/components/tasks/task-list";
 import { openQuickAdd } from "@/components/shell/quick-add";
@@ -28,7 +31,8 @@ import { AgendaView } from "@/components/calendar/agenda-view";
 import { YearView } from "@/components/calendar/year-view";
 import { DayPeek } from "@/components/calendar/day-peek";
 import { RightRail } from "@/components/calendar/right-rail";
-import { ChipBody } from "@/components/calendar/task-chip";
+import { ChipBody, DENSITIES, type ChipDensity } from "@/components/calendar/task-chip";
+import { useStickyChoice, useStickyFlag } from "@/components/calendar/view-prefs";
 import {
   applyTemplateOnDay, bookPreview, readDropDate, readPayload, scheduleBookOnDay,
   templatePreview, type DragPayload, type DropPreview,
@@ -53,6 +57,16 @@ const VIEW_OPTIONS: { value: PageView; label: string; title: string }[] = [
 const STEP_UNIT: Record<PageView, string> = {
   day: "day", week: "week", month: "month", agenda: "week", year: "year",
 };
+
+const DENSITY_ROWS: { value: ChipDensity; label: string; hint: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { value: "compact", label: "Compact", hint: "3 a day", icon: Rows4 },
+  { value: "comfortable", label: "Comfortable", hint: "5 a day", icon: Rows3 },
+  { value: "spacious", label: "Spacious", hint: "7 a day", icon: Rows2 },
+];
+
+const DENSITY_KEY = "humoyun.calendar.monthDensity";
+const WEEKNUM_KEY = "humoyun.calendar.weekNumbers";
+const RAIL_KEY = "humoyun.calendar.railOpen";
 
 /**
  * pointerWithin alone returns nothing during a keyboard drag — it needs pointer
@@ -79,7 +93,13 @@ export default function CalendarPage() {
   const moveTask = useStore((s) => s.moveTask);
   const inspectorOpen = useStore((s) => s.inspectorTaskId !== null);
 
-  const [railOpen, setRailOpen] = React.useState(true);
+  // Display options live on the page, not inside a view, so one popover can
+  // hold all of them and the grid below can start unobstructed.
+  const [density, setDensity] = useStickyChoice<ChipDensity>(DENSITY_KEY, "comfortable", DENSITIES);
+  const [weekNums, setWeekNums] = useStickyFlag(WEEKNUM_KEY, false);
+  const [railOpen, setRailOpen] = useStickyFlag(RAIL_KEY, false);
+  const [optionsOpen, setOptionsOpen] = React.useState(false);
+
   const [peekDate, setPeekDate] = React.useState<string | null>(null);
   const [active, setActive] = React.useState<DragPayload | null>(null);
   const [overDate, setOverDate] = React.useState<string | null>(null);
@@ -257,18 +277,69 @@ export default function CalendarPage() {
         title={title}
         subtitle={subtitle}
         actions={
-          <div className="flex items-center gap-1.5">
-            {/* Year has no drop targets, so the rail's only job there would be
-                to offer a drag that cannot land. */}
-            {view !== "year" && (
-              <IconButton
-                label={railOpen ? "Hide books and templates" : "Show books and templates"}
-                active={railOpen}
-                onClick={() => setRailOpen((v) => !v)}
-              >
-                <PanelRight />
-              </IconButton>
-            )}
+          <div className="flex items-center gap-1 pl-2">
+            <Popover
+              align="end"
+              className="w-[236px]"
+              open={optionsOpen}
+              onOpenChange={setOptionsOpen}
+              trigger={
+                <IconButton
+                  label="View options"
+                  active={optionsOpen}
+                  aria-haspopup="dialog"
+                  aria-expanded={optionsOpen}
+                >
+                  <SlidersHorizontal />
+                </IconButton>
+              }
+            >
+              {view === "month" && (
+                <>
+                  <MenuLabel>Chips per day</MenuLabel>
+                  {DENSITY_ROWS.map((row) => (
+                    <MenuItem
+                      key={row.value}
+                      icon={row.icon}
+                      checked={density === row.value}
+                      shortcut={row.hint}
+                      onClick={() => setDensity(row.value)}
+                    >
+                      {row.label}
+                    </MenuItem>
+                  ))}
+                  <MenuSeparator />
+                </>
+              )}
+
+              <MenuLabel>Show</MenuLabel>
+              {view === "month" && (
+                <MenuItem
+                  icon={Hash}
+                  checked={weekNums}
+                  onClick={() => setWeekNums(!weekNums)}
+                >
+                  Week numbers
+                </MenuItem>
+              )}
+              {view !== "year" && (
+                <MenuItem
+                  icon={PanelRight}
+                  checked={railOpen}
+                  onClick={() => setRailOpen(!railOpen)}
+                >
+                  Books &amp; templates
+                </MenuItem>
+              )}
+
+              {view === "month" && (
+                <p className="border-t border-line px-2 pb-1 pt-1.5 text-[11.5px] leading-snug text-ink-4">
+                  Click a day to peek, double-click to open it, drag across days
+                  to select a span.
+                </p>
+              )}
+            </Popover>
+
             <Button variant="primary" size="sm" onClick={openQuickAdd}>
               <Plus className="size-3.5" />
               New
@@ -276,15 +347,17 @@ export default function CalendarPage() {
           </div>
         }
       >
-        <div className="flex items-center gap-1.5">
-          <Button
-            size="sm"
-            onClick={goToday}
-            className={cn(anchor === todayISO() && "text-ink-3")}
-          >
-            Today
-          </Button>
-          <div className="flex items-center">
+        {/* Three clusters, not one long row: where you are, what you are looking
+            at, and what you can do about it. */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-0.5">
+            <Button
+              size="sm"
+              onClick={goToday}
+              className={cn("mr-1", anchor === todayISO() && "text-ink-3")}
+            >
+              Today
+            </Button>
             <IconButton label={`Previous ${STEP_UNIT[view]}`} onClick={() => step(-1)}>
               <ChevronLeft />
             </IconButton>
@@ -292,16 +365,12 @@ export default function CalendarPage() {
               <ChevronRight />
             </IconButton>
           </div>
-          <Segmented
-            value={view}
-            options={VIEW_OPTIONS}
-            onChange={changeView}
-            className="ml-1"
-          />
+
+          <Segmented value={view} options={VIEW_OPTIONS} onChange={changeView} />
         </div>
       </PageHeader>
 
-      <PageBody wide className={view === "year" ? undefined : "flex h-full min-h-[540px] gap-4"}>
+      <PageBody wide className={view === "year" ? undefined : "flex h-full min-h-[540px] gap-5"}>
         {view === "year" ? (
           <YearView
             anchor={anchor}
@@ -329,6 +398,8 @@ export default function CalendarPage() {
                 anchor={anchor}
                 weekStart={weekStart}
                 hour12={hour12}
+                density={density}
+                weekNums={weekNums}
                 preview={preview}
                 onPeek={setPeekDate}
                 onOpenDay={openDay}
@@ -341,7 +412,12 @@ export default function CalendarPage() {
             {view === "agenda" && <AgendaView anchor={anchor} preview={preview} />}
           </div>
 
-          {railOpen && <RightRail date={anchor} onClose={() => setRailOpen(false)} />}
+          {/* Collapsed, the rail is a thin edge that still shows what is in it. */}
+          <RightRail
+            date={anchor}
+            open={railOpen}
+            onOpenChange={setRailOpen}
+          />
 
           <DragOverlay dropAnimation={null}>
             {activeTask && (

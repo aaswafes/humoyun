@@ -14,22 +14,29 @@ export type ColorBy = "tint" | "kind" | "goal";
 
 export interface MapPrefs {
   colorBy: ColorBy;
+  /** the three canvas panels — all closed at rest, all reopened from the View menu */
   outline: boolean;
   legend: boolean;
+  minimap: boolean;
   /** edge id → curvature multiplier, 0 (straight) … 2 (loose arc). 1 is the default. */
   curve: Record<string, number>;
   /** node id → the timeline lane the user parked it in */
   lane: Record<string, number>;
+  /** bumped when the resting state of the panels changes underneath a saved blob */
+  v: number;
 }
 
 const KEY = "humoyun.map.prefs";
+const VERSION = 2;
 
 export const DEFAULT_PREFS: MapPrefs = {
   colorBy: "tint",
   outline: false,
-  legend: true,
+  legend: false,
+  minimap: false,
   curve: {},
   lane: {},
+  v: VERSION,
 };
 
 function load(): MapPrefs {
@@ -37,12 +44,22 @@ function load(): MapPrefs {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
     const parsed = JSON.parse(raw) as Partial<MapPrefs>;
-    return {
+    const next: MapPrefs = {
       ...DEFAULT_PREFS,
       ...parsed,
       curve: parsed.curve && typeof parsed.curve === "object" ? parsed.curve : {},
       lane: parsed.lane && typeof parsed.lane === "object" ? parsed.lane : {},
+      v: VERSION,
     };
+    // v1 opened the legend on every load. Panels now rest closed, so a blob
+    // written before that decision gets the new resting state once — the
+    // curves, lanes and colour-by it carries are real work and survive.
+    if ((parsed.v ?? 1) < 2) {
+      next.outline = false;
+      next.legend = false;
+      next.minimap = false;
+    }
+    return next;
   } catch {
     return DEFAULT_PREFS;
   }

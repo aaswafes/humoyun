@@ -53,10 +53,18 @@ export function LeftoversCard({ date }: { date: string }) {
     });
   }
 
+  const summary = leftovers.length
+    ? `${leftovers.length} left over · ${done}/${total} done`
+    : total
+      ? `all ${total} finished`
+      : "nothing was planned";
+
   return (
     <RailCard
       icon={History}
       title="Yesterday"
+      foldKey="rail.yesterday"
+      summary={summary}
       accessory={
         leftovers.length > 1 ? (
           <Button size="xs" variant="ghost" onClick={pullAll}>

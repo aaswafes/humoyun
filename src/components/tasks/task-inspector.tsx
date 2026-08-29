@@ -5,8 +5,8 @@ import {
   X, Calendar, Clock, Flag, Hash, Palette, Trash2, Play, Plus, Repeat,
   Target, ListTree, Timer as TimerIcon, CheckSquare, Inbox, Shapes,
   History, Copy, LayoutTemplate, MoreHorizontal, Ban, Link2, ChevronUp,
-  ChevronDown, CornerDownRight, Sparkles, Milestone, CalendarClock, Check,
-  CircleDot, Search,
+  ChevronDown, ChevronRight, CornerDownRight, Sparkles, Milestone, CalendarClock,
+  Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, subtasksOf, orderBetween, uid } from "@/lib/store";
@@ -18,17 +18,29 @@ import {
   Sheet, Popover, MenuItem, MenuSeparator, MenuLabel, TintPicker, ConfirmDialog,
 } from "@/components/ui/overlays";
 import {
-  AutoTextarea, Badge, Button, Checkbox, IconButton, Input, Progress, Ring, Divider,
+  AutoTextarea, Badge, Button, Checkbox, IconButton, Input, Progress,
 } from "@/components/ui/primitives";
 import { Toggle } from "@/components/ui/form";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
-import { InlineComposer } from "./task-list";
+import { InlineComposer, useDisclosure, FOLD_ANIM } from "./task-list";
 import {
   blockedByThis, blockersOf, useDayLoad, useTaskLinks, useUpdateTaskLinks,
 } from "./task-row";
 
 const PRIORITY_CLASS = ["text-ink-3", "text-ink-2", "text-warn", "text-danger"];
 const DURATION_CHIPS = [15, 30, 45, 60, 90, 120];
+
+const FREQ_NOUN: Record<Recurrence["freq"], string> = {
+  daily: "day",
+  weekly: "week",
+  monthly: "month",
+};
+
+/** "Every week" / "Every 2 months" — reads the same in the row and in the summary. */
+function recurrenceLabel(rec: Recurrence): string {
+  const noun = FREQ_NOUN[rec.freq];
+  return rec.interval > 1 ? `Every ${rec.interval} ${noun}s` : `Every ${noun}`;
+}
 
 /**
  * Two-column field row. Renders a real <label for> when the control has an id,
@@ -44,8 +56,10 @@ function InspectorRow({
   children: React.ReactNode;
   align?: "start" | "center";
 }) {
+  // The label column is scaffolding, the value is the content — so the labels
+  // sit a step back rather than competing with what they name.
   const labelCls = cn(
-    "flex w-[86px] shrink-0 items-center gap-1.5 text-[12px] text-ink-3",
+    "flex w-[76px] shrink-0 items-center gap-1.5 text-[12px] text-ink-4",
     align === "start" && "pt-1.5",
     htmlFor && "cursor-pointer",
   );
@@ -67,24 +81,41 @@ function InspectorRow({
   );
 }
 
-function Section({
-  icon: Icon, title, count, accessory, children,
+/**
+ * A section of the inspector, folded behind a summary line that says what is
+ * inside it. Nothing here is hidden from the user — it is one click away, and
+ * the panel remembers which sections they like open.
+ */
+function Fold({
+  id, icon: Icon, title, summary, defaultOpen, children,
 }: {
+  id: string;
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  count?: React.ReactNode;
-  accessory?: React.ReactNode;
+  summary?: React.ReactNode;
+  defaultOpen: boolean;
   children: React.ReactNode;
 }) {
+  const { open, toggle } = useDisclosure(`humoyun.task.inspector.${id}`, defaultOpen);
+
   return (
-    <div>
-      <div className="mb-1.5 flex items-center gap-2">
-        <Icon className="size-3.5 text-ink-3" />
-        <span className="text-[12px] font-medium text-ink-2">{title}</span>
-        {count !== undefined && <span className="text-[11.5px] text-ink-4 tnum">{count}</span>}
-        <div className="ml-auto">{accessory}</div>
-      </div>
-      {children}
+    <div className="hairline-t">
+      <button
+        onClick={toggle}
+        aria-expanded={open}
+        className="group flex w-full items-center gap-2 py-2.5 text-left cursor-pointer"
+      >
+        <Icon className="size-3.5 shrink-0 text-ink-4" />
+        <span className="shrink-0 text-[12.5px] font-medium text-ink-2">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] text-ink-4">{summary}</span>
+        <ChevronRight
+          className={cn(
+            "size-3.5 shrink-0 text-ink-4 transition-transform duration-200 group-hover:text-ink-3",
+            open && "rotate-90",
+          )}
+        />
+      </button>
+      {open && <div style={FOLD_ANIM} className="pb-4">{children}</div>}
     </div>
   );
 }
@@ -447,6 +478,24 @@ export function TaskInspector() {
   trail.sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
   const loggedSeconds = sessions.reduce((sum, s) => sum + s.seconds, 0);
 
+  // ---- fold summaries -----------------------------------------------------
+  // Every folded section says what is inside it, so nothing has to be opened
+  // just to find out whether it is empty.
+  const detailBits = [
+    current.duration_min != null ? formatDuration(current.duration_min) : null,
+    current.kind !== "task" ? current.kind : null,
+    current.color,
+    current.tags.length === 1
+      ? `#${current.tags[0]}`
+      : current.tags.length > 1
+        ? `${current.tags.length} tags`
+        : null,
+    current.recurrence ? recurrenceLabel(current.recurrence).toLowerCase() : null,
+    goal?.title ?? null,
+  ].filter((bit): bit is string => !!bit);
+  const notesSummary = (current.notes ?? "").trim().split("\n")[0];
+  const depCount = blockerIds.length + blocksIds.length;
+
   return (
     <>
       <Sheet open onClose={close} width={420}>
@@ -459,11 +508,9 @@ export function TaskInspector() {
             onChange={() => toggleTask(current.id)}
             label={current.status === "done" ? "Mark as not done" : "Mark as done"}
           />
-          <span className="ml-1 flex-1 truncate text-[12px] text-ink-3">
+          {/* the blocked state is stated once, by the line under the title */}
+          <span className="ml-1 flex-1 truncate text-[12px] text-ink-4">
             {current.date ? friendlyDate(current.date) : "Inbox"}
-            {openBlockers.length > 0 && (
-              <span className="ml-1.5 text-warn">· blocked</span>
-            )}
           </span>
 
           <Popover
@@ -535,30 +582,28 @@ export function TaskInspector() {
           <IconButton label="Close" size="md" onClick={close}><X /></IconButton>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-3">
-          {/* title */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {/* title — the one hero of this panel */}
           <AutoTextarea
             value={current.title}
             onChange={(v) => set({ title: v })}
             placeholder="Untitled"
             aria-label="Task title"
             className={cn(
-              "px-1 text-[19px] font-semibold leading-snug tracking-[-0.01em] text-ink",
+              "px-1 text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink",
               (current.status === "done" || current.status === "dropped") && "text-ink-3 line-through",
             )}
           />
 
           {openBlockers.length > 0 && (
-            <div className="mt-2 flex items-start gap-2 rounded-lg border border-line bg-warn-soft px-2.5 py-2">
-              <Ban className="mt-px size-3.5 shrink-0 text-warn" />
-              <p className="text-[12px] leading-snug text-ink-2">
-                Waiting on {openBlockers.length} unfinished{" "}
-                {openBlockers.length === 1 ? "task" : "tasks"} below.
-              </p>
-            </div>
+            <p className="mt-1.5 flex items-start gap-1.5 px-1 text-[12px] leading-snug text-ink-3">
+              <Ban className="mt-px size-3.5 shrink-0" />
+              Waiting on {openBlockers.length} unfinished{" "}
+              {openBlockers.length === 1 ? "task" : "tasks"} — see Dependencies.
+            </p>
           )}
 
-          <div className="mt-3 space-y-0.5">
+          <div className="mt-4 space-y-0.5">
             {/* date */}
             <InspectorRow icon={Calendar} label="Date">
               <div className="flex flex-wrap items-center gap-1">
@@ -649,55 +694,6 @@ export function TaskInspector() {
               </div>
             </InspectorRow>
 
-            {/* estimate */}
-            <InspectorRow icon={TimerIcon} label="Estimate" htmlFor={`ti-est-${current.id}`}>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`ti-est-${current.id}`}
-                  type="number"
-                  min={0}
-                  step={5}
-                  key={`d-${current.duration_min}`}
-                  defaultValue={current.duration_min ?? ""}
-                  placeholder="—"
-                  onBlur={(e) => set({ duration_min: e.target.value ? Number(e.target.value) : null })}
-                  className="h-7 w-[74px] text-center tnum"
-                />
-                <span className="text-[12px] text-ink-3">minutes</span>
-                {current.actual_min > 0 && (
-                  <span className="ml-auto text-[12px] text-success tnum">
-                    {formatDuration(current.actual_min)} spent
-                  </span>
-                )}
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {DURATION_CHIPS.map((m) => (
-                  <Button
-                    key={m}
-                    size="xs"
-                    variant={current.duration_min === m ? "subtle" : "ghost"}
-                    className="tnum"
-                    onClick={() =>
-                      set({
-                        duration_min: m,
-                        end_min: current.start_min != null ? Math.min(1439, current.start_min + m) : current.end_min,
-                      })
-                    }
-                  >
-                    {formatDuration(m)}
-                  </Button>
-                ))}
-              </div>
-              {current.duration_min && current.actual_min > 0 && (
-                <Progress
-                  value={current.actual_min}
-                  max={current.duration_min}
-                  className="mt-1.5"
-                  tint={current.actual_min > current.duration_min ? "red" : "emerald"}
-                />
-              )}
-            </InspectorRow>
-
             {/* priority */}
             <InspectorRow icon={Flag} label="Priority" align="center">
               <div className="flex gap-1">
@@ -717,6 +713,62 @@ export function TaskInspector() {
                 ))}
               </div>
             </InspectorRow>
+          </div>
+
+          {/* Everything that is not date, time or priority is one click away. */}
+          <div className="mt-5">
+            <Fold
+              id="details"
+              icon={SlidersHorizontal}
+              title="Details"
+              summary={detailBits.length ? detailBits.join(" · ") : "Estimate, type, colour, tags, repeat, goal"}
+              defaultOpen={false}
+            >
+              <div className="space-y-0.5">
+                {/* estimate */}
+                <InspectorRow icon={TimerIcon} label="Estimate" htmlFor={`ti-est-${current.id}`}>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={`ti-est-${current.id}`}
+                      type="number"
+                      min={0}
+                      step={5}
+                      key={`d-${current.duration_min}`}
+                      defaultValue={current.duration_min ?? ""}
+                      placeholder="—"
+                      onBlur={(e) => set({ duration_min: e.target.value ? Number(e.target.value) : null })}
+                      className="h-7 w-[74px] text-center tnum"
+                    />
+                    <span className="text-[12px] text-ink-4">minutes</span>
+                    {/* one line, not a number beside a bar saying the same thing */}
+                    {current.actual_min > 0 && (
+                      <span className="ml-auto text-[12px] text-ink-3 tnum">
+                        {formatDuration(current.actual_min)} spent
+                        {current.duration_min && current.actual_min > current.duration_min
+                          ? ` · ${formatDuration(current.actual_min - current.duration_min)} over`
+                          : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {DURATION_CHIPS.map((m) => (
+                      <Button
+                        key={m}
+                        size="xs"
+                        variant={current.duration_min === m ? "subtle" : "ghost"}
+                        className="tnum"
+                        onClick={() =>
+                          set({
+                            duration_min: m,
+                            end_min: current.start_min != null ? Math.min(1439, current.start_min + m) : current.end_min,
+                          })
+                        }
+                      >
+                        {formatDuration(m)}
+                      </Button>
+                    ))}
+                  </div>
+                </InspectorRow>
 
             {/* kind */}
             <InspectorRow icon={Shapes} label="Type" align="center">
@@ -829,7 +881,7 @@ export function TaskInspector() {
                 trigger={
                   <button className="h-7 rounded-md px-2 text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors">
                     {current.recurrence
-                      ? `Every ${current.recurrence.interval > 1 ? `${current.recurrence.interval} ` : ""}${current.recurrence.freq.replace("ly", "")}`
+                      ? recurrenceLabel(current.recurrence)
                       : <span className="text-ink-4">Never</span>}
                   </button>
                 }
@@ -887,37 +939,34 @@ export function TaskInspector() {
                   </>
                 )}
               </Popover>
-            </InspectorRow>
-          </div>
+                </InspectorRow>
+              </div>
+            </Fold>
 
-          <Divider className="my-3" />
+            <Fold
+              id="notes"
+              icon={AlignLeft}
+              title="Notes"
+              summary={notesSummary || "Empty"}
+              defaultOpen={!!notesSummary}
+            >
+              <AutoTextarea
+                value={current.notes ?? ""}
+                onChange={(v) => set({ notes: v })}
+                placeholder="Write anything…"
+                aria-label="Notes"
+                minRows={2}
+                className="px-1 text-[13.5px] text-ink-2"
+              />
+            </Fold>
 
-          {/* notes */}
-          <AutoTextarea
-            value={current.notes ?? ""}
-            onChange={(v) => set({ notes: v })}
-            placeholder="Notes…"
-            aria-label="Notes"
-            minRows={2}
-            className="px-1 text-[13.5px] text-ink-2"
-          />
-
-          <Divider className="my-3" />
-
-          {/* checklist */}
-          <Section
-            icon={CheckSquare}
-            title="Checklist"
-            count={current.checklist.length > 0 ? `${checklistDone}/${current.checklist.length}` : undefined}
-            accessory={
-              current.checklist.length > 0 ? (
-                <Ring value={checklistDone} max={current.checklist.length} size={16} stroke={2} tint={current.color} />
-              ) : undefined
-            }
-          >
-            {current.checklist.length > 0 && (
-              <Progress value={checklistDone} max={current.checklist.length} className="mb-2" height={3} />
-            )}
+            <Fold
+              id="checklist"
+              icon={CheckSquare}
+              title="Checklist"
+              summary={current.checklist.length > 0 ? `${checklistDone}/${current.checklist.length} done` : "None yet"}
+              defaultOpen={current.checklist.length > 0}
+            >
             <div className="space-y-0.5">
               {current.checklist.map((item, i) => (
                 <div key={item.id} className="group/ci flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-hover">
@@ -995,21 +1044,15 @@ export function TaskInspector() {
             >
               <Plus className="size-3.5" /> Add item
             </button>
-          </Section>
+            </Fold>
 
-          <Divider className="my-3" />
-
-          {/* subtasks */}
-          <Section
-            icon={ListTree}
-            title="Subtasks"
-            count={subtasks.length > 0 ? `${subDone}/${subtasks.length}` : undefined}
-            accessory={
-              subtasks.length > 0 ? (
-                <Ring value={subDone} max={subtasks.length} size={16} stroke={2} tint={current.color} />
-              ) : undefined
-            }
-          >
+            <Fold
+              id="subtasks"
+              icon={ListTree}
+              title="Subtasks"
+              summary={subtasks.length > 0 ? `${subDone}/${subtasks.length} done` : "None yet"}
+              defaultOpen={subtasks.length > 0}
+            >
             <div className="space-y-0.5">
               {subtasks.map((sub, i) => (
                 <div key={sub.id} className="group/st flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-hover">
@@ -1069,21 +1112,25 @@ export function TaskInspector() {
               placeholder="Add subtask"
               className="mt-0.5"
             />
-          </Section>
+            </Fold>
 
-          <Divider className="my-3" />
-
-          {/* dependencies */}
-          <Section
-            icon={Link2}
-            title="Dependencies"
-            count={blockerIds.length + blocksIds.length || undefined}
-          >
+            <Fold
+              id="dependencies"
+              icon={Link2}
+              title="Dependencies"
+              summary={
+                depCount === 0
+                  ? "None"
+                  : [
+                    blockerIds.length ? `waiting on ${blockerIds.length}` : null,
+                    blocksIds.length ? `blocking ${blocksIds.length}` : null,
+                  ].filter(Boolean).join(" · ")
+              }
+              defaultOpen={openBlockers.length > 0}
+            >
             <div className="space-y-2">
               <div>
-                <p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-4">
-                  Blocked by
-                </p>
+                <p className="mb-1 px-1 text-[12px] text-ink-4">Blocked by</p>
                 <div className="flex flex-wrap items-center gap-1">
                   {blockerIds.map((id) => (
                     <span key={id} className="group/link inline-flex items-center">
@@ -1117,9 +1164,7 @@ export function TaskInspector() {
               </div>
 
               <div>
-                <p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-4">
-                  Blocks
-                </p>
+                <p className="mb-1 px-1 text-[12px] text-ink-4">Blocks</p>
                 <div className="flex flex-wrap items-center gap-1">
                   {blocksIds.map((id) => (
                     <span key={id} className="inline-flex items-center">
@@ -1152,16 +1197,19 @@ export function TaskInspector() {
                 </div>
               </div>
             </div>
-          </Section>
+            </Fold>
 
-          <Divider className="my-3" />
-
-          {/* activity */}
-          <Section
-            icon={History}
-            title="Activity"
-            count={loggedSeconds > 0 ? formatClock(loggedSeconds) : undefined}
-          >
+            <Fold
+              id="activity"
+              icon={History}
+              title="Activity"
+              summary={
+                loggedSeconds > 0
+                  ? `${formatClock(loggedSeconds)} logged · ${trail.length} events`
+                  : `Last edited ${stamp(current.updated_at, hour12) || "—"}`
+              }
+              defaultOpen={false}
+            >
             <ol className="space-y-1.5">
               {trail.map((entry, i) => (
                 <li key={`${entry.at}-${i}`} className="flex items-start gap-2">
@@ -1179,20 +1227,24 @@ export function TaskInspector() {
             <p className="mt-2 px-0.5 text-[11.5px] text-ink-4">
               Last edited {stamp(current.updated_at, hour12) || "—"}
             </p>
-          </Section>
+            </Fold>
 
-          {book && (
-            <>
-              <Divider className="my-3" />
-              <div className="rounded-lg border border-line p-2.5">
-                <p className="text-[12px] font-medium text-ink">{book.title}</p>
-                <p className="mt-0.5 text-[11.5px] text-ink-3 tnum">
+            {book && (
+              <Fold
+                id="reading"
+                icon={BookOpen}
+                title="Reading"
+                summary={`${book.title} · pages ${current.page_from}–${current.page_to}`}
+                defaultOpen={false}
+              >
+                <p className="px-1 text-[13px] text-ink">{book.title}</p>
+                <p className="mt-0.5 px-1 text-[11.5px] text-ink-4 tnum">
                   Pages {current.page_from}–{current.page_to} · {book.current_page}/{book.total_pages} read
                 </p>
-                <Progress value={book.current_page} max={book.total_pages} className="mt-1.5" tint={book.color} />
-              </div>
-            </>
-          )}
+                <Progress value={book.current_page} max={book.total_pages} className="mt-2" tint={book.color} />
+              </Fold>
+            )}
+          </div>
 
           <div className="h-8" />
         </div>

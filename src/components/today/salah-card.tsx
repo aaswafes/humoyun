@@ -81,36 +81,50 @@ export function SalahCard({ date, minutesNow }: { date: string; minutesNow: numb
   const closing = active ? activeLeft <= Math.max(15, activeSpan * 0.2) : false;
   const activeDone = active ? COUNTED.includes(statusOf(active.name)) : false;
 
+  // The one line the section shows when it is folded — and the day's shape in it.
+  const summary = [
+    `${logged}/5`,
+    active
+      ? `${PRAYER_LABELS[active.name]} window, ${formatDuration(activeLeft)} left`
+      : upcoming
+        ? `${PRAYER_LABELS[upcoming.name]} at ${formatTime(upcoming.start, hour12)}`
+        : "all five behind you",
+  ].join(" · ");
+
   return (
     <RailCard
       icon={Moon}
       title="Salah"
+      foldKey="rail.salah"
+      defaultOpen
+      summary={summary}
       href="/salah"
       hrefLabel="Open Salah"
       accessory={
         <span className="flex items-center gap-2">
           {streak > 0 && (
             <span className="inline-flex items-center gap-1 text-[11.5px] text-ink-3 tnum">
-              <Flame className="size-3 text-warn" />
+              <Flame className="size-3 text-ink-4" />
               {streak}
             </span>
           )}
-          <span className="text-[11.5px] font-medium text-ink-2 tnum">{logged}/5</span>
+          <span className="text-[11.5px] font-medium text-ink-3 tnum">{logged}/5</span>
         </span>
       }
       footer={
         active ? (
           <div>
             <p className="flex items-baseline justify-between gap-2 text-[12px] tnum">
-              <span className="min-w-0 truncate text-ink-2">
-                <span className="font-medium text-ink">{PRAYER_LABELS[active.name]}</span> window
+              <span className="min-w-0 truncate text-ink-3">
+                <span className="font-medium text-ink-2">{PRAYER_LABELS[active.name]}</span> window
                 {activeDone ? " · prayed" : ""}
               </span>
-              <span className={cn("shrink-0 font-medium", closing && !activeDone ? "text-warn" : "text-ink-2")}>
+              <span className={cn("shrink-0 font-medium", closing && !activeDone ? "text-warn" : "text-ink-3")}>
                 {formatDuration(activeLeft)} left
               </span>
             </p>
-            <Progress value={activeElapsed} max={activeSpan} height={3} className="mt-1.5" />
+            {/* Grey, not accent: the window filling up is context, not the page's one action. */}
+            <Progress value={activeElapsed} max={activeSpan} tint="slate" height={3} className="mt-1.5" />
             <p className="mt-1 text-[11px] text-ink-4 tnum">
               closes {formatTime(active.end % 1440, hour12)}
               {upcoming ? ` · ${PRAYER_LABELS[upcoming.name]} next at ${formatTime(upcoming.start, hour12)}` : ""}
@@ -118,11 +132,11 @@ export function SalahCard({ date, minutesNow }: { date: string; minutesNow: numb
           </div>
         ) : upcoming ? (
           <p className="flex items-baseline justify-between gap-2 text-[12px] tnum">
-            <span className="truncate text-ink-2">
-              Next · <span className="font-medium text-ink">{PRAYER_LABELS[upcoming.name]}</span>{" "}
+            <span className="truncate text-ink-3">
+              Next · <span className="font-medium text-ink-2">{PRAYER_LABELS[upcoming.name]}</span>{" "}
               {formatTime(upcoming.start, hour12)}
             </span>
-            <span className="shrink-0 font-medium text-ink-2">in {formatDuration(upcoming.start - minutesNow)}</span>
+            <span className="shrink-0 font-medium text-ink-3">in {formatDuration(upcoming.start - minutesNow)}</span>
           </p>
         ) : (
           <p className="text-[12px] text-ink-3 tnum">
@@ -168,8 +182,8 @@ export function SalahCard({ date, minutesNow }: { date: string; minutesNow: numb
             {isNow && (
               <span
                 className={cn(
-                  "shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-semibold uppercase tracking-[0.06em]",
-                  status === "none" ? "bg-accent-soft text-accent" : "bg-success-soft text-success",
+                  "shrink-0 rounded-full px-1.5 py-px text-[11px] font-medium",
+                  status === "none" ? "bg-accent-soft text-accent" : "bg-hover text-ink-3",
                 )}
               >
                 now

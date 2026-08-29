@@ -11,9 +11,7 @@ import { AddBookModal } from "@/components/books/add-book-modal";
 import { BookCard, type BookCardMeta } from "@/components/books/book-card";
 import { BookSheet } from "@/components/books/book-sheet";
 import { BooksTable, buildRows, sortRows, type SortDir, type SortKey, type TableRow } from "@/components/books/books-table";
-import { ReadingPaceChart } from "@/components/books/reading-pace-chart";
-import { ReadingStats } from "@/components/books/reading-stats";
-import { ReadingGoal } from "@/components/books/reading-goal";
+import { LibraryInsights } from "@/components/books/library-insights";
 import { ReadingQueue } from "@/components/books/reading-queue";
 import { LibraryToolbar, type StatusFilter } from "@/components/books/library-toolbar";
 import { finishedInYear } from "@/components/books/metrics";
@@ -33,7 +31,7 @@ const STATUS_ORDER: { status: Status; label: string }[] = [
 ];
 
 const SHELF_GRID =
-  "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
+  "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
 
 /** Above this the shelf pages rather than rendering a thousand covers. */
 const PAGE_SIZE = 60;
@@ -200,30 +198,29 @@ export default function BooksPage() {
           />
         ) : (
           <>
-            <section className="mb-6 grid gap-8 border-b border-line pb-7 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12">
-              <div className="min-w-0">
-                <ReadingStats books={books} tasks={tasks} days={days} />
-                <ReadingGoal
-                  goal={library.goal}
-                  finished={finishedCount}
-                  className="mt-5 border-t border-line pt-4"
-                />
-              </div>
-              <ReadingPaceChart days={days} weekStart={weekStart} />
-            </section>
-
-            {queue.length > 0 && (
-              <ReadingQueue
-                books={queue}
-                series={library.series}
-                onOpen={(b) => setOpenId(b.id)}
-                onStart={startReading}
-                className="mb-6"
+            {/*
+              Two quiet rows instead of two panels: everything that analyses or
+              plans the library folds away, so the page opens on the shelf.
+            */}
+            <div className="mb-8 divide-y divide-line hairline-b">
+              <LibraryInsights
+                days={days}
+                weekStart={weekStart}
+                goal={library.goal}
+                finished={finishedCount}
               />
-            )}
+              {queue.length > 0 && (
+                <ReadingQueue
+                  books={queue}
+                  series={library.series}
+                  onOpen={(b) => setOpenId(b.id)}
+                  onStart={startReading}
+                />
+              )}
+            </div>
 
             <LibraryToolbar
-              className="mb-5"
+              className="mb-6"
               query={query}
               onQuery={(v) => { setQuery(v); setLimit(PAGE_SIZE); }}
               filter={filter}
@@ -236,6 +233,7 @@ export default function BooksPage() {
               onDir={setDir}
               showGrouping={library.view === "shelf"}
               count={visibleRows.length}
+              total={rows.length}
             />
 
             {visibleRows.length === 0 ? (
@@ -263,30 +261,33 @@ export default function BooksPage() {
                 onOpen={(b) => setOpenId(b.id)}
               />
             ) : (
-              groups.map((group) => (
-                <section key={group.key} className="mb-9 last:mb-0">
-                  <div className="mb-3 flex items-baseline gap-2 border-b border-line pb-2">
-                    <h2 className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                      {group.label}
-                    </h2>
-                    <span className="text-[11px] text-ink-4 tnum">{group.rows.length}</span>
-                  </div>
-                  <div className={SHELF_GRID}>
-                    {group.rows.map((row) => (
-                      <BookCard
-                        key={row.book.id}
-                        book={row.book}
-                        meta={metaFor(row)}
-                        onOpen={(b) => setOpenId(b.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))
+              <div className="space-y-10">
+                {groups.map((group) => (
+                  <section key={group.key}>
+                    {/* One ungrouped shelf explains itself — the label would be noise. */}
+                    {group.key !== "all" && (
+                      <div className="mb-3 flex items-baseline gap-2">
+                        <h2 className="truncate text-[12.5px] font-medium text-ink-2">{group.label}</h2>
+                        <span className="text-[11.5px] text-ink-4 tnum">{group.rows.length}</span>
+                      </div>
+                    )}
+                    <div className={SHELF_GRID}>
+                      {group.rows.map((row) => (
+                        <BookCard
+                          key={row.book.id}
+                          book={row.book}
+                          meta={metaFor(row)}
+                          onOpen={(b) => setOpenId(b.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
             )}
 
             {visibleRows.length > paged.length && (
-              <div className="mt-6 flex justify-center">
+              <div className="mt-8 flex justify-center">
                 <Button size="sm" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
                   Show {Math.min(PAGE_SIZE, visibleRows.length - paged.length)} more
                   <span className="text-ink-4 tnum">

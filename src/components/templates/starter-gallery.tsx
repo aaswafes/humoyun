@@ -70,7 +70,7 @@ function StarterCard({
         )}
       </div>
 
-      <div className="mt-3 flex-1 space-y-[3px] border-t border-line pt-2.5">
+      <div className="mt-3 flex-1 space-y-[3px]">
         {shown.map((item, i) => (
           <div key={`${item.title}-${i}`} className="flex items-baseline gap-2">
             {starter.scope === "week" && (
@@ -164,9 +164,7 @@ export function StarterGallery({
         {heading && (
           <>
             <Sparkles className="size-3.5 text-ink-3" />
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-              Start with one of these
-            </h2>
+            <h2 className="text-[12px] font-semibold text-ink-2">Start with one of these</h2>
           </>
         )}
         <Segmented

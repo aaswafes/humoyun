@@ -41,10 +41,16 @@ export function ComingUpCard({ date }: { date: string }) {
     router.push("/calendar");
   }
 
+  const summary = total
+    ? `${total} task${total === 1 ? "" : "s"} in the next three days`
+    : "the next three days are empty";
+
   return (
     <RailCard
       icon={CalendarDays}
       title="Coming up"
+      foldKey="rail.comingUp"
+      summary={summary}
       href="/calendar"
       hrefLabel="Open Calendar"
       footer={
@@ -64,7 +70,7 @@ export function ComingUpCard({ date }: { date: string }) {
         >
           <span className="w-8 shrink-0">
             <span className={cn(
-              "block text-[10.5px] font-semibold uppercase tracking-[0.06em]",
+              "block text-[11px]",
               day.weekend ? "text-ink-4" : "text-ink-3",
             )}>
               {dayName(day.iso, "short")}

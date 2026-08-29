@@ -15,6 +15,7 @@ import { ChevronUp, ChevronDown, GripVertical, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Book } from "@/lib/types";
 import { Badge, Button, IconButton } from "@/components/ui/primitives";
+import { Disclosure } from "./disclosure";
 import { setQueue } from "./library-prefs";
 
 /** Enough to decide what is next without turning into a second shelf. */
@@ -98,7 +99,7 @@ function QueueRow({ book, index, count, series, onOpen, onStart, onMove }: Queue
 
       <Button
         size="xs"
-        variant="secondary"
+        variant="ghost"
         className="shrink-0"
         onClick={() => onStart(book)}
       >
@@ -150,14 +151,14 @@ export function ReadingQueue({
   const pages = books.reduce((s, b) => s + Math.max(0, b.total_pages - b.current_page), 0);
 
   return (
-    <section className={cn("surface p-2", className)}>
-      <div className="mb-1 flex items-baseline justify-between gap-2 px-1.5">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Up next</h2>
-        <span className="text-[11px] text-ink-4 tnum">
-          {books.length} {books.length === 1 ? "book" : "books"} · {pages.toLocaleString()} pages
-        </span>
-      </div>
-
+    <Disclosure
+      storageKey="humoyun.books.queueOpen"
+      variant="caps"
+      label="Up next"
+      summary={`${books.length} ${books.length === 1 ? "book" : "books"} waiting · ${pages.toLocaleString()} pages`}
+      className={className}
+      bodyClassName="pb-3"
+    >
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -185,6 +186,6 @@ export function ReadingQueue({
           {expanded ? "Show fewer" : `Show all ${books.length} in the queue`}
         </Button>
       )}
-    </section>
+    </Disclosure>
   );
 }

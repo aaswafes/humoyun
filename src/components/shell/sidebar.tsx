@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation";
 import {
   CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon, Target,
   Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings, Search,
-  Plus, ChevronDown, LogOut, Monitor, SunMedium, MoonStar, Check,
+  Plus, ChevronDown, ChevronRight, LogOut, Monitor, SunMedium, MoonStar, Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, completionOn, inboxTasks, overdueTasks } from "@/lib/store";
-import { todayISO } from "@/lib/date";
+import { todayISO, monthName, dayNumber } from "@/lib/date";
 import { ACCENTS, type Accent } from "@/lib/types";
 import { Popover, MenuItem, MenuSeparator, MenuLabel } from "@/components/ui/overlays";
 import { Kbd, Ring } from "@/components/ui/primitives";
@@ -24,8 +24,16 @@ interface NavItem {
   badge?: number;
 }
 
+const CAL_KEY = "humoyun.sidebar.calendar";
+
 export function Sidebar() {
   const pathname = usePathname();
+  // Read in an effect, not a useState initialiser — localStorage does not exist
+  // during SSR and reading it inline produces a hydration mismatch.
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
+  React.useEffect(() => {
+    try { setCalendarOpen(localStorage.getItem(CAL_KEY) === "1"); } catch { /* private mode */ }
+  }, []);
   const {
     profile, email, tasks, sidebarOpen, selectedDate, setSelectedDate,
     setCommandOpen, setTheme, setAccent,
@@ -175,7 +183,7 @@ export function Sidebar() {
       </div>
 
       {/* ---- nav ---- */}
-      <nav className="flex-1 overflow-y-auto px-2.5 pb-2">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2">
         {groups.map((group, gi) => (
           <div key={group.label} className={cn(gi > 0 && "mt-4")}>
             <p className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-4">
@@ -245,28 +253,48 @@ export function Sidebar() {
       </nav>
 
       {/* ---- mini calendar ---- */}
-      <div className="border-t border-line px-3 py-2.5">
-        <MiniCalendar
-          value={selectedDate}
-          onChange={setSelectedDate}
-          weekStart={profile?.week_start ?? 1}
-          markers={taskMarkers}
-        />
+      {/* Folded by default: at 1080p an always-open month pushed the last two nav
+          groups off the bottom, which read as the app hiding half its navigation. */}
+      <div className="shrink-0 border-t border-line">
+        <button
+          type="button"
+          aria-expanded={calendarOpen}
+          onClick={() => {
+            const next = !calendarOpen;
+            setCalendarOpen(next);
+            try { localStorage.setItem(CAL_KEY, next ? "1" : "0"); } catch { /* private mode */ }
+          }}
+          className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-hover cursor-pointer transition-colors"
+        >
+          <ChevronRight
+            className={cn("size-3.5 shrink-0 text-ink-4 transition-transform duration-200", calendarOpen && "rotate-90")}
+          />
+          <span className="flex-1 text-[12px] font-medium text-ink-2">Calendar</span>
+          <span className="text-[11px] text-ink-4">
+            {monthName(selectedDate, true)} {dayNumber(selectedDate)}
+          </span>
+        </button>
+        {calendarOpen && (
+          <div className="px-3 pb-2.5">
+            <MiniCalendar
+              value={selectedDate}
+              onChange={setSelectedDate}
+              weekStart={profile?.week_start ?? 1}
+              markers={taskMarkers}
+            />
+          </div>
+        )}
       </div>
 
       {/* ---- today's progress ---- */}
-      <div className="flex items-center gap-2.5 border-t border-line px-3 py-2.5">
-        <Ring value={progress.done} max={Math.max(1, progress.total)} size={30} stroke={2.5}>
-          <span className="text-[9.5px] font-semibold tnum text-ink-2">
-            {progress.total ? Math.round((progress.done / progress.total) * 100) : 0}
-          </span>
-        </Ring>
-        <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-medium text-ink">
-            {progress.done} of {progress.total} done
-          </p>
-          <p className="truncate text-[11px] text-ink-4">Today</p>
-        </div>
+      {/* The ring is the gauge, the text is the count — the same fact twice was the
+          percentage that used to sit inside the ring. */}
+      <div className="flex shrink-0 items-center gap-2.5 border-t border-line px-3 py-2.5">
+        <Ring value={progress.done} max={Math.max(1, progress.total)} size={26} stroke={2.5} />
+        <p className="min-w-0 flex-1 truncate text-[12px] text-ink-3">
+          <span className="font-medium text-ink tnum">{progress.done}</span>
+          <span className="tnum"> of {progress.total}</span> done today
+        </p>
       </div>
     </aside>
   );

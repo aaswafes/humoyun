@@ -10,6 +10,8 @@ import type { Grouping } from "./grouping";
  * The key to whatever the board is currently coloured by. Each row is also a
  * filter: pressing one dims everything that is not in that group, which is the
  * fastest way to ask "where does this thread actually run?".
+ *
+ * Closed at rest — the View menu opens it and remembers.
  */
 export function Legend({
   grouping, active, onToggle, onClear, onClose,
@@ -21,21 +23,26 @@ export function Legend({
   onClose: () => void;
 }) {
   const total = grouping.groups.reduce((s, g) => s + g.count, 0);
+  const shown = grouping.groups
+    .filter((g) => active.has(g.key))
+    .reduce((s, g) => s + g.count, 0);
 
   return (
+    // Opened on purpose, so it stays fully legible — only the ambient chrome
+    // (toolbar, zoom, overview) dims when the pointer is elsewhere.
     <div
       data-no-zoom
       onPointerDown={(e) => e.stopPropagation()}
-      className="w-[184px] overflow-hidden rounded-lg border border-line material shadow-[var(--shadow-md)]"
+      className="w-[184px] overflow-hidden rounded-lg material shadow-[var(--shadow-md)] anim-pop"
     >
-      <div className="flex items-center gap-1 px-2 py-1.5 hairline-b">
-        <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+      <div className="flex items-center gap-1 px-2 py-1.5">
+        <span className="flex-1 truncate text-[11px] font-medium text-ink-3">
           {grouping.label}
         </span>
         {active.size > 0 && (
           <button
             onClick={onClear}
-            className="-m-1 cursor-pointer p-1 text-[11px] font-medium text-accent transition-opacity hover:opacity-80"
+            className="-m-1 cursor-pointer p-1 text-[11px] font-medium text-ink-2 transition-colors hover:text-ink"
           >
             Clear
           </button>
@@ -45,7 +52,7 @@ export function Legend({
         </IconButton>
       </div>
 
-      <div className="max-h-[220px] overflow-y-auto p-1">
+      <div className="max-h-[220px] overflow-y-auto px-1 pb-1">
         {grouping.groups.map((g) => {
           const on = active.has(g.key);
           return (
@@ -66,7 +73,7 @@ export function Legend({
                 style={{ background: "var(--tint)" }}
                 aria-hidden
               />
-              <span className="min-w-0 flex-1 truncate text-[12px] text-ink">{g.label}</span>
+              <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-2">{g.label}</span>
               <span className="text-[11px] text-ink-4 tnum">{g.count}</span>
             </button>
           );
@@ -76,11 +83,13 @@ export function Legend({
         )}
       </div>
 
-      <p className="px-2 py-1.5 text-[11px] text-ink-4 tnum hairline-t">
-        {active.size > 0
-          ? `${grouping.groups.filter((g) => active.has(g.key)).reduce((s, g) => s + g.count, 0)} of ${total} shown`
-          : `${total} node${total === 1 ? "" : "s"}`}
-      </p>
+      {/* the total lives in the page header; this line only earns its space
+          once a filter is hiding something */}
+      {active.size > 0 && (
+        <p className="px-2 py-1.5 text-[11px] text-ink-4 tnum hairline-t">
+          {shown} of {total} shown
+        </p>
+      )}
     </div>
   );
 }

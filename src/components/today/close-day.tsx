@@ -18,7 +18,7 @@ function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div className="min-w-0">
       <p className="display-serif tnum select-none text-[22px] leading-none text-ink">{value}</p>
-      <p className="mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</p>
+      <p className="mt-1 truncate text-[11.5px] text-ink-3">{label}</p>
     </div>
   );
 }
@@ -93,15 +93,11 @@ export function CloseDay({ date, now }: { date: string; now: number }) {
   return (
     <>
       {closedAt ? (
-        <div className="flex items-center gap-1.5">
-          <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-success-soft px-2.5 text-[12px] font-medium text-success tnum">
-            <Check className="size-3.5" aria-hidden />
+        <div className="flex items-center gap-1">
+          <span className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-[12px] text-ink-3 tnum">
+            <Check className="size-3.5 text-success" aria-hidden />
             Closed
-            {closedTime && (
-              <span className="font-normal">
-                {formatTime(closedTime.getHours() * 60 + closedTime.getMinutes(), hour12)}
-              </span>
-            )}
+            {closedTime && formatTime(closedTime.getHours() * 60 + closedTime.getMinutes(), hour12)}
           </span>
           <Button size="sm" variant="ghost" onClick={start}>
             <Pencil className="size-3.5" />
@@ -109,7 +105,7 @@ export function CloseDay({ date, now }: { date: string; now: number }) {
           </Button>
         </div>
       ) : (
-        <Button size="sm" variant="secondary" onClick={start}>
+        <Button size="sm" variant="ghost" className="text-ink-3" onClick={start}>
           <Moon className="size-3.5" />
           Close the day
         </Button>

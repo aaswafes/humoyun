@@ -2,34 +2,30 @@
 
 import * as React from "react";
 import {
-  ArrowRight, Coffee, NotebookPen, Pause, Play, Plus, Settings2, SkipForward, Square, Undo2, Zap,
+  ArrowRight, Coffee, NotebookPen, Pause, Play, Plus, SkipForward, Square, Undo2, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatClock, formatDuration } from "@/lib/date";
-import { Button, IconButton, Kbd, Segmented } from "@/components/ui/primitives";
-import { Select } from "@/components/ui/form";
+import { Button, IconButton, Kbd } from "@/components/ui/primitives";
 import { DialFace, type DialTone } from "./dial-face";
 import { SubjectPicker } from "./subject-picker";
 import { CyclePlan } from "./cycle-plan";
-import { presetRhythm, presetSummary } from "./focus-prefs";
-import type { FocusEngine, FocusMode } from "./focus-engine";
+import { presetRhythm } from "./focus-prefs";
+import type { FocusEngine } from "./focus-engine";
 
 /** One line under the clock — the only thing on the dial that changes wording. */
 function stateLine(engine: FocusEngine): string {
-  const { phase, mode, paused, filled, setLength, longBreak, preset, extra } = engine;
+  const { phase, mode, paused, filled, setLength, longBreak, extra } = engine;
   if (phase === "wrap") return engine.last?.discarded ? "Too short to log" : "Block finished";
   if (phase === "return") return "Break over";
   if (phase === "break") return longBreak ? "Long break" : "Break";
   if (paused) return "Paused";
   if (phase === "focus") {
     if (mode === "stopwatch") return "Counting up";
-    return `Block ${Math.min(setLength, filled + 1)} of ${setLength}${extra ? ` · +${extra}` : ""}`;
+    return `Block ${Math.min(setLength, filled + 1)} of ${setLength}${extra ? ` · +${extra} min` : ""}`;
   }
-  return mode === "stopwatch" ? "Stopwatch" : `${preset.name} · ${presetRhythm(preset)}`;
+  return "Ready";
 }
-
-/** A sentinel option so the preset picker is also the way into the preset editor. */
-const MANAGE = "__manage";
 
 /** Ticks read as a scale, so they follow the block length rather than a constant. */
 function tickCount(minutes: number, countdown: boolean): number {
@@ -40,15 +36,14 @@ function tickCount(minutes: number, countdown: boolean): number {
 }
 
 export function FocusDial({
-  engine, ambient, onSettings, onEditLast,
+  engine, ambient, onEditLast,
 }: {
   engine: FocusEngine;
   ambient?: boolean;
-  onSettings?: () => void;
   onEditLast?: () => void;
 }) {
   const {
-    phase, mode, active, paused, running, progress, clockSeconds, preset, presets,
+    phase, mode, active, paused, running, progress, clockSeconds, preset,
     countdown, minutes, breakMinutes, interruptionCount, interruptions, last,
   } = engine;
 
@@ -76,65 +71,27 @@ export function FocusDial({
       : `${stateLine(engine)}, ${formatClock(clockSeconds)} ${countdown ? "remaining" : "elapsed"}`;
 
   // -------------------------------------------------------
+  // What is set up, stated once in grey. The controls that change it — mode,
+  // preset, automation — moved into the gear in the page header.
+  const setupLine = mode === "stopwatch"
+    ? "Stopwatch"
+    : active
+      ? `${minutes} min · ${preset.name}`
+      : `${preset.name} · ${presetRhythm(preset)}`;
+
   const header = !ambient && (
-    <div className="flex h-8 items-center justify-center gap-2">
-      {active ? (
-        <>
-          <span className="text-[12px] text-ink-3 tnum">
-            {mode === "pomodoro" ? `${minutes} min · ${preset.name}` : "Stopwatch"}
-          </span>
-          {countdown && (
-            <Button variant="ghost" size="xs" onClick={() => engine.extend(5)} title="Add five minutes to this block">
-              <Plus className="size-3" />
-              5 min
-            </Button>
-          )}
-        </>
-      ) : (
-        <>
-          <Segmented<FocusMode>
-            size="sm"
-            value={mode}
-            onChange={engine.setMode}
-            options={[
-              { value: "pomodoro", label: "Pomodoro" },
-              { value: "stopwatch", label: "Stopwatch" },
-            ]}
-          />
-          {mode === "pomodoro" && (
-            <div className="w-[184px]">
-              <Select
-                size="sm"
-                label="Session preset"
-                value={preset.id}
-                onChange={(id) => (id === MANAGE ? onSettings?.() : engine.selectPreset(id))}
-                options={[
-                  ...presets.map((p) => ({
-                    value: p.id,
-                    label: (
-                      <span className="flex items-baseline gap-1.5">
-                        {p.name}
-                        <span className="text-ink-4 tnum">{presetRhythm(p)}</span>
-                      </span>
-                    ),
-                    description: presetSummary(p),
-                  })),
-                  ...(onSettings
-                    ? [{
-                        value: MANAGE,
-                        label: (
-                          <span className="flex items-center gap-1.5 text-ink-2">
-                            <Settings2 className="size-3.5" />
-                            Name and save your own
-                          </span>
-                        ),
-                      }]
-                    : []),
-                ]}
-              />
-            </div>
-          )}
-        </>
+    <div className="flex h-7 items-center justify-center gap-1.5">
+      <span className="text-[12px] text-ink-4 tnum">{setupLine}</span>
+      {active && countdown && (
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => engine.extend(5)}
+          title="Add five minutes to this block"
+        >
+          <Plus className="size-3" />
+          5 min
+        </Button>
       )}
     </div>
   );
@@ -148,18 +105,18 @@ export function FocusDial({
       )}
     >
       {phase === "wrap" && last && (
-        <p className="text-[13px] text-ink-2">
+        <p className="text-[13px] text-ink-3">
           {last.discarded
             ? "Under 20 seconds — nothing was logged."
             : `${formatDuration(last.minutes)} logged${last.subject.label ? ` on ${last.subject.label}` : ""}.`}
           {last.interruptions > 0 && (
-            <span className="text-warn"> {last.interruptions} interruption{last.interruptions === 1 ? "" : "s"}.</span>
+            <span className="text-ink-4"> {last.interruptions} interruption{last.interruptions === 1 ? "" : "s"}.</span>
           )}
         </p>
       )}
 
       {phase === "return" && (
-        <p className="text-[13px] text-ink-2">Rested. Pick the thread back up when you are ready.</p>
+        <p className="text-[13px] text-ink-3">Rested. Pick the thread back up when you are ready.</p>
       )}
 
       <div className="flex flex-wrap items-center justify-center gap-2">
@@ -240,6 +197,7 @@ export function FocusDial({
   );
 
   // -------------------------------------------------------
+  // A count of distractions is information, not an emergency, so it stays grey.
   const distraction = phase === "focus" && (
     <div
       className={cn(
@@ -255,7 +213,7 @@ export function FocusDial({
           "inline-flex h-8 cursor-pointer items-center gap-2 rounded-full border px-3 text-[12.5px]",
           "transition-[background-color,color,border-color,transform] duration-150 ease-[var(--ease-out-apple)] active:scale-[0.97]",
           interruptionCount
-            ? "border-transparent bg-warn-soft text-warn"
+            ? "border-transparent bg-hover text-ink-2"
             : "border-line text-ink-3 hover:border-line-strong hover:text-ink",
         )}
       >
@@ -288,7 +246,7 @@ export function FocusDial({
         dimmed={paused}
         breathing={ambient && engine.prefs.ambient}
         label={dialLabel}
-        className={cn(!ambient && "mt-6", phase === "wrap" && "anim-check")}
+        className={cn(!ambient && "mt-5", phase === "wrap" && "anim-check")}
       >
         <div className="flex flex-col items-center gap-2">
           <span
@@ -303,17 +261,14 @@ export function FocusDial({
           </span>
           <span
             aria-live="polite"
-            className={cn(
-              "max-w-[200px] truncate text-[11px] font-semibold uppercase tracking-[0.06em]",
-              ambient ? "text-ink-4" : "text-ink-3",
-            )}
+            className={cn("max-w-[200px] truncate text-[12px] tnum", ambient ? "text-ink-4" : "text-ink-3")}
           >
             {stateLine(engine)}
           </span>
         </div>
       </DialFace>
 
-      <div className="mt-6 flex justify-center">
+      <div className="mt-5 flex justify-center">
         {ambient ? (
           <span className="max-w-[300px] truncate text-[13px] text-ink-3">
             {engine.subject.label || "Open focus"}
@@ -326,8 +281,10 @@ export function FocusDial({
       <div className="mt-5">{controls}</div>
       {distraction && <div className="mt-4">{distraction}</div>}
 
-      {(mode === "pomodoro" || engine.onBreak) && (
-        <div className="mt-7">
+      {/* The set only earns its space once a set is under way. Until then the
+          plan is stated in the gear, next to the preset it belongs to. */}
+      {(mode === "pomodoro" || engine.onBreak) && (phase !== "idle" || engine.cycles > 0) && (
+        <div className="mt-6">
           <CyclePlan engine={engine} muted={ambient} />
         </div>
       )}

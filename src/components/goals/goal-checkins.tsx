@@ -5,8 +5,9 @@ import { BellDot, Check, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { diffDays, formatDate, todayISO } from "@/lib/date";
 import type { Goal } from "@/lib/types";
-import { Button, IconButton, Input, SectionLabel } from "@/components/ui/primitives";
+import { Button, IconButton, Input } from "@/components/ui/primitives";
 import { MiniEmpty, Select } from "@/components/ui/form";
+import { SubLabel } from "./goal-fold";
 import { fmtNum, type GoalStats } from "./goal-model";
 import {
   CADENCE_LABEL, effectiveCadence, lastCheckIn, type CheckIn, type CheckInCadence,
@@ -67,7 +68,7 @@ export function GoalCheckIns({ goal, stats }: { goal: Goal; stats: GoalStats }) 
   return (
     <section>
       <div className="flex items-center gap-2">
-        <SectionLabel>Check-ins</SectionLabel>
+        <SubLabel>Check-ins</SubLabel>
         <span className="text-[11px] text-ink-4 tnum">{meta.checkins.length}</span>
         <div className="flex-1" />
         <Select
@@ -80,10 +81,11 @@ export function GoalCheckIns({ goal, stats }: { goal: Goal; stats: GoalStats }) 
         />
       </div>
 
+      {/* An ask is not an emergency: the bell says it is due, the colour stays grey. */}
       <p
         className={cn(
           "mt-1.5 flex items-center gap-1.5 text-[12px]",
-          stats.needsCheckIn ? "text-warn" : "text-ink-3",
+          stats.needsCheckIn ? "text-ink-2" : "text-ink-3",
         )}
       >
         {stats.needsCheckIn && <BellDot className="size-3.5 shrink-0" />}
@@ -144,7 +146,7 @@ export function GoalCheckIns({ goal, stats }: { goal: Goal; stats: GoalStats }) 
                   <span
                     className={cn(
                       "shrink-0 text-[11.5px] font-medium tnum",
-                      delta > 0 ? "text-success" : "text-warn",
+                      delta > 0 ? "text-success" : "text-ink-3",
                     )}
                   >
                     {delta > 0 ? "+" : ""}{fmtNum(delta)}

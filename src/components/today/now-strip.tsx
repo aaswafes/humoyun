@@ -7,8 +7,14 @@ import { useStore, focusMinutesOn, tasksOn } from "@/lib/store";
 import { useNow } from "@/hooks/use-hotkeys";
 import { formatClock, formatDuration, formatRange, formatTime } from "@/lib/date";
 import { currentPrayer, prayerTimesFor } from "@/lib/prayer";
+import { VisuallyHidden } from "@/components/ui/form";
 import { PRAYER_LABELS, type PrayerName } from "@/lib/types";
 
+/**
+ * One cell of the status line. The uppercase label is gone from the surface —
+ * the content names itself — but it stays for screen readers, which cannot see
+ * that a moon means prayer.
+ */
 function Cell({
   icon: Icon, label, children,
 }: {
@@ -17,11 +23,11 @@ function Cell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-2.5 px-3.5 py-3">
-      <Icon className="mt-[3px] size-4 shrink-0 text-ink-3" />
+    <div className="flex min-w-0 items-start gap-2.5 py-2.5 sm:px-4 sm:first:pl-0 sm:last:pr-0">
+      <Icon className="mt-[3px] size-3.5 shrink-0 text-ink-4" />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">{label}</p>
-        <div className="mt-1.5">{children}</div>
+        <VisuallyHidden>{label}</VisuallyHidden>
+        {children}
       </div>
     </div>
   );
@@ -52,12 +58,12 @@ function PrayerCell({ date, minutesNow }: { date: string; minutesNow: number }) 
 
   return (
     <Cell icon={Moon} label="Next prayer">
-      <p className="text-[13.5px] font-medium leading-tight text-ink">
+      <p className="text-[13px] leading-tight text-ink">
         {PRAYER_LABELS[next]}
-        <span className="ml-1.5 font-normal text-ink-3 tnum">{formatTime(nextAt, hour12)}</span>
+        <span className="ml-1.5 text-ink-3 tnum">{formatTime(nextAt, hour12)}</span>
       </p>
       <p className="mt-0.5 text-[12px] leading-tight text-ink-3 tnum">
-        <span className="font-medium text-accent">{countdown(minutesUntil)}</span>
+        {countdown(minutesUntil)}
         {currentLabel && <span> · {currentLabel} now</span>}
       </p>
     </Cell>
@@ -83,15 +89,15 @@ function FocusCell({ date }: { date: string }) {
   if (!active) {
     return (
       <Cell icon={TimerIcon} label="Focus">
-        <p className="text-[13.5px] font-medium leading-tight text-ink-3">
+        <p className="text-[13px] leading-tight text-ink-2">
           {todayMinutes ? `${formatDuration(todayMinutes)} logged today` : "Nothing running"}
         </p>
         <button
           type="button"
           onClick={() => startTimer({ mode: "pomodoro", targetMinutes: 25, label: "Focus" })}
           className={cn(
-            "mt-1 text-[12px] font-medium text-accent cursor-pointer rounded-sm",
-            "transition-[opacity,transform] duration-150 ease-[var(--ease-out-apple)] hover:opacity-75 active:scale-[0.97]",
+            "mt-0.5 text-[12px] text-ink-3 cursor-pointer rounded-sm",
+            "transition-[color,transform] duration-150 ease-[var(--ease-out-apple)] hover:text-ink active:scale-[0.97]",
           )}
         >
           Start 25 minutes
@@ -102,11 +108,12 @@ function FocusCell({ date }: { date: string }) {
 
   return (
     <Cell icon={TimerIcon} label="Focus">
-      <p className="truncate text-[13.5px] font-medium leading-tight text-ink">
+      <p className="truncate text-[13px] leading-tight text-ink">
         {task?.title || timer.label || "Focus session"}
       </p>
       <p className="mt-0.5 text-[12px] leading-tight text-ink-3 tnum">
-        <span className={cn("font-medium", timer.running ? "text-accent" : "text-warn")}>
+        {/* A running clock is the one live thing here, so it keeps the accent. */}
+        <span className={cn("font-medium", timer.running ? "text-accent" : "text-ink-2")}>
           {formatClock(seconds)}
         </span>
         <span> · {timer.running ? "running" : "paused"}</span>
@@ -137,7 +144,7 @@ function NextTaskCell({ date, minutesNow }: { date: string; minutesNow: number }
     const first = today[0];
     return (
       <Cell icon={CalendarClock} label="Next up">
-        <p className="truncate text-[13.5px] font-medium leading-tight text-ink-3">
+        <p className="truncate text-[13px] leading-tight text-ink-2">
           {first ? first.title || "Untitled" : "Nothing timed left"}
         </p>
         <p className="mt-0.5 text-[12px] leading-tight text-ink-3 tnum">
@@ -157,16 +164,14 @@ function NextTaskCell({ date, minutesNow }: { date: string; minutesNow: number }
         type="button"
         onClick={() => openInspector(task.id)}
         className={cn(
-          "block w-full truncate text-left text-[13.5px] font-medium leading-tight text-ink rounded-sm",
+          "block w-full truncate text-left text-[13px] leading-tight text-ink rounded-sm",
           "cursor-pointer transition-opacity duration-150 hover:opacity-70",
         )}
       >
         {task.title || "Untitled"}
       </button>
       <p className="mt-0.5 truncate text-[12px] leading-tight text-ink-3 tnum">
-        <span className="font-medium text-accent">
-          {running ? `ends ${countdown(endsIn)}` : countdown(task.start_min! - minutesNow)}
-        </span>
+        {running ? `ends ${countdown(endsIn)}` : countdown(task.start_min! - minutesNow)}
         <span> · {formatRange(task.start_min, task.end_min, hour12)}</span>
       </p>
       {then && (
@@ -179,12 +184,17 @@ function NextTaskCell({ date, minutesNow }: { date: string; minutesNow: number }
 }
 
 // ---------------------------------------------------------
+/**
+ * Three facts on one line: what is next in prayer, in focus, and on the clock.
+ * It used to be three bordered cards; hairlines say the same thing with none
+ * of the weight.
+ */
 export function NowStrip({ date, now }: { date: string; now: number }) {
   const clock = new Date(now);
   const minutesNow = clock.getHours() * 60 + clock.getMinutes();
 
   return (
-    <div className="surface grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+    <div className="grid grid-cols-1 divide-y divide-line border-y border-line py-1 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       <PrayerCell date={date} minutesNow={minutesNow} />
       <FocusCell date={date} />
       <NextTaskCell date={date} minutesNow={minutesNow} />
