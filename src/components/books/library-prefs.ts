@@ -17,7 +17,7 @@ const KEY = "books";
 
 export type NoteKind = "highlight" | "thought";
 export type LibraryView = "shelf" | "table";
-export type GroupBy = "status" | "series" | "author" | "none";
+export type GroupBy = "status" | "series" | "author" | "genre" | "topic" | "none";
 
 /** One sitting with a book: what day, how many pages, how long. */
 export interface ReadingSession {
@@ -128,7 +128,8 @@ export function parseLibrary(prefs: Record<string, unknown> | undefined | null):
   return {
     view: raw.view === "table" ? "table" : "shelf",
     group:
-      raw.group === "series" || raw.group === "author" || raw.group === "none"
+      raw.group === "series" || raw.group === "author" || raw.group === "genre"
+      || raw.group === "topic" || raw.group === "none"
         ? raw.group
         : "status",
     goal: Math.max(0, Math.round(num(raw.goal, DEFAULT_LIBRARY.goal))),

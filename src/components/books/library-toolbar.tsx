@@ -21,14 +21,19 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
 
 const GROUPS: { value: GroupBy; label: string }[] = [
   { value: "status", label: "Status" },
-  { value: "series", label: "Series" },
   { value: "author", label: "Author" },
+  { value: "genre", label: "Genre" },
+  { value: "topic", label: "Topic" },
+  { value: "series", label: "Series" },
   { value: "none", label: "No grouping" },
 ];
 
 const SORTS: { value: SortKey; label: string }[] = [
   { value: "title", label: "Title" },
   { value: "author", label: "Author" },
+  { value: "genre", label: "Genre" },
+  { value: "topic", label: "Topic" },
+  { value: "series", label: "Series" },
   { value: "pages", label: "Pages" },
   { value: "progress", label: "Progress" },
   { value: "pace", label: "Pace" },
@@ -72,7 +77,7 @@ export function LibraryToolbar({
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           aria-label="Search the library by title, author or series"
-          placeholder="Search title, author, series"
+          placeholder="Search title, author, genre, topic"
           className={cn(
             "h-8 w-full rounded-md border border-line bg-transparent pl-7 pr-8 text-[13px] text-ink",
             "transition-[border-color,box-shadow] duration-150 placeholder:text-ink-4",

@@ -15,6 +15,7 @@ import {
 import {
   ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
 } from "@/components/ui/overlays";
+import { facetValues } from "./facets";
 import { BookCover } from "./book-cover";
 import { Disclosure } from "./disclosure";
 import { Field, NumberField, RatingStars, SuggestInput } from "./fields";
@@ -134,7 +135,11 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
 
   // ---- local drafts: text commits on blur, numbers follow the store ----
   const [title, setTitle] = React.useState(book.title);
+  const books = useStore((s) => s.books);
   const [author, setAuthor] = React.useState(book.author ?? "");
+  const [genre, setGenre] = React.useState(book.genre ?? "");
+  const [topic, setTopic] = React.useState(book.topic ?? "");
+  const [seriesName, setSeriesName] = React.useState(book.series ?? "");
   const [cover, setCover] = React.useState(book.cover_url ?? "");
   const [notes, setNotes] = React.useState(book.notes ?? "");
   const [series, setSeriesDraft] = React.useState(library.series[book.id] ?? "");
@@ -370,6 +375,35 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
               className="mt-0.5 text-[13px] text-ink-3"
             />
+
+            {/* How the book is filed. Each commits on blur like the title above,
+                so there is nothing extra to save. */}
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {([
+                ["Genre", genre, setGenre, "genre"],
+                ["Topic", topic, setTopic, "topic"],
+                ["Series", seriesName, setSeriesName, "series"],
+              ] as const).map(([label, value, setValue, field]) => (
+                <label key={field} className="min-w-0">
+                  <span className="mb-0.5 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-ink-4">
+                    {label}
+                  </span>
+                  <input
+                    aria-label={label}
+                    list={`book-${field}-options`}
+                    placeholder="—"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onBlur={() => commit(field, value.trim() || null)}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    className="w-full rounded-sm bg-transparent px-1 -mx-1 py-0.5 text-[12.5px] text-ink-2 outline-none hover:bg-hover focus:bg-hover transition-colors placeholder:text-ink-4"
+                  />
+                  <datalist id={`book-${field}-options`}>
+                    {facetValues(books, field).map((v) => <option key={v} value={v} />)}
+                  </datalist>
+                </label>
+              ))}
+            </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <Popover

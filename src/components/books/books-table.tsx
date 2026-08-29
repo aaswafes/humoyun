@@ -10,7 +10,9 @@ import { VisuallyHidden } from "@/components/ui/form";
 import { paceStats, projectFinish, type ReadDay } from "./pace";
 import { shortDate } from "./plan";
 
-export type SortKey = "title" | "author" | "pages" | "progress" | "pace" | "daysLeft" | "finish";
+export type SortKey =
+  | "title" | "author" | "genre" | "topic" | "series"
+  | "pages" | "progress" | "pace" | "daysLeft" | "finish";
 export type SortDir = "asc" | "desc";
 
 export interface TableRow {
@@ -25,6 +27,7 @@ export interface TableRow {
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean; hideBelow?: string }[] = [
   { key: "title", label: "Title" },
   { key: "author", label: "Author", hideBelow: "sm:table-cell" },
+  { key: "genre", label: "Genre", hideBelow: "lg:table-cell" },
   { key: "pages", label: "Pages", numeric: true },
   { key: "progress", label: "Progress", numeric: true },
   { key: "pace", label: "Pace", numeric: true, hideBelow: "md:table-cell" },
@@ -74,6 +77,12 @@ function compare(a: TableRow, b: TableRow, key: SortKey): number {
   switch (key) {
     case "title": return (a.book.title || "").localeCompare(b.book.title || "");
     case "author": return (a.book.author || "~").localeCompare(b.book.author || "~");
+    // "~" sorts after every letter, so unfiled books settle at the bottom
+    // rather than heading the list under a blank heading.
+    case "genre": return (a.book.genre || "~").localeCompare(b.book.genre || "~");
+    case "topic": return (a.book.topic || "~").localeCompare(b.book.topic || "~");
+    case "series":
+      return (a.book.series || a.series || "~").localeCompare(b.book.series || b.series || "~");
     case "pages": return a.book.total_pages - b.book.total_pages;
     case "progress": return a.progress - b.progress;
     case "pace": return a.perDay - b.perDay;
@@ -182,6 +191,17 @@ export function BooksTable({
 
               <td className="hidden truncate px-2 py-1.5 text-[12.5px] text-ink-2 sm:table-cell">
                 {book.author || "—"}
+              </td>
+
+              {/* Genre carries the topic beneath it — two facets, one column,
+                  so the table does not grow a column per facet. */}
+              <td className="hidden truncate px-2 py-1.5 text-[12.5px] lg:table-cell">
+                {book.genre
+                  ? <span className="text-ink-2">{book.genre}</span>
+                  : <span className="text-ink-4">—</span>}
+                {book.topic && (
+                  <span className="ml-1.5 text-[11.5px] text-ink-4">{book.topic}</span>
+                )}
               </td>
 
               <td className="px-2 py-1.5 text-right text-[12.5px] text-ink-2 tnum">

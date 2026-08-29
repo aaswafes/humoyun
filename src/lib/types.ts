@@ -97,6 +97,12 @@ export interface Book {
   user_id: string;
   title: string;
   author: string | null;
+  /** Shelf-level classification: fiction, history, sirah, tafsir… */
+  genre: string | null;
+  /** What it is actually about, finer than genre: habits, Ottoman era, fiqh… */
+  topic: string | null;
+  /** Collection or cycle a book belongs to. */
+  series: string | null;
   cover_url: string | null;
   color: Tint;
   total_pages: number;

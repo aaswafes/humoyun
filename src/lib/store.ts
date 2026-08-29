@@ -240,7 +240,8 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
       };
     case "books":
       return {
-        ...base, title: "Untitled", author: null, cover_url: null, color: "amber",
+        ...base, title: "Untitled", author: null, genre: null, topic: null, series: null,
+        cover_url: null, color: "amber",
         total_pages: 100, current_page: 0, pages_per_day: null, start_date: null,
         end_date: null, status: "reading", rating: null, notes: null, order_index: 0,
       };

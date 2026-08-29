@@ -89,8 +89,13 @@ export default function BooksPage() {
     if (filter !== "all" && row.book.status !== filter) return false;
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    return [row.book.title, row.book.author ?? "", row.series ?? ""]
-      .some((field) => field.toLowerCase().includes(q));
+    return [
+      row.book.title,
+      row.book.author ?? "",
+      row.book.genre ?? "",
+      row.book.topic ?? "",
+      row.book.series ?? row.series ?? "",
+    ].some((field) => field.toLowerCase().includes(q));
   }, [filter, query]);
 
   const visibleRows = React.useMemo(
@@ -114,10 +119,17 @@ export default function BooksPage() {
         .filter((g) => g.rows.length > 0);
     }
 
-    const key = (r: TableRow) => library.group === "series"
-      ? (r.series ?? "")
-      : (r.book.author ?? "");
-    const fallback = library.group === "series" ? "Standalone" : "Unknown author";
+    // `r.series` is the legacy value that lived in prefs before the column
+    // existed; the column wins when both are present.
+    const FACETS: Record<string, { of: (r: TableRow) => string; fallback: string }> = {
+      series: { of: (r) => r.book.series ?? r.series ?? "", fallback: "Standalone" },
+      author: { of: (r) => r.book.author ?? "", fallback: "Unknown author" },
+      genre: { of: (r) => r.book.genre ?? "", fallback: "Unfiled" },
+      topic: { of: (r) => r.book.topic ?? "", fallback: "No topic" },
+    };
+    const facet = FACETS[library.group] ?? FACETS.author;
+    const key = facet.of;
+    const fallback = facet.fallback;
 
     const buckets = new Map<string, TableRow[]>();
     for (const row of paged) {

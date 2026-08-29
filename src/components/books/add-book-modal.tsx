@@ -11,6 +11,7 @@ import { PlanEditor } from "./plan-editor";
 import { BookCover } from "./book-cover";
 import { computePlan, skipWeekdaysOf, type PlanDraft } from "./plan";
 import { seriesNames, setSeries, useLibraryPrefs } from "./library-prefs";
+import { facetValues } from "./facets";
 
 const freshDraft = (): PlanDraft => ({
   mode: "rate",
@@ -40,6 +41,8 @@ export function AddBookModal({
   const [totalPages, setTotalPages] = React.useState(300);
   const [tint, setTint] = React.useState<Tint>("amber");
   const [series, setSeriesDraft] = React.useState("");
+  const [genre, setGenre] = React.useState("");
+  const [topic, setTopic] = React.useState("");
   const [schedule, setSchedule] = React.useState(true);
   const [draft, setDraft] = React.useState<PlanDraft>(freshDraft);
 
@@ -51,6 +54,9 @@ export function AddBookModal({
     const book = insert("books", {
       title: title.trim(),
       author: author.trim() || null,
+      genre: genre.trim() || null,
+      topic: topic.trim() || null,
+      series: series.trim() || null,
       total_pages: Math.max(1, Math.round(totalPages)),
       current_page: 0,
       color: tint,
@@ -60,6 +66,8 @@ export function AddBookModal({
       order_index: books.length ? Math.max(...books.map((b) => b.order_index)) + 1 : 0,
     });
 
+    // Mirrored into prefs so a library saved before the column existed keeps
+    // grouping consistently.
     if (series.trim()) setSeries(book.id, series);
 
     if (schedule) {
@@ -116,12 +124,35 @@ export function AddBookModal({
                   onChange={(e) => setAuthor(e.target.value)}
                 />
               </Field>
+              <Field label="Genre" hint="optional">
+                <SuggestInput
+                  label="Genre"
+                  placeholder="Sirah"
+                  value={genre}
+                  suggestions={facetValues(books, "genre")}
+                  onChange={setGenre}
+                  onCommit={setGenre}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Topic" hint="optional">
+                <SuggestInput
+                  label="Topic"
+                  placeholder="Time and discipline"
+                  value={topic}
+                  suggestions={facetValues(books, "topic")}
+                  onChange={setTopic}
+                  onCommit={setTopic}
+                />
+              </Field>
               <Field label="Series" hint="optional">
                 <SuggestInput
                   label="Series or collection"
                   placeholder="Karamazov cycle"
                   value={series}
-                  suggestions={seriesNames(library.series)}
+                  suggestions={[...new Set([...facetValues(books, "series"), ...seriesNames(library.series)])]}
                   onChange={setSeriesDraft}
                   onCommit={setSeriesDraft}
                 />
