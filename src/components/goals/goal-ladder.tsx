@@ -18,6 +18,8 @@ import { Badge, IconButton } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/overlays";
 import { GoalCard } from "./goal-card";
 import { HORIZON_BLURB, HORIZON_LABEL, HORIZONS, type GoalIndex } from "./goal-model";
+import { columnLabel, isHidden, setColumnPref, useColumnPrefs, type ColumnPrefs } from "./column-prefs";
+import { ColumnHeader, HiddenColumns } from "./column-header";
 import {
   horizonMoves, isBlocked, moveCommands, planMove, useGoalMove,
   type DropIntent, type MoveContext,
@@ -100,6 +102,7 @@ export function GoalLadder({
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [hint, setHint] = React.useState<Hint>(null);
 
+  const columnPrefs = useColumnPrefs();
   const applyMove = useGoalMove();
   const ctx = React.useMemo<MoveContext>(() => ({ goals, index }), [goals, index]);
 
@@ -324,12 +327,13 @@ export function GoalLadder({
             })}
           </svg>
 
-          {HORIZONS.map((horizon) => {
+          {HORIZONS.filter((h) => !isHidden(h, columnPrefs)).map((horizon) => {
             const list = columns.get(horizon) ?? [];
             return (
               <LadderColumn
                 key={horizon}
                 horizon={horizon}
+                columnPrefs={columnPrefs}
                 goals={list}
                 index={index}
                 ctx={ctx}
@@ -374,10 +378,11 @@ export function GoalLadder({
 // Column
 // ---------------------------------------------------------
 function LadderColumn({
-  horizon, goals, index, ctx, openId, hoverId, lineage, activeId, hint,
+  horizon, goals, index, ctx, openId, hoverId, lineage, activeId, hint, columnPrefs,
   onOpen, onHover, onCreate, onMove,
 }: {
   horizon: Horizon;
+  columnPrefs: ColumnPrefs;
   goals: Goal[];
   index: GoalIndex;
   ctx: MoveContext;
@@ -399,21 +404,12 @@ function LadderColumn({
     <section className="group/col relative z-10 w-[240px] shrink-0">
       {/* The column header is the only place the horizon needs saying — every
           card below it inherits the answer, so none of them repeats it. */}
-      <div className="mb-3 flex items-center gap-1.5 px-0.5">
-        <h2 className="text-[12.5px] font-medium text-ink-2">
-          {HORIZON_LABEL[horizon]}
-        </h2>
-        <span className="text-[11px] text-ink-4 tnum">{goals.length}</span>
-        <div className="flex-1" />
-        <IconButton
-          label={`New ${HORIZON_LABEL[horizon].toLowerCase()} goal`}
-          size="sm"
-          className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100"
-          onClick={() => onCreate(horizon)}
-        >
-          <Plus />
-        </IconButton>
-      </div>
+      <ColumnHeader
+        horizon={horizon}
+        count={goals.length}
+        prefs={columnPrefs}
+        onCreate={() => onCreate(horizon)}
+      />
 
       <div
         ref={setNodeRef}

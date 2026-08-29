@@ -9,6 +9,8 @@ import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import type { Horizon } from "@/lib/types";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
+import { HiddenColumns } from "@/components/goals/column-header";
+import { useColumnPrefs } from "@/components/goals/column-prefs";
 import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { GoalFinished } from "@/components/goals/goal-finished";
@@ -48,6 +50,7 @@ export default function GoalsPage() {
 
   const [view, setView] = React.useState<View>("ladder");
   const [includeDone, setIncludeDone] = React.useState(false);
+  const columnPrefs = useColumnPrefs();
   const [openId, setOpenId] = React.useState<string | null>(null);
 
   // How the surface works is worth reading once, not on every visit.
@@ -190,15 +193,18 @@ export default function GoalsPage() {
                 open={hint.open}
                 onToggle={hint.toggle}
                 actions={
-                  <Button
-                    size="xs"
-                    variant={includeDone ? "subtle" : "ghost"}
-                    onClick={() => setIncludeDone((v) => !v)}
-                    aria-pressed={includeDone}
-                  >
-                    <Check className={cn("size-3.5", !includeDone && "opacity-0")} />
-                    Show finished
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {view === "ladder" && <HiddenColumns prefs={columnPrefs} />}
+                    <Button
+                      size="xs"
+                      variant={includeDone ? "subtle" : "ghost"}
+                      onClick={() => setIncludeDone((v) => !v)}
+                      aria-pressed={includeDone}
+                    >
+                      <Check className={cn("size-3.5", !includeDone && "opacity-0")} />
+                      Show finished
+                    </Button>
+                  </div>
                 }
               >
                 <p className="max-w-[640px] pb-1 text-[12.5px] leading-relaxed text-ink-3">

@@ -10,7 +10,10 @@ import { useStore } from "@/lib/store";
 import { formatDate } from "@/lib/date";
 import type { Goal } from "@/lib/types";
 import { IconButton, Progress } from "@/components/ui/primitives";
-import { ConfirmDialog, MenuItem, MenuSeparator, Popover } from "@/components/ui/overlays";
+import {
+  ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Popover, TintPicker,
+} from "@/components/ui/overlays";
+import { GoalIcon, GoalIconPicker } from "./goal-icons";
 import {
   formatGoalRange, formatTarget, HORIZON_LABEL, pct,
   type AttentionFlag, type AttentionKind, type GoalStats,
@@ -39,11 +42,57 @@ export function GoalDot({ goal, className }: { goal: Goal; className?: string })
   if (goal.status === "dropped") {
     return <Ban className={cn("size-3.5 shrink-0 text-ink-4", className)} />;
   }
+  if (goal.icon) {
+    return (
+      <span className={cn(`tint-${goal.color}`, "shrink-0", className)}>
+        <GoalIcon name={goal.icon} className="size-3.5 text-[var(--tint)]" />
+      </span>
+    );
+  }
   return (
     <span
       className={cn(`tint-${goal.color}`, "size-2.5 shrink-0 rounded-full", className)}
       style={{ background: "var(--tint)" }}
     />
+  );
+}
+
+/**
+ * Click the mark to change what the goal looks like. Notion's trick: the
+ * identity of a thing is edited from the thing itself, not from a form
+ * somewhere else.
+ */
+function IdentityPicker({ goal }: { goal: Goal }) {
+  const patch = useStore((s) => s.patch);
+  return (
+    <Popover
+      align="start"
+      className="w-[236px]"
+      trigger={
+        <button
+          type="button"
+          aria-label={`Icon and colour for ${goal.title || "goal"}`}
+          title="Icon and colour"
+          className="relative z-[1] -m-1 grid size-6 place-items-center rounded-md p-1 cursor-pointer transition-colors hover:bg-hover"
+        >
+          <GoalDot goal={goal} />
+        </button>
+      }
+    >
+      <>
+        <MenuLabel>Icon</MenuLabel>
+        <GoalIconPicker
+          value={goal.icon}
+          onChange={(icon) => patch("goals", goal.id, { icon })}
+        />
+        <MenuSeparator />
+        <MenuLabel>Colour</MenuLabel>
+        <TintPicker
+          value={goal.color}
+          onChange={(t) => { if (t) patch("goals", goal.id, { color: t }); }}
+        />
+      </>
+    </Popover>
   );
 }
 
@@ -143,6 +192,27 @@ export function GoalCard({
 }: GoalCardProps) {
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
+
+  const [renaming, setRenaming] = React.useState(false);
+  const [draft, setDraft] = React.useState(goal.title);
+  const renameRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => { setDraft(goal.title); }, [goal.title]);
+  React.useEffect(() => {
+    if (renaming) { renameRef.current?.focus(); renameRef.current?.select(); }
+  }, [renaming]);
+
+  const startRename = React.useCallback(() => {
+    setDraft(goal.title);
+    setRenaming(true);
+  }, [goal.title]);
+
+  const commitRename = React.useCallback(() => {
+    setRenaming(false);
+    const next = draft.trim();
+    if (next && next !== goal.title) patch("goals", goal.id, { title: next });
+    else setDraft(goal.title);
+  }, [draft, goal.id, goal.title, patch]);
   const toast = useStore((s) => s.toast);
   const [confirming, setConfirming] = React.useState(false);
 
@@ -208,20 +278,38 @@ export function GoalCard({
         )}
 
         <div className="flex items-start gap-2">
-          <span className="mt-[3px]"><GoalDot goal={goal} /></span>
+          <span className="mt-[2px]"><IdentityPicker goal={goal} /></span>
 
-          <button
-            onClick={() => onOpen(goal.id)}
-            onFocus={() => onHover?.(goal.id)}
-            onBlur={() => onHover?.(null)}
-            className={cn(
-              "min-w-0 flex-1 cursor-pointer truncate text-left text-[13.5px] font-medium leading-[1.35]",
-              "after:absolute after:inset-0 after:rounded-lg after:content-['']",
-              done ? "text-ink-3 line-through decoration-ink-4/60" : "text-ink",
-            )}
-          >
-            {goal.title || <span className="text-ink-4">Untitled goal</span>}
-          </button>
+          {renaming ? (
+            <input
+              ref={renameRef}
+              value={draft}
+              aria-label="Goal name"
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+                if (e.key === "Escape") { setDraft(goal.title); setRenaming(false); }
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="relative z-[1] min-w-0 flex-1 rounded-sm bg-hover px-1 -mx-1 text-[13.5px] font-medium leading-[1.35] text-ink outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => onOpen(goal.id)}
+              onDoubleClick={(e) => { e.stopPropagation(); startRename(); }}
+              onFocus={() => onHover?.(goal.id)}
+              onBlur={() => onHover?.(null)}
+              className={cn(
+                "min-w-0 flex-1 cursor-pointer truncate text-left text-[13.5px] font-medium leading-[1.35]",
+                "after:absolute after:inset-0 after:rounded-lg after:content-['']",
+                done ? "text-ink-3 line-through decoration-ink-4/60" : "text-ink",
+              )}
+            >
+              {goal.title || <span className="text-ink-4">Untitled goal</span>}
+            </button>
+          )}
 
           <Popover
             align="end"
@@ -238,6 +326,10 @@ export function GoalCard({
           >
             {(close) => (
               <>
+                <MenuItem icon={PencilLine} onClick={() => { close(); startRename(); }}>
+                  Rename
+                </MenuItem>
+                <MenuSeparator />
                 {done ? (
                   <MenuItem icon={Undo2} onClick={() => { setStatus("active", "Reopened"); close(); }}>
                     Reopen goal
