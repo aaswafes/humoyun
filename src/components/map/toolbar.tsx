@@ -24,8 +24,9 @@ const LAYOUT_ICON: Record<LayoutKind, React.ComponentType<{ className?: string }
 };
 
 const SHORTCUTS: { keys: string[]; what: string }[] = [
+  { keys: ["Scroll"], what: "Pan — two fingers move the board any direction" },
+  { keys: ["Pinch"], what: "Zoom · ⌘-scroll does the same" },
   { keys: ["Space", "drag"], what: "Pan the board" },
-  { keys: ["Scroll"], what: "Zoom · Shift-scroll moves across" },
   { keys: ["Double-click"], what: "New node where you clicked" },
   { keys: ["Enter"], what: "Rename the selected node" },
   { keys: ["L"], what: "Link two or more selected nodes" },

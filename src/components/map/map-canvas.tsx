@@ -916,11 +916,28 @@ export const MapCanvas = React.forwardRef<MapControls, {
       // floating chrome (tray, minimap, HUD) keeps its own scrolling
       if ((e.target as HTMLElement | null)?.closest?.("[data-no-zoom]")) return;
       e.preventDefault();
-      if (e.shiftKey && !e.ctrlKey) {
-        setVp((v) => ({ ...v, x: v.x - (e.deltaY || e.deltaX) }));
+
+      // A trackpad pinch arrives as a wheel event with ctrlKey set — the browser
+      // synthesises that, it is not the user holding Ctrl. Everything else with
+      // two fingers is a scroll, and on a canvas a scroll means pan.
+      if (e.ctrlKey || e.metaKey) {
+        zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
         return;
       }
-      zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)));
+
+      // Firefox reports lines rather than pixels; a line is about 16px.
+      const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      const dx = e.deltaX * scale;
+      const dy = e.deltaY * scale;
+
+      // Shift turns a one-axis mouse wheel into horizontal panning, the way it
+      // does everywhere else. A trackpad already sends both axes.
+      if (e.shiftKey && dx === 0) {
+        setVp((v) => ({ ...v, x: v.x - dy }));
+        return;
+      }
+
+      setVp((v) => ({ ...v, x: v.x - dx, y: v.y - dy }));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -1489,7 +1506,7 @@ export const MapCanvas = React.forwardRef<MapControls, {
               another, and give any node a date to put it on the timeline.
             </p>
             <p className="mx-auto mt-2 max-w-[36ch] text-[12px] leading-relaxed text-ink-4">
-              Space or middle-drag pans · scroll zooms · two nodes selected + <Kbd>L</Kbd> links them
+              Two-finger scroll pans · pinch zooms · two nodes selected + <Kbd>L</Kbd> links them
             </p>
             <Button
               variant="primary"
