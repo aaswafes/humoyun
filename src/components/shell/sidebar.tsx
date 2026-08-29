@@ -25,14 +25,30 @@ interface NavItem {
 }
 
 const CAL_KEY = "humoyun.sidebar.calendar";
+const GROUPS_KEY = "humoyun.sidebar.groups";
 
 export function Sidebar() {
   const pathname = usePathname();
   // Read in an effect, not a useState initialiser — localStorage does not exist
   // during SSR and reading it inline produces a hydration mismatch.
   const [calendarOpen, setCalendarOpen] = React.useState(false);
+  const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set());
   React.useEffect(() => {
-    try { setCalendarOpen(localStorage.getItem(CAL_KEY) === "1"); } catch { /* private mode */ }
+    try {
+      setCalendarOpen(localStorage.getItem(CAL_KEY) === "1");
+      const raw = localStorage.getItem(GROUPS_KEY);
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { /* private mode */ }
+  }, []);
+
+  const toggleGroup = React.useCallback((label: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      try { localStorage.setItem(GROUPS_KEY, JSON.stringify([...next])); } catch { /* private mode */ }
+      return next;
+    });
   }, []);
   const {
     profile, email, tasks, sidebarOpen, selectedDate, setSelectedDate,
@@ -79,6 +95,13 @@ export function Sidebar() {
         { href: "/goals", label: "Goals", icon: Target },
         { href: "/stats", label: "Stats", icon: BarChart3 },
         { href: "/review", label: "Weekly Review", icon: ClipboardCheck },
+      ],
+    },
+    {
+      label: "Build",
+      items: [
+        { href: "/templates", label: "Templates", icon: LayoutTemplate },
+        { href: "/settings", label: "Settings", icon: Settings },
       ],
     },
   ];
@@ -187,10 +210,28 @@ export function Sidebar() {
       <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2">
         {groups.map((group, gi) => (
           <div key={group.label} className={cn(gi > 0 && "mt-4")}>
-            <p className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-4">
-              {group.label}
-            </p>
-            <ul className="space-y-px">
+            <button
+              type="button"
+              aria-expanded={!collapsed.has(group.label)}
+              onClick={() => toggleGroup(group.label)}
+              className="group/gh flex w-full items-center gap-1 rounded-md px-2 pb-1 pt-0.5 text-left cursor-pointer"
+            >
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-4 transition-colors group-hover/gh:text-ink-3">
+                {group.label}
+              </span>
+              <ChevronRight
+                className={cn(
+                  "size-3 text-ink-4 opacity-0 transition-[transform,opacity] duration-200",
+                  "group-hover/gh:opacity-100 focus-visible:opacity-100",
+                  !collapsed.has(group.label) && "rotate-90",
+                )}
+              />
+              {/* A collapsed group still has to say how much it is hiding. */}
+              {collapsed.has(group.label) && (
+                <span className="ml-auto text-[10.5px] text-ink-4 tnum">{group.items.length}</span>
+              )}
+            </button>
+            <ul className={cn("space-y-px", collapsed.has(group.label) && "hidden")}>
               {group.items.map((item) => {
                 const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                 const Icon = item.icon;
@@ -223,34 +264,6 @@ export function Sidebar() {
           </div>
         ))}
 
-        <div className="mt-4">
-          <p className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-4">
-            Build
-          </p>
-          <ul className="space-y-px">
-            {[
-              { href: "/templates", label: "Templates", icon: LayoutTemplate },
-              { href: "/settings", label: "Settings", icon: Settings },
-            ].map((item) => {
-              const active = pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex h-[30px] items-center gap-2 rounded-md px-2 text-[13.5px] transition-colors duration-120",
-                      active ? "bg-active font-medium text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
-                    )}
-                  >
-                    <Icon className={cn("size-4 shrink-0", active ? "text-ink" : "text-ink-3")} />
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
       </nav>
 
       {/* ---- mini calendar ---- */}

@@ -19,7 +19,6 @@ export function QuickAdd() {
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
   const addTask = useStore((s) => s.addTask);
-  const selectedDate = useStore((s) => s.selectedDate);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
   const hour12 = useStore((s) => s.hour12);
   const toast = useStore((s) => s.toast);
@@ -37,7 +36,9 @@ export function QuickAdd() {
     if (!title) return;
     addTask({
       title,
-      date: parsed.date ?? selectedDate,
+      // Unplanned unless the sentence actually named a day. Capture should never
+      // silently commit you to a date you did not choose.
+      date: parsed.date,
       start_min: parsed.start_min,
       end_min: parsed.end_min,
       all_day: parsed.start_min == null,
@@ -45,7 +46,10 @@ export function QuickAdd() {
       priority: parsed.priority,
       tags: parsed.tags,
     });
-    toast({ title: "Task added", description: `${title} · ${friendlyDate(parsed.date ?? selectedDate)}` });
+    toast({
+      title: "Task added",
+      description: parsed.date ? `${title} · ${friendlyDate(parsed.date)}` : `${title} · Inbox`,
+    });
     setValue("");
     if (!keepOpen) setOpen(false);
   }
