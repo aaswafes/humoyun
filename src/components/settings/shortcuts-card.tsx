@@ -15,6 +15,8 @@ interface Shortcut {
 const GLOBAL: Shortcut[] = [
   { label: "Command palette", keys: ["⌘", "K"], alt: ["⌘", "/"] },
   { label: "Quick add", keys: ["N"], alt: ["C"] },
+  { label: "Undo the last change", keys: ["⌘", "Z"] },
+  { label: "Redo it", keys: ["⌘", "⇧", "Z"], alt: ["⌘", "Y"] },
   { label: "Show or hide the sidebar", keys: ["⌘", "\\"] },
   { label: "Jump to today", keys: ["T"] },
   { label: "Previous day", keys: ["⇧", "←"] },

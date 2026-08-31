@@ -18,6 +18,12 @@ import { Spinner } from "@/components/ui/primitives";
 // a state-based guard is re-created on the second mount, which double-seeded.
 let soloBooted = false;
 
+function isTextField(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const ready = useStore((s) => s.ready);
@@ -77,6 +83,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useHotkeys(
     {
       "mod+k": () => setCommandOpen(true),
+
+      // ⌘Z belongs to the field while you are typing in one — a text box has
+      // its own undo and stealing it would lose the sentence you are writing.
+      // useHotkeys drops "shift" from a single-character combo, so mod+shift+z
+      // arrives here as mod+z — the shift is read off the event instead.
+      "mod+z": (e) => {
+        if (isTextField(e.target)) return;
+        e.preventDefault();
+        if (e.shiftKey) useStore.getState().redo();
+        else useStore.getState().undo();
+      },
+      "mod+y": (e) => {
+        if (isTextField(e.target)) return;
+        e.preventDefault();
+        useStore.getState().redo();
+      },
       "mod+/": () => setCommandOpen(true),
       "mod+\\": () => toggleSidebar(),
       n: () => openQuickAdd(),

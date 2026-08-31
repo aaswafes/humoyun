@@ -132,10 +132,19 @@ interface StoreState extends CollectionState {
   timer: TimerState;
   /** Solo mode booted with an empty database and wants the sample week. */
   soloNeedsSeed: boolean;
+  undoStack: UndoEntry[];
+  redoStack: UndoEntry[];
 
   // ---- lifecycle ----
   hydrate: (userId: string, email?: string | null) => Promise<void>;
   reset: () => void;
+
+  // ---- undo ----
+  undo: () => void;
+  redo: () => void;
+  /** Group everything `fn` changes into a single undo step. */
+  batchUndo: <T>(label: string, fn: () => T) => T;
+  canUndo: () => boolean;
 
   // ---- generic crud ----
   insert: <K extends CollectionKey>(key: K, row: Partial<Collections[K]>) => Collections[K];
@@ -327,6 +336,93 @@ function restoreTimer(): TimerState {
   } catch { return EMPTY_TIMER; }
 }
 
+// =========================================================
+// Undo
+//
+// Every mutation records how to reverse itself. Actions that touch many rows —
+// scheduling a book, applying a template, clearing a plan — wrap themselves in
+// a batch so one ⌘Z takes back the whole thing rather than one task of twenty.
+//
+// Undoing replays inverses through the same insert/patch/remove the UI uses, so
+// Supabase and localStorage stay correct without a second write path. The
+// `recording` latch stops those replays from recording inverses of their own.
+// =========================================================
+type UndoOp =
+  | { op: "insert"; key: CollectionKey; row: unknown }
+  | { op: "remove"; key: CollectionKey; row: unknown }
+  | { op: "patch"; key: CollectionKey; id: string; before: Record<string, unknown> };
+
+interface UndoEntry { label: string; ops: UndoOp[] }
+
+const UNDO_LIMIT = 60;
+
+let recording = true;
+let batch: UndoOp[] | null = null;
+let batchLabel = "";
+
+const SINGULAR: Partial<Record<CollectionKey, string>> = {
+  tasks: "task", books: "book", media: "title", notes: "note", habits: "habit",
+  habitLogs: "habit log", goals: "goal", boards: "board", nodes: "node",
+  edges: "link", templates: "template", prayers: "prayer", dayLogs: "day",
+  focusSessions: "session", reviews: "review", tags: "tag",
+};
+
+function singular(key: CollectionKey): string {
+  return SINGULAR[key] ?? "item";
+}
+
+type Getter = () => StoreState;
+type Setter = (partial: Partial<StoreState> | ((s: StoreState) => Partial<StoreState>)) => void;
+
+function pushUndo(get: Getter, set: Setter, op: UndoOp, label: string) {
+  if (!recording) return;
+  if (batch) { batch.push(op); return; }
+  void get;
+  set((s) => ({
+    undoStack: [...s.undoStack, { label, ops: [op] }].slice(-UNDO_LIMIT),
+    // A fresh edit forks the timeline, so anything redone from here is gone.
+    redoStack: [],
+  }));
+}
+
+/**
+ * Replay an entry backwards and hand back the entry that would replay it
+ * forwards again — which is what makes redo a second undo rather than a
+ * separate code path.
+ */
+function applyInverse(get: Getter, entry: UndoEntry): UndoEntry {
+  const store = get();
+  const forward: UndoOp[] = [];
+
+  recording = false;
+  try {
+    // Reverse order: the last thing done is the first thing taken back.
+    for (let i = entry.ops.length - 1; i >= 0; i--) {
+      const op = entry.ops[i];
+      if (op.op === "insert") {
+        forward.push({ op: "remove", key: op.key, row: op.row });
+        store.remove(op.key, (op.row as { id: string }).id);
+      } else if (op.op === "remove") {
+        forward.push({ op: "insert", key: op.key, row: op.row });
+        store.insert(op.key, op.row as never);
+      } else {
+        const current = (store[op.key] as { id: string }[]).find((r) => r.id === op.id);
+        if (!current) continue;                    // the row is gone; nothing to restore
+        const after: Record<string, unknown> = {};
+        for (const field of Object.keys(op.before)) {
+          after[field] = (current as Record<string, unknown>)[field];
+        }
+        forward.push({ op: "patch", key: op.key, id: op.id, before: after });
+        store.patch(op.key, op.id, op.before as never);
+      }
+    }
+  } finally {
+    recording = true;
+  }
+
+  return { label: entry.label, ops: forward.reverse() };
+}
+
 /** In solo mode every mutation mirrors the whole store into localStorage. */
 function persistSolo(state: StoreState) {
   saveLocal({
@@ -355,6 +451,8 @@ export const useStore = create<StoreState>((set, get) => ({
   toasts: [],
   timer: EMPTY_TIMER,
   soloNeedsSeed: false,
+  undoStack: [],
+  redoStack: [],
 
   // -------------------------------------------------------
   async hydrate(userId, email) {
@@ -433,6 +531,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!userId) throw new Error("Not signed in");
     const full = { ...defaultsFor(key, userId), ...row } as unknown as Collections[typeof key];
     set((s) => ({ [key]: [...(s[key] as unknown[]), full] } as unknown as Partial<StoreState>));
+    pushUndo(get, set, { op: "insert", key, row: full }, `Add ${singular(key)}`);
 
     if (SOLO) { persistSolo(get()); return full; }
 
@@ -455,6 +554,14 @@ export const useStore = create<StoreState>((set, get) => ({
     const merged = stamped
       ? { ...prev, ...changes, updated_at: nowIso() }
       : { ...prev, ...changes };
+
+    // Only the fields this call touches are remembered, so two edits to
+    // different fields undo independently rather than clobbering each other.
+    const before: Record<string, unknown> = {};
+    for (const field of Object.keys(changes)) {
+      before[field] = (prev as Record<string, unknown>)[field];
+    }
+    pushUndo(get, set, { op: "patch", key, id, before }, `Edit ${singular(key)}`);
     set((s) => ({
       [key]: (s[key] as { id: string }[]).map((r) => (r.id === id ? merged : r)),
     } as unknown as Partial<StoreState>));
@@ -480,6 +587,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set((s) => ({
       [key]: (s[key] as { id: string }[]).filter((r) => r.id !== id),
     } as unknown as Partial<StoreState>));
+    pushUndo(get, set, { op: "remove", key, row: prev }, `Delete ${singular(key)}`);
 
     if (SOLO) { persistSolo(get()); return; }
 
@@ -493,7 +601,53 @@ export const useStore = create<StoreState>((set, get) => ({
 
   removeWhere(key, pred) {
     const victims = (get()[key] as Collections[typeof key][]).filter(pred);
-    victims.forEach((v) => get().remove(key, (v as { id: string }).id));
+    if (!victims.length) return;
+    get().batchUndo(
+      victims.length === 1 ? `Delete ${singular(key)}` : `Delete ${victims.length} ${singular(key)}s`,
+      () => { victims.forEach((v) => get().remove(key, (v as { id: string }).id)); },
+    );
+  },
+
+  batchUndo(label, fn) {
+    if (batch) return fn();          // already inside one; keep the outer step
+    batch = [];
+    batchLabel = label;
+    try {
+      return fn();
+    } finally {
+      const ops = batch;
+      batch = null;
+      if (recording && ops && ops.length) {
+        set((s) => ({
+          undoStack: [...s.undoStack, { label: batchLabel, ops }].slice(-UNDO_LIMIT),
+          redoStack: [],
+        }));
+      }
+    }
+  },
+
+  canUndo: () => get().undoStack.length > 0,
+
+  undo() {
+    const stack = get().undoStack;
+    const entry = stack[stack.length - 1];
+    if (!entry) { get().toast({ title: "Nothing to undo" }); return; }
+
+    set({ undoStack: stack.slice(0, -1) });
+    const inverse = applyInverse(get, entry);
+    set((s) => ({ redoStack: [...s.redoStack, inverse].slice(-UNDO_LIMIT) }));
+    get().toast({ title: `Undone · ${entry.label.toLowerCase()}` });
+  },
+
+  redo() {
+    const stack = get().redoStack;
+    const entry = stack[stack.length - 1];
+    if (!entry) { get().toast({ title: "Nothing to redo" }); return; }
+
+    set({ redoStack: stack.slice(0, -1) });
+    const inverse = applyInverse(get, entry);
+    set((s) => ({ undoStack: [...s.undoStack, inverse].slice(-UNDO_LIMIT) }));
+    get().toast({ title: `Redone · ${entry.label.toLowerCase()}` });
   },
 
   // -------------------------------------------------------
@@ -609,6 +763,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   createSeries(base, recurrence) {
+    return get().batchUndo("Create repeating task", () => {
     const seriesId = uid();
     const start = base.date ?? todayISO();
     const limit = recurrence.count ?? 60;
@@ -632,6 +787,7 @@ export const useStore = create<StoreState>((set, get) => ({
       cursor = recurrence.freq === "monthly" && matches ? addDays(cursor, 28) : addDays(cursor, 1);
     }
     return created;
+    });
   },
 
   deleteSeries(seriesId, fromDate) {
@@ -694,6 +850,7 @@ export const useStore = create<StoreState>((set, get) => ({
   scheduleBook(bookId, opts = {}) {
     const book = get().books.find((b) => b.id === bookId);
     if (!book) return 0;
+    return get().batchUndo(`Schedule ${book.title}`, () => {
 
     const start = opts.startDate ?? book.start_date ?? todayISO();
     const skip = opts.skipWeekdays ?? [];
@@ -749,11 +906,13 @@ export const useStore = create<StoreState>((set, get) => ({
       status: "reading",
     });
     return created;
+    });
   },
 
   scheduleMedia(mediaId, opts = {}) {
     const item = get().media.find((m) => m.id === mediaId);
     if (!item) return 0;
+    return get().batchUndo(`Schedule ${item.title}`, () => {
 
     const start = opts.startDate ?? item.start_date ?? todayISO();
     const skip = opts.skipWeekdays ?? [];
@@ -814,6 +973,7 @@ export const useStore = create<StoreState>((set, get) => ({
       status: "watching",
     });
     return created;
+    });
   },
 
   unscheduleMedia(mediaId, fromDate) {
@@ -859,6 +1019,7 @@ export const useStore = create<StoreState>((set, get) => ({
   applyTemplate(templateId, date) {
     const template = get().templates.find((t) => t.id === templateId);
     if (!template) return 0;
+    return get().batchUndo(`Apply ${template.name}`, () => {
     let count = 0;
     template.items.forEach((item, i) => {
       const target = addDays(date, item.day_offset ?? 0);
@@ -883,6 +1044,7 @@ export const useStore = create<StoreState>((set, get) => ({
     });
     get().patch("templates", templateId, { use_count: template.use_count + 1 });
     return count;
+    });
   },
 
   saveDayAsTemplate(date, name) {
