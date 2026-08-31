@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { NOTE_KIND_LABELS, type Note } from "@/lib/types";
 import { NOTE_KIND_ICONS, TagPill } from "./note-fields";
 import { SourceChip } from "./note-source-chip";
+import { NoteActions, useDeleteNote } from "./note-actions";
 import { dayLabel, noteDay, noteExcerpt, noteHeading, noteRest, type SourceRef } from "./note-model";
 
 /**
@@ -48,6 +49,7 @@ function NoteRow({
   locator: string | null;
   onOpen: (note: Note) => void;
 }) {
+  const deleteNote = useDeleteNote();
   const Kind = NOTE_KIND_ICONS[note.kind];
   const heading = noteHeading(note, refer);
   const trailing = noteExcerpt(noteRest(note));
@@ -55,13 +57,20 @@ function NoteRow({
   return (
     <li
       className={cn(
-        "flex items-center gap-2 rounded-md px-2 hairline-b",
+        "group/note relative flex items-center gap-2 rounded-md px-2 pr-16 hairline-b",
         "transition-colors duration-150 hover:bg-hover",
       )}
     >
+      <NoteActions note={note} />
       <button
         type="button"
         onClick={() => onOpen(note)}
+        onKeyDown={(e) => {
+          if (e.key === "Backspace" || e.key === "Delete") {
+            e.preventDefault();
+            deleteNote(note);
+          }
+        }}
         aria-label={
           `Open the ${NOTE_KIND_LABELS[note.kind].toLowerCase()} ${heading}`
           + (note.pinned ? ", pinned" : "")

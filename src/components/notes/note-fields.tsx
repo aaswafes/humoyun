@@ -78,19 +78,26 @@ export function useSticky(key: string, fallback: boolean): [boolean, (next: bool
 export function useStickyChoice<T extends string>(
   key: string, fallback: T, allowed: readonly T[],
 ): [T, (next: T) => void] {
-  const [value, setValue] = React.useState<T>(fallback);
-
-  React.useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(key);
-      if (stored && (allowed as readonly string[]).includes(stored)) setValue(stored as T);
-    } catch { /* private mode: the default stands */ }
-  }, [key, allowed]);
+  // localStorage is an external store, so read it as one. Loading it with a
+  // setState inside an effect renders twice on every mount and trips the
+  // cascading-render rule; useSyncExternalStore gives the server the fallback
+  // and the client the stored value with no second pass.
+  const stored = React.useSyncExternalStore(
+    subscribeSticky,
+    () => {
+      try { return window.localStorage.getItem(key); } catch { return null; }
+    },
+    () => null,
+  );
 
   const set = React.useCallback((next: T) => {
-    setValue(next);
-    try { window.localStorage.setItem(key, next); } catch { /* ignore */ }
+    try { window.localStorage.setItem(key, next); } catch { /* private mode */ }
+    stickyListeners.forEach((notify) => notify());
   }, [key]);
+
+  const value = stored && (allowed as readonly string[]).includes(stored)
+    ? (stored as T)
+    : fallback;
 
   return [value, set];
 }

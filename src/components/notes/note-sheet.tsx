@@ -8,9 +8,10 @@ import { formatClock } from "@/lib/date";
 import { NOTE_KINDS, NOTE_KIND_LABELS, type Note, type Tint } from "@/lib/types";
 import { AutoTextarea, IconButton, InlineInput, SectionLabel } from "@/components/ui/primitives";
 import {
-  ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
+  MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
 } from "@/components/ui/overlays";
 import { Disclosure, NOTE_KIND_ICONS, TagEditor } from "./note-fields";
+import { useDeleteNote } from "./note-actions";
 import { useOpenSource } from "./note-source-chip";
 import { SourcePicker } from "./source-picker";
 import {
@@ -57,7 +58,6 @@ function NoteSheetBody({
 
   const [title, setTitle] = React.useState(note.title ?? "");
   const [body, setBody] = React.useState(note.body);
-  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const idx = React.useMemo(
     () => buildSourceIndex(books, media, tasks, goals, nodes),
@@ -98,10 +98,11 @@ function NoteSheetBody({
   const applySource = (changes: Partial<Note>) =>
     patch("notes", noteId, { ...changes, locator: null });
 
+  const removeNote = useDeleteNote();
+
   const deleteNote = () => {
     pending.current = null;   // do not resurrect the row on unmount
-    remove("notes", noteId);
-    toast({ title: "Note deleted", tone: "default" });
+    removeNote(note);         // undoable, same as deleting from a card
     onClose();
   };
 
@@ -152,7 +153,7 @@ function NoteSheetBody({
                 </MenuItem>
               )}
               <MenuSeparator />
-              <MenuItem icon={Trash2} danger onClick={() => { setConfirmDelete(true); close(); }}>
+              <MenuItem icon={Trash2} danger onClick={() => { deleteNote(); close(); }}>
                 Delete note
               </MenuItem>
             </>
@@ -274,14 +275,6 @@ function NoteSheetBody({
         </Disclosure>
       </div>
 
-      <ConfirmDialog
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={deleteNote}
-        title="Delete this note?"
-        description={`“${noteHeading(note, refer)}” goes for good. Nothing else it is linked to is touched.`}
-        confirmLabel="Delete note"
-      />
     </>
   );
 }

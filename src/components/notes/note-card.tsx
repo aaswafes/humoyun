@@ -5,6 +5,7 @@ import { Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NOTE_KIND_LABELS, type Note } from "@/lib/types";
 import { NOTE_KIND_ICONS, TagPill } from "./note-fields";
+import { NoteActions, useDeleteNote } from "./note-actions";
 import { SourceChip } from "./note-source-chip";
 import { dayLabel, noteDay, noteHeading, noteRest, type SourceRef } from "./note-model";
 
@@ -27,6 +28,7 @@ export function NoteCard({
   locator: string | null;
   onOpen: (note: Note) => void;
 }) {
+  const deleteNote = useDeleteNote();
   const Kind = NOTE_KIND_ICONS[note.kind];
   const heading = noteHeading(note, refer);
   const rest = noteRest(note);
@@ -47,16 +49,25 @@ export function NoteCard({
       {note.pinned && (
         <span
           aria-hidden
-          className="absolute right-3 top-3.5 text-ink-3"
+          className="absolute right-3 top-3.5 text-ink-3 transition-opacity group-hover/note:opacity-0"
           title="Pinned"
         >
           <Pin className="size-3" fill="currentColor" strokeWidth={0} />
         </span>
       )}
 
+      <NoteActions note={note} />
+
       <button
         type="button"
         onClick={() => onOpen(note)}
+        onKeyDown={(e) => {
+          // The card is the thing in hand, so the delete key acts on it.
+          if (e.key === "Backspace" || e.key === "Delete") {
+            e.preventDefault();
+            deleteNote(note);
+          }
+        }}
         aria-label={
           `Open the ${NOTE_KIND_LABELS[note.kind].toLowerCase()} ${heading}`
           + (note.pinned ? ", pinned" : "")
@@ -65,7 +76,7 @@ export function NoteCard({
       >
         <h3 className={cn(
           "flex items-start gap-1.5 text-[13.5px] font-medium leading-snug text-ink",
-          note.pinned && "pr-5",
+          "pr-14",
         )}>
           {/* A plain note needs no badge saying it is a note. */}
           {note.kind !== "note" && (
