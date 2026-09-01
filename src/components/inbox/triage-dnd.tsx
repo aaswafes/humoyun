@@ -12,6 +12,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useDragBody } from "@/components/ui/drag";
 import { useStore } from "@/lib/store";
 import { friendlyDate } from "@/lib/date";
 import type { Task } from "@/lib/types";
@@ -65,10 +66,11 @@ export function TriageRow({
   dense?: boolean;
   disabled?: boolean;
 }) {
-  const { selecting, isSelected, dragIds } = useTriage();
+  const { isSelected, dragIds } = useTriage();
   const {
     attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
   } = useSortable({ id: task.id, disabled });
+  const body = useDragBody(listeners, !disabled);
 
   const ghosted = dragIds.length > 1 && dragIds.includes(task.id) && !isDragging;
 

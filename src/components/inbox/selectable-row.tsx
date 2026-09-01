@@ -90,7 +90,7 @@ export function SelectableRow({
           />
         )}
         <div className="min-w-0 flex-1">
-          <TaskRow task={task} showDate={showDate} dragHandle={handle} />
+          <TaskRow task={task} showDate={showDate} dragHandle={handle} dragProps={dragProps} />
         </div>
         {trailing && (
           <div className="shrink-0 opacity-0 transition-opacity duration-150 ease-[var(--ease-out-apple)] focus-within:opacity-100 group-hover/inbox:opacity-100">
