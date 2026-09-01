@@ -30,6 +30,7 @@ import {
   type Tint,
 } from "./types";
 import { addDays, todayISO, toISO, startOfWeek, weekday } from "./date";
+import { horizonForDate } from "./timeframe";
 import { SOLO, SOLO_PROFILE, SOLO_USER_ID, loadLocal, saveLocal } from "./local-db";
 
 // =========================================================
@@ -529,6 +530,12 @@ export const useStore = create<StoreState>((set, get) => ({
   insert(key, row) {
     const userId = get().userId;
     if (!userId) throw new Error("Not signed in");
+    if (key === "goals") {
+      const seed = row as Partial<Goal>;
+      if (seed.end_date && seed.horizon === undefined) {
+        (row as Partial<Goal>).horizon = horizonForDate(seed.end_date);
+      }
+    }
     const full = { ...defaultsFor(key, userId), ...row } as unknown as Collections[typeof key];
     set((s) => ({ [key]: [...(s[key] as unknown[]), full] } as unknown as Partial<StoreState>));
     pushUndo(get, set, { op: "insert", key, row: full }, `Add ${singular(key)}`);
@@ -550,6 +557,16 @@ export const useStore = create<StoreState>((set, get) => ({
     const list = get()[key] as { id: string }[];
     const prev = list.find((r) => r.id === id);
     if (!prev) return;
+
+    // A goal's due date decides which shelf it sits on, so the two never
+    // disagree. Setting the horizon explicitly still works — it just does not
+    // survive the next change of date.
+    if (key === "goals") {
+      const next = changes as Partial<Goal>;
+      if ("end_date" in next && next.horizon === undefined) {
+        (changes as Partial<Goal>).horizon = horizonForDate(next.end_date);
+      }
+    }
     const stamped = HAS_UPDATED_AT[key];
     const merged = stamped
       ? { ...prev, ...changes, updated_at: nowIso() }

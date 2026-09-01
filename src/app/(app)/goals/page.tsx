@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import {
-  ChartNoAxesGantt, Check, Plus, Radar, Rows3, Target, Trophy,
+  CalendarRange, ChartNoAxesGantt, Check, Plus, Radar, Rows3, Target, Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
-import type { Horizon } from "@/lib/types";
+import type { Goal, Horizon } from "@/lib/types";
+import { horizonForDate } from "@/lib/timeframe";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { HiddenColumns } from "@/components/goals/column-header";
 import { useColumnPrefs } from "@/components/goals/column-prefs";
@@ -15,6 +16,7 @@ import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primiti
 import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { GoalFinished } from "@/components/goals/goal-finished";
 import { Fold, useFold } from "@/components/goals/goal-fold";
+import { GoalBoard } from "@/components/goals/goal-board";
 import { GoalLadder } from "@/components/goals/goal-ladder";
 import { GoalReview } from "@/components/goals/goal-review";
 import { GoalSheet } from "@/components/goals/goal-sheet";
@@ -24,9 +26,10 @@ import {
 } from "@/components/goals/goal-model";
 import { useGoalActions } from "@/components/goals/use-goal-actions";
 
-type View = "ladder" | "timeline" | "review" | "finished";
+type View = "board" | "ladder" | "timeline" | "review" | "finished";
 
 const HINT: Record<View, string> = {
+  board: "Give a goal a date and it files itself — this month, this quarter, this year, next year, or further out. Drag a card to another column to re-date it.",
   ladder: "Life sets the direction, week does the work. Drag a card onto another to nest it, or between two to reorder — the ⋯ menu does the same from the keyboard.",
   timeline: "Every dated goal as a bar, with its milestones. Where the bars stack up, you are overcommitted.",
   review: "",
@@ -34,6 +37,7 @@ const HINT: Record<View, string> = {
 };
 
 const HINT_LABEL: Record<View, string> = {
+  board: "How the date board works",
   ladder: "How the ladder works",
   timeline: "How to read the timeline",
   review: "",
@@ -47,8 +51,11 @@ export default function GoalsPage() {
   const books = useStore((s) => s.books);
   const ready = useStore((s) => s.ready);
   const { createGoal } = useGoalActions();
+  const patch = useStore((s) => s.patch);
+  const batchUndo = useStore((s) => s.batchUndo);
 
-  const [view, setView] = React.useState<View>("ladder");
+  // Dates are how the owner thinks about goals, so the board leads.
+  const [view, setView] = React.useState<View>("board");
   const [includeDone, setIncludeDone] = React.useState(false);
   const columnPrefs = useColumnPrefs();
   const [openId, setOpenId] = React.useState<string | null>(null);
@@ -79,6 +86,11 @@ export default function GoalsPage() {
   );
 
   const viewOptions = React.useMemo(() => [
+    {
+      value: "board" as const,
+      label: <><CalendarRange className="size-3.5" /><span className="ml-1.5 hidden sm:inline">By date</span></>,
+      title: "Goals filed by when they are due",
+    },
     {
       value: "ladder" as const,
       label: <><Rows3 className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Ladder</span></>,
@@ -116,6 +128,21 @@ export default function GoalsPage() {
     const goal = createGoal({ horizon });
     setOpenId(goal.id);
   }, [createGoal]);
+
+  /**
+   * The board creates by date. createGoal still needs a horizon to size the
+   * goal's window, so it is derived from the date rather than chosen — and the
+   * two writes are one undo step.
+   */
+  const createDated = React.useCallback((seed: Partial<Goal>) => {
+    const due = seed.end_date ?? null;
+    const goal = batchUndo("Add goal", () => {
+      const made = createGoal({ horizon: horizonForDate(due) });
+      if (due) patch("goals", made.id, { end_date: due });
+      return made;
+    });
+    setOpenId(goal.id);
+  }, [createGoal, patch, batchUndo]);
 
   // Two facts, not four — how many are running, and how they are doing. What
   // needs attention is already counted on the Review tab.
@@ -211,6 +238,15 @@ export default function GoalsPage() {
                   {HINT[view]}
                 </p>
               </Fold>
+            )}
+
+            {view === "board" && (
+              <GoalBoard
+                goals={visible}
+                index={index}
+                onOpen={setOpenId}
+                onCreate={createDated}
+              />
             )}
 
             {view === "ladder" && (
