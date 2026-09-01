@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Pause, Star } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DRAG_OK } from "@/components/ui/drag";
 import { formatDuration } from "@/lib/date";
 import type { Media } from "@/lib/types";
 import { Progress } from "@/components/ui/primitives";
@@ -90,6 +91,7 @@ export function MediaCard({
   return (
     <button
       type="button"
+      {...DRAG_OK}
       onClick={() => onOpen(item)}
       className={cn(
         "group/media flex w-full flex-col gap-2.5 rounded-lg p-2 text-left cursor-pointer",

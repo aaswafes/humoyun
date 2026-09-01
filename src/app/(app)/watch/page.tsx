@@ -7,6 +7,8 @@ import { todayISO } from "@/lib/date";
 import { MEDIA_KINDS, MEDIA_KIND_LABELS, type Media } from "@/lib/types";
 import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primitives";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
+import { ShelfDnd, ShelfGroup, ShelfItem } from "@/components/shelf/shelf-dnd";
+import { MEDIA_REFILABLE, useMediaRefile } from "@/components/shelf/use-media-refile";
 import { AddMediaModal } from "@/components/watch/add-media-modal";
 import { MediaSheet } from "@/components/watch/media-sheet";
 import { MediaCard, type MediaCardMeta } from "@/components/watch/media-card";
@@ -138,23 +140,22 @@ export default function WatchPage() {
     if (group === "none") return [{ key: "all", label: "All titles", rows: paged }];
 
     if (group === "status") {
-      return STATUS_ORDER
-        .map(({ status, label }) => ({
-          key: status,
-          label,
-          rows: paged.filter((r) => r.item.status === status),
-        }))
-        .filter((g) => g.rows.length > 0);
+      // Empty shelves stay in the model: the render drops them at rest and
+      // brings them back mid-drag, because a shelf you cannot see is a shelf
+      // you cannot drop on.
+      return STATUS_ORDER.map(({ status, label }) => ({
+        key: status,
+        label,
+        rows: paged.filter((r) => r.item.status === status),
+      }));
     }
 
     if (group === "kind") {
-      return MEDIA_KINDS
-        .map((kind) => ({
-          key: kind,
-          label: MEDIA_KIND_LABELS[kind],
-          rows: paged.filter((r) => r.item.kind === kind),
-        }))
-        .filter((g) => g.rows.length > 0);
+      return MEDIA_KINDS.map((kind) => ({
+        key: kind,
+        label: MEDIA_KIND_LABELS[kind],
+        rows: paged.filter((r) => r.item.kind === kind),
+      }));
     }
 
     const facet: MediaFacet = group;
@@ -184,6 +185,9 @@ export default function WatchPage() {
     finish: row.finish,
     dueToday: dueToday.has(row.item.id),
   }), [dueToday]);
+
+  const canRefile = view === "shelf" && MEDIA_REFILABLE.includes(group);
+  const refile = useMediaRefile(group, MEDIA_FACET_FALLBACKS);
 
   const addButton = (
     <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
@@ -270,29 +274,53 @@ export default function WatchPage() {
                 onOpen={(item) => setOpenId(item.id)}
               />
             ) : (
-              <div className="space-y-10">
-                {groups.map((g) => (
-                  <section key={g.key}>
-                    {/* One ungrouped shelf explains itself — the label would be noise. */}
-                    {g.key !== "all" && (
-                      <div className="mb-3 flex items-baseline gap-2">
-                        <h2 className="truncate text-[12.5px] font-medium text-ink-2">{g.label}</h2>
-                        <span className="text-[11.5px] text-ink-4 tnum">{g.rows.length}</span>
+              <ShelfDnd
+                enabled={canRefile}
+                onRefile={refile}
+                overlay={(id) => (
+                  <p className="truncate text-[13px] font-medium text-ink">
+                    {media.find((m) => m.id === id)?.title || "Untitled"}
+                  </p>
+                )}
+              >
+                {(dragging) => (
+                <div className="space-y-10">
+                  {[
+                    ...groups.filter((g) => g.rows.length > 0),
+                    // Empty destinations join at the end, never in the middle:
+                    // inserting one above the cursor mid-drag would slide the
+                    // shelf you were aiming at out from under it.
+                    ...(dragging ? groups.filter((g) => g.rows.length === 0) : []),
+                  ].map((g) => (
+                    <ShelfGroup key={g.key} groupKey={g.key} empty={g.rows.length === 0}>
+                      {/* One ungrouped shelf explains itself — the label would be noise. */}
+                      {g.key !== "all" && (
+                        <div className="mb-3 flex items-baseline gap-2">
+                          <h2 className="truncate text-[12.5px] font-medium text-ink-2">{g.label}</h2>
+                          <span className="text-[11.5px] text-ink-4 tnum">{g.rows.length}</span>
+                        </div>
+                      )}
+                      <div className={SHELF_GRID}>
+                        {g.rows.map((row) => (
+                          <ShelfItem
+                            key={row.item.id}
+                            id={row.item.id}
+                            groupKey={g.key}
+                            label={row.item.title || "this title"}
+                          >
+                            <MediaCard
+                              item={row.item}
+                              meta={metaFor(row)}
+                              onOpen={(item) => setOpenId(item.id)}
+                            />
+                          </ShelfItem>
+                        ))}
                       </div>
-                    )}
-                    <div className={SHELF_GRID}>
-                      {g.rows.map((row) => (
-                        <MediaCard
-                          key={row.item.id}
-                          item={row.item}
-                          meta={metaFor(row)}
-                          onOpen={(item) => setOpenId(item.id)}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
+                    </ShelfGroup>
+                  ))}
+                </div>
+                )}
+              </ShelfDnd>
             )}
 
             {visibleRows.length > paged.length && (

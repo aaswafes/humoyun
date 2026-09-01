@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Pause } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DRAG_OK } from "@/components/ui/drag";
 import { formatDuration } from "@/lib/date";
 import type { Media } from "@/lib/types";
 import { Progress } from "@/components/ui/primitives";
@@ -94,6 +95,7 @@ export function VideoCard({
       {/* First in the DOM so the card is reached before the link it contains. */}
       <button
         type="button"
+        {...DRAG_OK}
         onClick={() => onOpen(item)}
         className="absolute inset-0 z-10 cursor-pointer rounded-lg"
       >

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Pause } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DRAG_OK } from "@/components/ui/drag";
 import type { Book } from "@/lib/types";
 import { Progress } from "@/components/ui/primitives";
 import { BookCover } from "./book-cover";
@@ -59,6 +60,7 @@ export function BookCard({
   return (
     <button
       type="button"
+      {...DRAG_OK}
       onClick={() => onOpen(book)}
       className={cn(
         "group/book flex w-full flex-col gap-2.5 rounded-lg p-2 text-left cursor-pointer",

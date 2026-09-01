@@ -265,6 +265,30 @@ the single source of truth for a project's numbers.
 - Attention flags come from `projectAttention`. `danger` is for a due date that
   has already passed and nothing else; everything else is `quiet`.
 
+## The three shelves
+
+Books, Films & Anime and YouTube are one surface drawn three times: cards in a
+grid, grouped by whatever the toolbar is grouping by. `src/components/shelf/`
+owns what they share.
+
+- `ShelfDnd` / `ShelfGroup` / `ShelfItem` make a card draggable **between
+  shelves**, and nothing else. A drop re-files the card under the group it
+  landed on. It is deliberately not a reorder — these shelves sort by title,
+  pace and progress, never by hand, so a card dropped between two others would
+  spring back, and a drag that appears to do something and doesn't is the whole
+  bug this pass was about.
+- Drag is off unless the current grouping is one a drop can honestly change:
+  status, kind, genre, topic, series. **Author, creator and channel are facts
+  about the work, not shelves you choose** — dragging never rewrites them, and
+  the grip does not appear.
+- Empty groups stay in the model and are hidden at rest, then appended **at the
+  end** for the length of a drag. A shelf you cannot see is a shelf you cannot
+  drop on; inserting one above the cursor mid-drag would slide the target out
+  from under it.
+- A drop runs the same code the sheet's status menu runs. Finishing a book moves
+  the bookmark to the last page, pausing one asks for a resume date. If those
+  ever disagree, the drag is wrong, not the menu.
+
 ## Accessibility floor
 
 - Anything clickable is a `<button>` (or has `role`, `tabIndex={0}` and a key handler).

@@ -36,7 +36,7 @@ const PAST = 45;
 const FUTURE = 45;
 
 /** Bumped whenever the seed changes shape, so an old workspace can be re-seeded. */
-export const SAMPLE_VERSION = "sample-v4";
+export const SAMPLE_VERSION = "sample-v5";
 const SEED_PREF_KEY = "sample_seed";
 const BOARD_NAME = "Life Map";
 const SECOND_BOARD_NAME = "Reading & Ideas";
@@ -669,6 +669,7 @@ export function loadSampleData(): number {
   seedHabits(ctx);
   seedRoutines(ctx);
   seedBooks(ctx);
+  seedMedia(ctx);
   seedDays(ctx);
   seedInbox(ctx);
   fillEmptyDays(ctx);
@@ -695,7 +696,9 @@ export function loadSampleData(): number {
 export function topUpSampleData(): number {
   const s = store();
   if (!sampleDataPresent()) return 0;
-  if (s.projects.length > 0) return 0;
+  const needsProjects = s.projects.length === 0;
+  const needsMedia = s.media.length === 0;
+  if (!needsProjects && !needsMedia) return 0;
 
   const clock = new Date();
   const ctx: Ctx = {
@@ -715,7 +718,8 @@ export function topUpSampleData(): number {
   ctx.goals.beta = byTitle("Public beta build out the door") ?? "";
   ctx.goals.juz = byTitle("Memorise Juz Amma") ?? "";
 
-  seedProjects(ctx);
+  if (needsProjects) seedProjects(ctx);
+  if (needsMedia) seedMedia(ctx);
   return ctx.rows;
 }
 
@@ -1129,6 +1133,106 @@ function settleSeries(tasks: Task[], ctx: Ctx, rate: number) {
       status: "done",
       completed_at: stamp(t.date, t.end_min ?? t.start_min ?? H(18)),
     });
+  });
+}
+
+/**
+ * The two watch shelves. Statuses are spread on purpose: a shelf with every
+ * title in one state cannot show what the shelf is for.
+ */
+interface SampleMedia {
+  title: string;
+  creator?: string;
+  channel?: string;
+  kind: "film" | "anime" | "series" | "youtube" | "playlist";
+  genre?: string;
+  topic?: string;
+  series?: string;
+  color: Tint;
+  episodes: number;
+  watched: number;
+  runtime?: number;
+  status: "planned" | "watching" | "finished" | "paused" | "dropped";
+  rating?: number;
+  url?: string;
+}
+
+const WATCHLIST: readonly SampleMedia[] = [
+  {
+    title: "Vinland Saga", creator: "Wit Studio", kind: "anime", genre: "Historical",
+    topic: "Violence and its cost", color: "teal", episodes: 24, watched: 11,
+    runtime: 24, status: "watching",
+  },
+  {
+    title: "Arcane", creator: "Fortiche", kind: "series", genre: "Animation",
+    topic: "Sisters", color: "violet", episodes: 9, watched: 9, runtime: 40,
+    status: "finished", rating: 5,
+  },
+  {
+    title: "Interstellar", creator: "Christopher Nolan", kind: "film", genre: "Science fiction",
+    topic: "Time", color: "blue", episodes: 1, watched: 1, runtime: 169,
+    status: "finished", rating: 5,
+  },
+  {
+    title: "Dune: Part Two", creator: "Denis Villeneuve", kind: "film", genre: "Science fiction",
+    color: "amber", episodes: 1, watched: 0, runtime: 166, status: "planned",
+  },
+  {
+    title: "Planet Earth III", creator: "BBC", kind: "series", genre: "Documentary",
+    topic: "Nature", color: "emerald", episodes: 8, watched: 3, runtime: 58,
+    status: "paused",
+  },
+];
+
+const VIDEOS: readonly SampleMedia[] = [
+  {
+    title: "Moral behavior in animals", channel: "TED", kind: "youtube",
+    genre: "Talk", topic: "Nature and nurture", color: "red", episodes: 1, watched: 1,
+    runtime: 17, status: "finished", rating: 5,
+    url: "https://www.youtube.com/watch?v=GcJxRqTs5nk",
+  },
+  {
+    title: "The first 20 hours — learning anything", channel: "TEDx", kind: "youtube",
+    genre: "Talk", topic: "Learning", color: "orange", episodes: 1, watched: 0,
+    runtime: 19, status: "planned",
+  },
+  {
+    title: "Arabic grammar from zero", channel: "Madinah Arabic", kind: "playlist",
+    genre: "Course", topic: "Arabic", color: "teal", episodes: 30, watched: 7,
+    runtime: 22, status: "watching",
+  },
+  {
+    title: "How the immune system works", channel: "Kurzgesagt", kind: "youtube",
+    genre: "Explainer", topic: "Biology", color: "blue", episodes: 1, watched: 0,
+    runtime: 12, status: "planned",
+  },
+];
+
+function seedMedia(ctx: Ctx) {
+  const s = store();
+  [...WATCHLIST, ...VIDEOS].forEach((m, i) => {
+    s.insert("media", {
+      title: m.title,
+      creator: m.creator ?? null,
+      channel: m.channel ?? null,
+      kind: m.kind,
+      genre: m.genre ?? null,
+      topic: m.topic ?? null,
+      series: m.series ?? null,
+      color: m.color,
+      url: m.url ?? null,
+      total_episodes: m.episodes,
+      current_episode: m.watched,
+      episodes_per_day: m.status === "watching" && m.episodes > 1 ? 1 : null,
+      runtime_min: m.runtime ?? null,
+      start_date: m.status === "planned" ? null : addDays(ctx.today, -20 + i),
+      end_date: m.status === "finished" ? addDays(ctx.today, -6 + i) : null,
+      status: m.status,
+      rating: m.rating ?? null,
+      notes: null,
+      order_index: i,
+    });
+    ctx.rows++;
   });
 }
 
