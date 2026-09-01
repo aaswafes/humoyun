@@ -11,6 +11,7 @@ import { GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Project, ProjectStatus } from "@/lib/types";
 import { IconButton } from "@/components/ui/primitives";
+import { useDragBody } from "@/components/ui/drag";
 import { ProjectCard } from "./project-card";
 import { useProjectActions } from "./use-project-actions";
 import {
@@ -28,6 +29,7 @@ function BoardCard({
   activeId: string | null;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id });
+  const body = useDragBody(listeners);
 
   return (
     <div ref={setNodeRef} className={cn("relative", isDragging && "opacity-40")}>
@@ -36,10 +38,12 @@ function BoardCard({
         stats={index.stats(project.id)}
         onOpen={onOpen}
         dragging={activeId === project.id}
+        dragProps={body}
         dragHandle={
           <button
             {...attributes}
             {...listeners}
+            data-no-drag
             aria-label={`Move ${project.name || "project"} to another status`}
             className="grid size-5 cursor-grab place-items-center rounded text-ink-4 hover:text-ink-2 active:cursor-grabbing"
           >

@@ -7,17 +7,14 @@ import {
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import type { Goal, Horizon } from "@/lib/types";
-import {
-  TIMEFRAMES, TIMEFRAME_LABELS, horizonForDate, timeframeRange,
-} from "@/lib/timeframe";
+import { horizonForDate } from "@/lib/timeframe";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { HiddenColumns } from "@/components/goals/column-header";
 import { useColumnPrefs } from "@/components/goals/column-prefs";
 import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primitives";
-import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { GoalFinished } from "@/components/goals/goal-finished";
 import { Fold, useFold } from "@/components/goals/goal-fold";
-import { GoalBoard, dueDateFor } from "@/components/goals/goal-board";
+import { GoalBoard } from "@/components/goals/goal-board";
 import { GoalLadder } from "@/components/goals/goal-ladder";
 import { GoalReview } from "@/components/goals/goal-review";
 import { GoalSheet } from "@/components/goals/goal-sheet";
@@ -149,7 +146,7 @@ export default function GoalsPage() {
   // needs attention is already counted on the Review tab.
   const subtitle = goals.length
     ? `${active.length} active · ${pct(average)} average`
-    : "Life · Year · Quarter · Month · Week";
+    : "Give it a date and it files itself";
 
   return (
     <>
@@ -157,31 +154,10 @@ export default function GoalsPage() {
         title="Goals"
         subtitle={ready ? subtitle : undefined}
         actions={
-          <Popover
-            align="end"
-            className="w-[232px]"
-            trigger={
-              <Button variant="primary" size="sm">
-                <Plus className="size-3.5" />
-                New goal
-              </Button>
-            }
-          >
-            {(close) => (
-              <>
-                <MenuLabel>Due when?</MenuLabel>
-                {TIMEFRAMES.map((frame) => (
-                  <MenuItem
-                    key={frame}
-                    onClick={() => { createDated({ end_date: dueDateFor(frame) }); close(); }}
-                    shortcut={timeframeRange(frame)}
-                  >
-                    {TIMEFRAME_LABELS[frame]}
-                  </MenuItem>
-                ))}
-              </>
-            )}
-          </Popover>
+          <Button variant="primary" size="sm" onClick={() => createDated({})}>
+            <Plus className="size-3.5" />
+            New goal
+          </Button>
         }
       >
         <Segmented value={view} options={viewOptions} onChange={setView} size="sm" className="mr-1" />
@@ -197,18 +173,10 @@ export default function GoalsPage() {
             description="Give a goal a date and it files itself — this month, this quarter, this year, or further out. The ladder is for nesting one goal inside another once you have a few."
             className="py-20"
             action={
-              <div className="flex flex-wrap justify-center gap-2">
-                {TIMEFRAMES.filter((f) => f !== "someday").map((frame, i) => (
-                  <Button
-                    key={frame}
-                    size="sm"
-                    variant={i === 0 ? "primary" : "secondary"}
-                    onClick={() => createDated({ end_date: dueDateFor(frame) })}
-                  >
-                    {TIMEFRAME_LABELS[frame]}
-                  </Button>
-                ))}
-              </div>
+              <Button variant="primary" size="sm" onClick={() => createDated({})}>
+                <Plus className="size-3.5" />
+                New goal
+              </Button>
             }
           />
         ) : (

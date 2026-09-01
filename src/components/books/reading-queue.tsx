@@ -15,6 +15,7 @@ import { ChevronUp, ChevronDown, GripVertical, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Book } from "@/lib/types";
 import { Badge, Button, IconButton } from "@/components/ui/primitives";
+import { DRAG_OK, DRAG_BODY_CLASS, useDragBody } from "@/components/ui/drag";
 import { Disclosure } from "./disclosure";
 import { setQueue } from "./library-prefs";
 
@@ -34,19 +35,23 @@ interface QueueRowProps {
 function QueueRow({ book, index, count, series, onOpen, onStart, onMove }: QueueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: book.id });
+  const body = useDragBody(listeners);
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
+      {...body}
       className={cn(
         "group/queue flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-hover",
+        DRAG_BODY_CLASS,
         isDragging && "relative z-10 bg-raised opacity-95 shadow-md",
       )}
     >
       <button
         {...attributes}
         {...listeners}
+        data-no-drag
         aria-label={`Reorder ${book.title}. Press space, then the arrow keys.`}
         className="grid size-7 shrink-0 cursor-grab place-items-center rounded-md text-ink-4 transition-colors hover:bg-active hover:text-ink-2 active:cursor-grabbing"
       >
@@ -65,6 +70,7 @@ function QueueRow({ book, index, count, series, onOpen, onStart, onMove }: Queue
         <div className="flex min-w-0 items-baseline gap-1.5">
           <button
             type="button"
+            {...DRAG_OK}
             onClick={() => onOpen(book)}
             className="min-w-0 truncate text-left text-[13px] font-medium text-ink cursor-pointer transition-colors hover:text-accent"
           >

@@ -8,6 +8,7 @@ import {
   GripVertical, Layers, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DRAG_BODY_CLASS, useDragBody } from "@/components/ui/drag";
 import { formatDuration, formatRange, formatTime, parseTime } from "@/lib/date";
 import {
   PRIORITY_LABELS, type TaskKind, type Template, type Tint,
@@ -306,6 +307,7 @@ export function ItemRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.key });
+  const body = useDragBody(listeners);
   const item = row.item;
   const [tagDraft, setTagDraft] = React.useState<string | null>(null);
   const [showRules, setShowRules] = React.useState(false);
@@ -331,10 +333,17 @@ export function ItemRow({
         open && "bg-hover",
       )}
     >
-      <div className="flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 transition-colors duration-120 hover:bg-hover">
+      <div
+        {...body}
+        className={cn(
+          "flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 transition-colors duration-120 hover:bg-hover",
+          DRAG_BODY_CLASS,
+        )}
+      >
         <button
           {...attributes}
           {...listeners}
+          data-no-drag
           aria-label={`Reorder ${item.title || "item"}`}
           className="grid size-7 shrink-0 cursor-grab place-items-center rounded text-ink-4 opacity-0 transition-opacity hover:text-ink-2 focus-visible:opacity-100 group-hover/item:opacity-100 active:cursor-grabbing"
         >

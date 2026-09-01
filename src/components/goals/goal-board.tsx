@@ -17,6 +17,7 @@ import {
   type Timeframe,
 } from "@/lib/timeframe";
 import { IconButton } from "@/components/ui/primitives";
+import { useDragBody } from "@/components/ui/drag";
 import { GoalCard } from "./goal-card";
 import type { GoalIndex } from "./goal-model";
 
@@ -57,6 +58,7 @@ function BoardCard({
     id: goal.id,
     data: { goalId: goal.id },
   });
+  const body = useDragBody(listeners);
 
   return (
     <div ref={setNodeRef} className={cn("relative", isDragging && "opacity-40")}>
@@ -65,10 +67,12 @@ function BoardCard({
         stats={index.stats(goal.id)}
         onOpen={onOpen}
         dragging={activeId === goal.id}
+        dragProps={body}
         dragHandle={
           <button
             {...attributes}
             {...listeners}
+            data-no-drag
             aria-label={`Move ${goal.title || "goal"} to another timeframe`}
             className="grid size-5 cursor-grab place-items-center rounded text-ink-4 hover:text-ink-2 active:cursor-grabbing"
           >

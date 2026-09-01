@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import type { Project, ProjectStatus } from "@/lib/types";
 import { Progress } from "@/components/ui/primitives";
+import { DRAG_OK, DRAG_BODY_CLASS } from "@/components/ui/drag";
 import {
   ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Popover, TintPicker,
 } from "@/components/ui/overlays";
@@ -197,6 +198,8 @@ export interface ProjectCardProps {
   stats: ProjectStats;
   onOpen: (id: string) => void;
   dragHandle?: React.ReactNode;
+  /** pointer-only drag activation, so the card can be grabbed by the card */
+  dragProps?: { onPointerDown?: React.PointerEventHandler<HTMLElement> };
   dragging?: boolean;
   className?: string;
 }
@@ -207,7 +210,7 @@ export interface ProjectCardProps {
  * the percentage that would state it a third time lives in the tooltip.
  */
 export function ProjectCard({
-  project, stats, onOpen, dragHandle, dragging, className,
+  project, stats, onOpen, dragHandle, dragProps, dragging, className,
 }: ProjectCardProps) {
   const patch = useStore((s) => s.patch);
   const [renaming, setRenaming] = React.useState(false);
@@ -258,10 +261,12 @@ export function ProjectCard({
     <div
       data-project-card={project.id}
       title={summary}
+      {...dragProps}
       className={cn(
         "group/project relative rounded-lg border border-line bg-raised p-3",
         "transition-[background-color,border-color,opacity] duration-200 ease-[var(--ease-out-apple)]",
         "hover:border-line-strong hover:bg-hover focus-within:border-line-strong",
+        dragProps?.onPointerDown && DRAG_BODY_CLASS,
         project.status === "dropped" && "opacity-60",
         dragging && "opacity-40",
         className,
@@ -289,6 +294,7 @@ export function ProjectCard({
           />
         ) : (
           <button
+            {...DRAG_OK}
             onClick={() => onOpen(project.id)}
             onDoubleClick={(e) => { e.preventDefault(); setRenaming(true); }}
             className={cn(

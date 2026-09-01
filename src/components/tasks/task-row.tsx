@@ -17,6 +17,7 @@ import { PRIORITY_LABELS, type Profile, type Task } from "@/lib/types";
 import { Checkbox, Badge, IconButton, Button } from "@/components/ui/primitives";
 import { Popover, MenuItem, MenuSeparator, MenuLabel, TintPicker } from "@/components/ui/overlays";
 import { Field } from "@/components/ui/form";
+import { DRAG_OK, DRAG_BODY_CLASS, useDragBody } from "@/components/ui/drag";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 
 // =========================================================
@@ -388,6 +389,8 @@ export interface TaskRowProps {
   showDate?: boolean;
   showSubtasks?: boolean;
   dragHandle?: React.ReactNode;
+  /** pointer-only drag activation, so the row can be grabbed by the row */
+  dragProps?: { onPointerDown?: React.PointerEventHandler<HTMLElement> };
   compact?: boolean;
   className?: string;
   onOpen?: (task: Task) => void;
@@ -423,6 +426,7 @@ function DraggableTaskRow(props: TaskRowProps) {
     id: taskDragId(task.id),
     data: taskDragData(task),
   });
+  const body = useDragBody(listeners);
 
   return (
     <div
@@ -431,10 +435,12 @@ function DraggableTaskRow(props: TaskRowProps) {
     >
       <TaskRowBase
         {...props}
+        dragProps={body}
         dragHandle={
           <button
             {...attributes}
             {...listeners}
+            data-no-drag
             aria-label={`Drag ${task.title || "task"} to another day or list`}
             className="flex h-7 w-4 cursor-grab items-center justify-center rounded text-ink-4 transition-colors hover:text-ink-2 active:cursor-grabbing"
           >
@@ -447,7 +453,7 @@ function DraggableTaskRow(props: TaskRowProps) {
 }
 
 function TaskRowBase({
-  task, showDate, showSubtasks = true, dragHandle, compact, className, onOpen,
+  task, showDate, showSubtasks = true, dragHandle, dragProps, compact, className, onOpen,
   quickBar = "auto", hotkeys = true, selected, selectionActive, onSelectToggle, onInsertBelow,
 }: TaskRowProps) {
   const tasks = useStore((s) => s.tasks);
@@ -878,9 +884,11 @@ function TaskRowBase({
       onKeyDown={onKeyDown}
     >
       <div
+        {...dragProps}
         className={cn(
           "relative flex items-start gap-2 rounded-md px-1.5 transition-colors duration-120",
           compact ? "py-1" : "py-1.5",
+          dragProps?.onPointerDown && DRAG_BODY_CLASS,
           selected ? "bg-selected" : "hover:bg-hover",
         )}
       >
@@ -953,6 +961,7 @@ function TaskRowBase({
             ) : (
               <button
                 ref={titleRef}
+                {...DRAG_OK}
                 onClick={open}
                 onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
                 className={cn(

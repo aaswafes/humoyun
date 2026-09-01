@@ -6,6 +6,7 @@ import {
   MessageSquarePlus, Moon, MoreHorizontal, Pencil, PanelRight, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DRAG_OK } from "@/components/ui/drag";
 import { useStore } from "@/lib/store";
 import { addDays, dayNameOf, formatDate } from "@/lib/date";
 import type { Habit, HabitLog } from "@/lib/types";
@@ -100,6 +101,7 @@ export function HabitCard({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <button
+                {...DRAG_OK}
                 onClick={() => onOpenDetail(habit.id)}
                 className="max-w-full truncate text-left text-[13.5px] font-medium text-ink hover:text-accent cursor-pointer transition-colors"
               >

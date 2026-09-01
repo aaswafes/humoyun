@@ -88,20 +88,17 @@ export function TriageRow({
         showDate={showDate}
         trailing={trailing}
         dense={dense}
-        // In select mode the row body is the drag surface, but only for the
-        // pointer: the keyboard belongs to selection there, and the gutter
+        // The row body is the drag surface in both modes, but only for the
+        // pointer: the keyboard belongs to selection here, and the gutter
         // handle still carries the full keyboard drag.
-        dragProps={
-          selecting && !disabled
-            ? { onPointerDown: listeners?.onPointerDown as React.PointerEventHandler<HTMLElement> | undefined }
-            : undefined
-        }
+        dragProps={disabled ? undefined : body}
         dragHandle={
           disabled ? undefined : (
             <button
               ref={setActivatorNodeRef}
               {...attributes}
               {...listeners}
+              data-no-drag
               aria-label={`Drag ${task.title || "Untitled"}${
                 isSelected(task.id) ? " and the rest of the selection" : ""
               } — space to lift, arrows to move`}

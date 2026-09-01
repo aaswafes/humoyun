@@ -4,6 +4,7 @@ import * as React from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CalendarDays, ChevronRight, GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useDragBody } from "@/components/ui/drag";
 import {
   dayNameOf, dayNumber, formatDate, formatDuration, friendlyDate, startOfWeek,
   todayISO, weekday, yearOf,
@@ -29,16 +30,19 @@ function DraggableRow({ task }: { task: Task }) {
     id: `task:${task.id}`,
     data: { type: "task", taskId: task.id },
   });
+  const body = useDragBody(listeners);
 
   return (
     <div ref={setNodeRef} className={cn("transition-opacity duration-150", isDragging && "opacity-30")}>
       <TaskRow
         task={task}
+        dragProps={body}
         dragHandle={
           <button
             type="button"
             {...attributes}
             {...listeners}
+            data-no-drag
             aria-label={`Drag ${task.title || "task"} to another day`}
             title="Drag to another day — or use the row menu to pick a date"
             className={cn(

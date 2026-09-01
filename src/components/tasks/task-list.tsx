@@ -24,6 +24,7 @@ import { PRIORITY_LABELS, type Task, type Tint } from "@/lib/types";
 import { TaskRow, TaskDatePicker, timeOfDayOf } from "./task-row";
 import { Button, EmptyState, IconButton, Badge } from "@/components/ui/primitives";
 import { Popover, MenuItem, MenuLabel, MenuSeparator, TintPicker, useMounted } from "@/components/ui/overlays";
+import { useDragBody } from "@/components/ui/drag";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 
 // =========================================================
@@ -278,6 +279,7 @@ function SortableTaskRow({
   reorderable: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const body = useDragBody(listeners);
 
   return (
     <SelectionShell task={task} chrome={chrome}>
@@ -295,10 +297,12 @@ function SortableTaskRow({
           selectionActive={chrome.selectionActive}
           onSelectToggle={chrome.onSelect ? (opts) => chrome.onSelect!(task.id, opts) : undefined}
           onInsertBelow={chrome.onInsertBelow}
+          dragProps={body}
           dragHandle={
             <button
               {...attributes}
               {...listeners}
+              data-no-drag
               aria-label={
                 reorderable
                   ? `Reorder ${task.title || "task"}, or drag it onto a date`

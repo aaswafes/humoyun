@@ -13,6 +13,7 @@ import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifi
 import { CSS } from "@dnd-kit/utilities";
 import { Flame, GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DRAG_BODY_CLASS, useDragBody } from "@/components/ui/drag";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import type { Habit, HabitLog } from "@/lib/types";
@@ -399,17 +400,24 @@ function SortableHabit({
   children: (handle: React.ReactNode) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const body = useDragBody(listeners);
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn(divided && "border-t border-line", isDragging && "relative z-10 opacity-90")}
+      {...body}
+      className={cn(
+        DRAG_BODY_CLASS,
+        divided && "border-t border-line",
+        isDragging && "relative z-10 opacity-90",
+      )}
     >
       {children(
         <button
           {...attributes}
           {...listeners}
+          data-no-drag
           aria-label="Reorder habit — hold space, then use the arrow keys"
           title="Drag to reorder"
           className="grid size-7 cursor-grab place-items-center rounded-md text-ink-4 hover:bg-hover hover:text-ink-2 active:cursor-grabbing"

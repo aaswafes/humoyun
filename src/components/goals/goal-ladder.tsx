@@ -15,6 +15,7 @@ import { CornerDownRight, GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Goal, Horizon, Tint } from "@/lib/types";
 import { Badge, IconButton } from "@/components/ui/primitives";
+import { useDragBody } from "@/components/ui/drag";
 import { MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/overlays";
 import { GoalCard } from "./goal-card";
 import { HORIZON_BLURB, HORIZON_LABEL, HORIZONS, type GoalIndex } from "./goal-model";
@@ -483,6 +484,7 @@ function LadderCard({
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: goal.id });
+  const body = useDragBody(listeners);
 
   // The middle band of the card: drop here to become a child rather than a peer.
   const { setNodeRef: setNestRef } = useDroppable({ id: `${NEST}${goal.id}` });
@@ -511,10 +513,12 @@ function LadderCard({
         dimmed={!!lineage && !lineage.has(goal.id) && !activeId}
         dragging={isDragging}
         dropHint={dropHint}
+        dragProps={body}
         dragHandle={
           <button
             {...attributes}
             {...listeners}
+            data-no-drag
             aria-label={`Move ${goal.title || "goal"}`}
             title="Drag to reorder or nest. Space then arrow keys works too."
             className={cn(

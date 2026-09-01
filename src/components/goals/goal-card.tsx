@@ -10,6 +10,7 @@ import { useStore } from "@/lib/store";
 import { formatDate } from "@/lib/date";
 import type { Goal } from "@/lib/types";
 import { IconButton, Progress } from "@/components/ui/primitives";
+import { DRAG_OK, DRAG_BODY_CLASS } from "@/components/ui/drag";
 import {
   ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Popover, TintPicker,
 } from "@/components/ui/overlays";
@@ -166,6 +167,8 @@ export interface GoalCardProps {
   className?: string;
   /** the ladder's drag grip, parked in the gutter to the card's left */
   dragHandle?: React.ReactNode;
+  /** pointer-only drag activation, so the card can be grabbed by the card */
+  dragProps?: { onPointerDown?: React.PointerEventHandler<HTMLElement> };
   /** where a drop would land this card's neighbour */
   dropHint?: "before" | "after" | "nest" | null;
   dragging?: boolean;
@@ -188,7 +191,7 @@ export interface GoalCardProps {
  */
 export function GoalCard({
   goal, stats, onOpen, onHover, dimmed, active, className,
-  dragHandle, dropHint, dragging, menuExtra,
+  dragHandle, dragProps, dropHint, dragging, menuExtra,
 }: GoalCardProps) {
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
@@ -249,8 +252,10 @@ export function GoalCard({
         title={summary}
         onMouseEnter={() => onHover?.(goal.id)}
         onMouseLeave={() => onHover?.(null)}
+        {...dragProps}
         className={cn(
           "group/goal relative rounded-lg border bg-raised p-3",
+          dragProps?.onPointerDown && DRAG_BODY_CLASS,
           "transition-[background-color,border-color,opacity,box-shadow] duration-200 ease-[var(--ease-out-apple)]",
           "hover:bg-hover focus-within:border-line-strong",
           active ? "border-accent-line" : "border-line hover:border-line-strong",
@@ -297,6 +302,7 @@ export function GoalCard({
             />
           ) : (
             <button
+              {...DRAG_OK}
               onClick={() => onOpen(goal.id)}
               onDoubleClick={(e) => { e.stopPropagation(); startRename(); }}
               onFocus={() => onHover?.(goal.id)}
