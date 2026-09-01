@@ -280,6 +280,13 @@ the single source of truth for a project's numbers.
 - Drag and drop always has a keyboard path. For dnd-kit that means adding
   `useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })`
   and a visible button that performs the same action on the current selection.
+- **The card is the grab target, not just the grip.** Every draggable surface
+  pairs `useDragBody(listeners)` from `@/components/ui/drag`, spread on the card
+  or row body, with dnd-kit's own `attributes` + `listeners` on the grip — which
+  gets `data-no-drag` so one press activates once. The grip is the affordance
+  and the keyboard path; the pointer belongs on the body. Mark the card's title
+  `{...DRAG_OK}` so the one control that is really content can still be grabbed.
+  A grip-only draggable is a bug: it looks draggable and is not.
 - Charts and heatmaps: focusable data or a `VisuallyHidden` summary, plus `<title>`
   on meaningful SVG shapes.
 
