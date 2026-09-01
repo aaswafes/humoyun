@@ -1180,9 +1180,21 @@ export function inboxTasks(tasks: Task[]): Task[] {
     .sort((a, b) => a.order_index - b.order_index);
 }
 
-export function overdueTasks(tasks: Task[], today = todayISO()): Task[] {
-  return tasks.filter((t) => t.date && t.date < today && t.status !== "done" && t.status !== "dropped" && !t.parent_id)
-    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+/**
+ * Deliberately empty.
+ *
+ * A task's date is when you meant to do it, not a debt you owe. If the day
+ * passes and it did not happen, it stays on that day and the app says nothing
+ * — it does not follow you into tomorrow, count itself in red, or ask to be
+ * rescheduled. Chasing yesterday is what makes a planner feel like a creditor.
+ *
+ * The export stays so every surface that asked for overdue work simply gets
+ * nothing, and the sections built around it disappear on their own. Past days
+ * still show their own tasks; All and Done still list everything.
+ */
+export function overdueTasks(_tasks: Task[], _today = todayISO()): Task[] {
+  void _tasks; void _today;
+  return [];
 }
 
 export function completionOn(tasks: Task[], date: string): { done: number; total: number } {

@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/cn";
 import { useStore, subtasksOf } from "@/lib/store";
 import {
-  addDays, diffDays, formatDuration, formatRange, formatTime, friendlyDate, parseTime, todayISO,
+  addDays, formatDuration, formatRange, formatTime, friendlyDate, parseTime, todayISO,
 } from "@/lib/date";
 import { PRIORITY_LABELS, type Profile, type Task } from "@/lib/types";
 import { Checkbox, Badge, IconButton, Button } from "@/components/ui/primitives";
@@ -486,8 +486,8 @@ function TaskRowBase({
   const running = timer.taskId === task.id && timer.running;
   const book = task.book_id ? books.find((b) => b.id === task.book_id) : null;
   const today = todayISO();
-  const overdue = !done && !!task.date && task.date < today;
-  const lateBy = overdue && task.date ? Math.max(0, diffDays(today, task.date)) : 0;
+  // No "3d late". The date says when you meant to do it; counting how long ago
+  // that was only turns the list into a ledger of failures.
 
   const blockerIds = blockersOf(links, task.id);
   const openBlockers = blockerIds
@@ -667,18 +667,17 @@ function TaskRowBase({
   if (showDate && dateISO) {
     metas.push({
       key: "date",
-      label: friendlyDate(dateISO) + (lateBy > 1 ? ` · ${lateBy}d late` : ""),
+      label: friendlyDate(dateISO),
       node: (
         <Popover
           className="w-[256px]"
           trigger={
             <button
-              className={cn(CHIP, overdue && "text-ink-2")}
-              aria-label={`Reschedule — currently ${friendlyDate(dateISO)}${lateBy > 1 ? `, ${lateBy} days late` : ""}`}
+              className={CHIP}
+              aria-label={`Reschedule — currently ${friendlyDate(dateISO)}`}
             >
               <Calendar className="size-3 shrink-0" />
               <span className="truncate">{friendlyDate(dateISO)}</span>
-              {lateBy > 1 && <span className="tnum">· {lateBy}d late</span>}
             </button>
           }
         >

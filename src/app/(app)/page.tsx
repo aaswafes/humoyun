@@ -17,7 +17,6 @@ import { SalahCard } from "@/components/today/salah-card";
 import { HabitsCard } from "@/components/today/habits-card";
 import { ReadingCard } from "@/components/today/reading-card";
 import { FocusCard } from "@/components/today/focus-card";
-import { LeftoversCard } from "@/components/today/leftovers-card";
 import { ComingUpCard } from "@/components/today/coming-up-card";
 
 export default function TodayPage() {
@@ -144,7 +143,6 @@ export default function TodayPage() {
           {/* ---- rail: folded sections on hairlines, not a stack of cards ---- */}
           <aside className="flex min-w-0 flex-col divide-y divide-line min-[1100px]:hairline-l min-[1100px]:pl-8">
             <SalahCard date={today} minutesNow={minutesNow} />
-            <LeftoversCard date={today} />
             <HabitsCard date={today} />
             <ReadingCard date={today} />
             <FocusCard date={today} now={now} />
