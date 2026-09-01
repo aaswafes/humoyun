@@ -221,7 +221,7 @@ interface StoreState extends CollectionState {
 }
 
 const COLLECTION_KEYS: CollectionKey[] = [
-  "tasks", "books", "media", "notes", "habits", "habitLogs", "goals", "boards",
+  "tasks", "books", "media", "notes", "habits", "habitLogs", "goals", "projects", "boards",
   "nodes", "edges", "templates", "prayers", "dayLogs",
   "focusSessions", "reviews", "tags",
 ];
@@ -239,7 +239,7 @@ const COLLECTION_KEYS: CollectionKey[] = [
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
   tasks: true, books: true, media: true, notes: true, habits: true, goals: true, boards: true,
-  nodes: true, templates: true, dayLogs: true, reviews: true,
+  projects: true, nodes: true, templates: true, dayLogs: true, reviews: true,
   habitLogs: false, edges: false, prayers: false, focusSessions: false, tags: false,
 };
 
@@ -256,7 +256,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         date: null, start_min: null, end_min: null, all_day: true, duration_min: null,
         actual_min: 0, completed_at: null, color: null, icon: null, tags: [], checklist: [],
         order_index: 0, parent_id: null, book_id: null, habit_id: null, goal_id: null,
-        node_id: null, template_id: null, page_from: null, page_to: null,
+        project_id: null, node_id: null, template_id: null, page_from: null, page_to: null,
         media_id: null, episode_from: null, episode_to: null,
         recurrence: null, series_id: null,
       };
@@ -278,7 +278,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
     case "notes":
       return {
         ...base, title: null, body: "", kind: "note", book_id: null, media_id: null,
-        task_id: null, goal_id: null, node_id: null, date: null, locator: null,
+        task_id: null, goal_id: null, project_id: null, node_id: null, date: null, locator: null,
         tags: [], color: null, pinned: false,
       };
     case "habits":
@@ -294,6 +294,11 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         ...base, parent_id: null, title: "New goal", description: null, horizon: "month",
         start_date: null, end_date: null, target: null, current: 0, unit: null,
         color: "blue", icon: null, status: "active", order_index: 0,
+      };
+    case "projects":
+      return {
+        ...base, name: "New project", description: null, status: "active", color: "blue",
+        icon: null, start_date: null, due_date: null, goal_id: null, order_index: 0,
       };
     case "boards":
       return { ...base, name: "Mind Map", icon: "network", color: "blue", order_index: 0 };
@@ -363,7 +368,7 @@ let batchLabel = "";
 
 const SINGULAR: Partial<Record<CollectionKey, string>> = {
   tasks: "task", books: "book", media: "title", notes: "note", habits: "habit",
-  habitLogs: "habit log", goals: "goal", boards: "board", nodes: "node",
+  habitLogs: "habit log", goals: "goal", projects: "project", boards: "board", nodes: "node",
   edges: "link", templates: "template", prayers: "prayer", dayLogs: "day",
   focusSessions: "session", reviews: "review", tags: "tag",
 };
@@ -776,7 +781,12 @@ export const useStore = create<StoreState>((set, get) => ({
   addSubtask(parentId, title) {
     const parent = get().tasks.find((t) => t.id === parentId);
     if (!parent) return null;
-    return get().addTask({ title, parent_id: parentId, date: parent.date, kind: "task" });
+    // A subtask belongs to whatever its parent belongs to — the project counts
+    // only top-level rows, so this labels the child without inflating anything.
+    return get().addTask({
+      title, parent_id: parentId, date: parent.date, kind: "task",
+      project_id: parent.project_id,
+    });
   },
 
   createSeries(base, recurrence) {

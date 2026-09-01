@@ -71,7 +71,7 @@ actions confirm via `ConfirmDialog`. Empty states always offer the action that f
 ### `@/lib/store` (Zustand)
 
 ```ts
-const { tasks, books, habits, habitLogs, goals, boards, nodes, edges,
+const { tasks, books, habits, habitLogs, goals, projects, boards, nodes, edges,
         templates, prayers, dayLogs, focusSessions, reviews, tags,
         profile, ready, selectedDate, calendarView, hour12 } = useStore();
 ```
@@ -87,8 +87,8 @@ remove(collectionKey, id)
 removeWhere(collectionKey, predicate)
 ```
 
-Collection keys: `tasks books habits habitLogs goals boards nodes edges templates
-prayers dayLogs focusSessions reviews tags`.
+Collection keys: `tasks books habits habitLogs goals projects boards nodes edges
+templates prayers dayLogs focusSessions reviews tags`.
 
 Semantic actions already written — call these instead of hand-rolling:
 
@@ -245,6 +245,25 @@ anything that is not inside a dense row that already has a big parent target.
 directly.** `weekdays` always means weekday indices; `times_per_week` carries N for
 the `custom` cadence. Anything that answers "is this habit due today" imports
 `habitScheduledOn`.
+
+## Projects
+
+`src/components/projects/` owns the surface. Read `project-model.ts` first: it is
+the single source of truth for a project's numbers.
+
+- `buildProjectIndex(projects, tasks, notes)` → `index.stats(id)`. Board, list,
+  timeline and sheet all read the same index, so three views can never disagree
+  about how far along a project is. **Never count a project's tasks by hand.**
+- Only top-level tasks count (`parent_id === null`); a subtask inherits its
+  parent's `project_id` for labelling and is deliberately not in the denominator.
+  A `dropped` task leaves the denominator too — it is a decision, not a debt.
+- A **milestone is a task**, `kind: "milestone"` with a date, inside the project.
+  There is no milestones table and there must not be one — the calendar and the
+  timeline already draw them.
+- Deleting a project unlinks its tasks and notes and keeps them. `useProjectActions`
+  wraps that in one `batchUndo` step; go through the hook, not `remove` directly.
+- Attention flags come from `projectAttention`. `danger` is for a due date that
+  has already passed and nothing else; everything else is `quiet`.
 
 ## Accessibility floor
 

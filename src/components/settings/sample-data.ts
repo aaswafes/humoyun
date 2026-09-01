@@ -36,7 +36,7 @@ const PAST = 45;
 const FUTURE = 45;
 
 /** Bumped whenever the seed changes shape, so an old workspace can be re-seeded. */
-export const SAMPLE_VERSION = "sample-v3";
+export const SAMPLE_VERSION = "sample-v4";
 const SEED_PREF_KEY = "sample_seed";
 const BOARD_NAME = "Life Map";
 const SECOND_BOARD_NAME = "Reading & Ideas";
@@ -561,6 +561,7 @@ interface Ctx {
   minutesNow: number;
   weekStart: number;
   goals: Record<string, string>;
+  projects: Record<string, string>;
   habits: Record<string, string>;
   deepWorkByDate: Map<string, string>;
   rows: number;
@@ -656,6 +657,7 @@ export function loadSampleData(): number {
     minutesNow: clock.getHours() * 60 + clock.getMinutes(),
     weekStart: s.profile?.week_start ?? 1,
     goals: {},
+    projects: {},
     habits: {},
     deepWorkByDate: new Map(),
     rows: 0,
@@ -663,6 +665,7 @@ export function loadSampleData(): number {
 
   seedTags(ctx);
   seedGoals(ctx);
+  seedProjects(ctx);
   seedHabits(ctx);
   seedRoutines(ctx);
   seedBooks(ctx);
@@ -681,6 +684,38 @@ export function loadSampleData(): number {
     prefs: { ...(s.profile?.prefs ?? {}), [SEED_PREF_KEY]: SAMPLE_VERSION },
   });
 
+  return ctx.rows;
+}
+
+/**
+ * Fills in pieces the sample grew after this workspace was first seeded. It
+ * only ever adds — an existing row is never touched — so it is safe to run on
+ * every boot.
+ */
+export function topUpSampleData(): number {
+  const s = store();
+  if (!sampleDataPresent()) return 0;
+  if (s.projects.length > 0) return 0;
+
+  const clock = new Date();
+  const ctx: Ctx = {
+    today: todayISO(),
+    minutesNow: clock.getHours() * 60 + clock.getMinutes(),
+    weekStart: s.profile?.week_start ?? 1,
+    goals: {},
+    projects: {},
+    habits: {},
+    deepWorkByDate: new Map(),
+    rows: 0,
+  };
+  // The sample's goals are found by name, since this workspace was seeded
+  // before the projects registry existed to remember their ids.
+  const byTitle = (title: string) => s.goals.find((g) => g.title === title)?.id;
+  ctx.goals.v1 = byTitle("Ship Humoyun v1") ?? "";
+  ctx.goals.beta = byTitle("Public beta build out the door") ?? "";
+  ctx.goals.juz = byTitle("Memorise Juz Amma") ?? "";
+
+  seedProjects(ctx);
   return ctx.rows;
 }
 
@@ -804,6 +839,150 @@ function seedGoals(ctx: Ctx) {
   });
   ctx.goals.findings = week.id;
   ctx.rows++;
+}
+
+/**
+ * Work with an end, and the tasks that make it up.
+ *
+ * Statuses are stated rather than rolled: a sample project has to read as a
+ * plan that is genuinely part-done, and `rand` would reshuffle which parts.
+ */
+interface SampleProject {
+  key: string;
+  name: string;
+  brief: string;
+  status: "idea" | "active" | "paused" | "done";
+  color: Tint;
+  icon: string;
+  goal?: string;
+  start?: number | null;
+  due?: number | null;
+  tasks: { title: string; day: number; done?: boolean; dur?: number; priority?: number }[];
+  milestones: { title: string; day: number; done?: boolean }[];
+}
+
+const PROJECTS: readonly SampleProject[] = [
+  {
+    key: "v1",
+    name: "Humoyun v1",
+    brief: "Every surface finished, both themes checked, nothing that dead-ends.",
+    status: "active", color: "blue", icon: "rocket", goal: "v1",
+    start: -52, due: 38,
+    tasks: [
+      { title: "Rebuild the stats page", day: -21, done: true, dur: 180 },
+      { title: "Calm pass on the goals board", day: -12, done: true, dur: 120 },
+      { title: "Projects surface", day: -2, done: true, dur: 240, priority: 3 },
+      { title: "Fix the timeline on a narrow screen", day: 1, dur: 90, priority: 2 },
+      { title: "Onboarding copy for an empty workspace", day: 6, dur: 60 },
+      { title: "Keyboard pass over every drag surface", day: 12, dur: 120, priority: 2 },
+    ],
+    milestones: [
+      { title: "Both themes checked end to end", day: -6, done: true },
+      { title: "Feature freeze", day: 21 },
+      { title: "v1 tagged", day: 37 },
+    ],
+  },
+  {
+    key: "beta",
+    name: "Public beta",
+    brief: "Twenty people using it who did not build it.",
+    status: "active", color: "emerald", icon: "launch", goal: "beta",
+    start: -10, due: 14,
+    tasks: [
+      { title: "Waitlist page", day: -7, done: true, dur: 90 },
+      { title: "Record the sixty-second demo", day: 2, dur: 120, priority: 3 },
+      { title: "Draft the launch post", day: 4, dur: 90 },
+      { title: "Write the first-run email", day: 8, dur: 45 },
+    ],
+    milestones: [{ title: "First twenty invites out", day: 7 }],
+  },
+  {
+    key: "office",
+    name: "Rebuild the office corner",
+    brief: "A desk I actually want to sit at before winter.",
+    status: "paused", color: "brown", icon: "home",
+    start: -30, due: null,
+    tasks: [
+      { title: "Measure the alcove", day: -28, done: true, dur: 30 },
+      { title: "Price the desk and the shelf", day: -24, done: true, dur: 45 },
+      { title: "Sell the old chair", day: -3, dur: 30 },
+      { title: "Order the lamp", day: 9, dur: 20 },
+    ],
+    milestones: [],
+  },
+  {
+    key: "site",
+    name: "Personal site refresh",
+    brief: "One page that says what I build, with the writing on it.",
+    status: "idea", color: "violet", icon: "design",
+    start: null, due: null,
+    tasks: [],
+    milestones: [],
+  },
+  {
+    key: "khatm",
+    name: "Ramadan reading plan",
+    brief: "A juz a day, planned before it starts rather than during.",
+    status: "done", color: "amber", icon: "book", goal: "juz",
+    start: -70, due: -20,
+    tasks: [
+      { title: "Work out the daily pages", day: -68, done: true, dur: 40 },
+      { title: "Put the plan on the calendar", day: -66, done: true, dur: 30 },
+      { title: "Print the tracker", day: -60, done: true, dur: 15 },
+    ],
+    milestones: [{ title: "Khatm", day: -20, done: true }],
+  },
+];
+
+function seedProjects(ctx: Ctx) {
+  const s = store();
+  const { today } = ctx;
+  const at = (offset: number | null | undefined) =>
+    offset == null ? null : addDays(today, offset);
+
+  PROJECTS.forEach((spec, i) => {
+    const project = s.insert("projects", {
+      name: spec.name,
+      description: spec.brief,
+      status: spec.status,
+      color: spec.color,
+      icon: spec.icon,
+      start_date: at(spec.start),
+      due_date: at(spec.due),
+      // `|| null` and not `??`: a goal missing from the registry is the empty
+      // string, and an empty string is not a foreign key.
+      goal_id: spec.goal ? (ctx.goals[spec.goal] || null) : null,
+      order_index: i,
+    });
+    ctx.projects[spec.key] = project.id;
+    ctx.rows++;
+
+    const rows = [
+      ...spec.tasks.map((t) => ({ ...t, kind: "task" as TaskKind })),
+      ...spec.milestones.map((m) => ({
+        ...m, kind: "milestone" as TaskKind, dur: undefined, priority: undefined,
+      })),
+    ];
+
+    rows.forEach((row, slot) => {
+      const date = addDays(today, row.day);
+      const done = !!row.done;
+      s.addTask({
+        title: row.title,
+        kind: row.kind,
+        date,
+        all_day: true,
+        duration_min: row.dur ?? null,
+        priority: row.priority ?? 0,
+        color: spec.color,
+        project_id: project.id,
+        goal_id: project.goal_id,
+        status: done ? "done" : "todo",
+        completed_at: done ? stamp(date, H(17, 30) + slot) : null,
+      });
+      ctx.rows++;
+    });
+  });
 }
 
 function seedHabits(ctx: Ctx) {

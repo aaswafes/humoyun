@@ -28,6 +28,8 @@ const GO_TO: Shortcut[] = [
   { label: "Today", keys: ["T"] },
   { label: "Calendar", keys: ["C"] },
   { label: "Inbox", keys: ["I"] },
+  { label: "Projects", keys: ["P"] },
+  { label: "Notes", keys: ["N"] },
   { label: "Mind Map", keys: ["M"] },
   { label: "Books", keys: ["B"] },
   { label: "Habits", keys: ["H"] },

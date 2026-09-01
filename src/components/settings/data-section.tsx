@@ -28,6 +28,7 @@ const LABELS: Record<CollectionKey, string> = {
   habits: "Habits",
   habitLogs: "Habit logs",
   goals: "Goals",
+  projects: "Projects",
   boards: "Boards",
   nodes: "Map nodes",
   edges: "Map edges",
@@ -83,6 +84,11 @@ const VALIDATORS: Record<CollectionKey, (r: AnyRow) => string | null> = {
   habits: (r) => (!str(r.name) ? "no name" : !oneOf(r.cadence, ["daily", "weekly", "custom"]) ? "unknown cadence" : null),
   habitLogs: (r) => (!str(r.habit_id) ? "no habit_id" : !ISO_DATE.test(String(r.date)) ? "date is not yyyy-mm-dd" : null),
   goals: (r) => (!str(r.title) ? "no title" : !oneOf(r.horizon, ["life", "year", "quarter", "month", "week"]) ? "unknown horizon" : null),
+  projects: (r) =>
+    !str(r.name) ? "no name"
+      : !oneOf(r.status, ["idea", "active", "paused", "done", "dropped"]) ? "unknown status"
+        : !dateish(r.due_date) ? "due_date is not yyyy-mm-dd"
+          : null,
   boards: (r) => (str(r.name) ? null : "no name"),
   nodes: (r) => (str(r.title) ? null : "no title"),
   edges: (r) => (!str(r.source_id) || !str(r.target_id) ? "edge is missing an end" : null),

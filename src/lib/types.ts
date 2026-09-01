@@ -85,6 +85,7 @@ export interface Task {
   media_id: string | null;
   habit_id: string | null;
   goal_id: string | null;
+  project_id: string | null;
   node_id: string | null;
   template_id: string | null;
   page_from: number | null;
@@ -197,6 +198,7 @@ export interface Note {
   media_id: string | null;
   task_id: string | null;
   goal_id: string | null;
+  project_id: string | null;
   node_id: string | null;
   /** the day a daily note belongs to */
   date: string | null;
@@ -254,6 +256,34 @@ export interface Goal {
   color: Tint;
   icon: string | null;
   status: "active" | "done" | "paused" | "dropped";
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProjectStatus = "idea" | "active" | "paused" | "done" | "dropped";
+
+/**
+ * A body of work with an end. A goal says what you are aiming at; a project is
+ * the thing you actually build to get there, and it owns tasks.
+ *
+ * Milestones are not a separate table — a task with `kind: "milestone"` and a
+ * date is one, which is why the calendar and the timeline can already draw
+ * them without knowing projects exist.
+ */
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  /** the brief: what finished looks like */
+  description: string | null;
+  status: ProjectStatus;
+  color: Tint;
+  icon: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  /** the goal this work serves */
+  goal_id: string | null;
   order_index: number;
   created_at: string;
   updated_at: string;
@@ -407,6 +437,7 @@ export interface Collections {
   habits: Habit;
   habitLogs: HabitLog;
   goals: Goal;
+  projects: Project;
   boards: Board;
   nodes: MapNode;
   edges: MapEdge;
@@ -428,6 +459,7 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   habits: "habits",
   habitLogs: "habit_logs",
   goals: "goals",
+  projects: "projects",
   boards: "boards",
   nodes: "nodes",
   edges: "edges",

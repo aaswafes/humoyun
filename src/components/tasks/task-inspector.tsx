@@ -6,7 +6,7 @@ import {
   Target, ListTree, Timer as TimerIcon, CheckSquare, Inbox, Shapes,
   History, Copy, LayoutTemplate, MoreHorizontal, Ban, Link2, ChevronUp,
   ChevronDown, ChevronRight, CornerDownRight, Sparkles, Milestone, CalendarClock,
-  Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal,
+  Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal, Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, subtasksOf, orderBetween, uid } from "@/lib/store";
@@ -209,6 +209,7 @@ export function TaskInspector() {
   const openInspector = useStore((s) => s.openInspector);
   const tasks = useStore((s) => s.tasks);
   const goals = useStore((s) => s.goals);
+  const projects = useStore((s) => s.projects);
   const books = useStore((s) => s.books);
   const focusSessions = useStore((s) => s.focusSessions);
   const storeTags = useStore((s) => s.tags);
@@ -236,6 +237,7 @@ export function TaskInspector() {
   const close = () => openInspector(null);
   const subtasks = task ? subtasksOf(tasks, task.id) : [];
   const goal = task?.goal_id ? goals.find((g) => g.id === task.goal_id) : null;
+  const project = task?.project_id ? projects.find((p) => p.id === task.project_id) : null;
   const book = task?.book_id ? books.find((b) => b.id === task.book_id) : null;
   const checklistDone = task?.checklist.filter((c) => c.done).length ?? 0;
   const subDone = subtasks.filter((s) => s.status === "done").length;
@@ -309,6 +311,7 @@ export function TaskInspector() {
         title: current.title, notes: current.notes, kind: current.kind, priority: current.priority,
         color: current.color, tags: current.tags, start_min: current.start_min, end_min: current.end_min,
         all_day: current.all_day, duration_min: current.duration_min, goal_id: current.goal_id,
+        project_id: current.project_id,
         date: current.date ?? todayISO(),
       },
       rec,
@@ -491,6 +494,7 @@ export function TaskInspector() {
         ? `${current.tags.length} tags`
         : null,
     current.recurrence ? recurrenceLabel(current.recurrence).toLowerCase() : null,
+    project ? (project.name || "untitled project") : null,
     goal?.title ?? null,
   ].filter((bit): bit is string => !!bit);
   const notesSummary = (current.notes ?? "").trim().split("\n")[0];
@@ -721,7 +725,7 @@ export function TaskInspector() {
               id="details"
               icon={SlidersHorizontal}
               title="Details"
-              summary={detailBits.length ? detailBits.join(" · ") : "Estimate, type, colour, tags, repeat, goal"}
+              summary={detailBits.length ? detailBits.join(" · ") : "Estimate, type, colour, tags, repeat, project, goal"}
               defaultOpen={false}
             >
               <div className="space-y-0.5">
@@ -910,6 +914,41 @@ export function TaskInspector() {
                     )}
                   </>
                 )}
+              </Popover>
+            </InspectorRow>
+
+            {/* project */}
+            <InspectorRow icon={Boxes} label="Project" align="center">
+              <Popover
+                className="max-h-[260px] w-[240px] overflow-y-auto"
+                trigger={
+                  <button className="h-7 truncate rounded-md px-2 text-left text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors">
+                    {project ? (project.name || "Untitled project") : <span className="text-ink-4">Not linked</span>}
+                  </button>
+                }
+              >
+                {(close2) => {
+                  // A finished project is still offered while it owns this task,
+                  // so the link can be seen and cleared rather than silently lost.
+                  const options = projects.filter(
+                    (p) => p.status === "active" || p.status === "idea" || p.id === current.project_id,
+                  );
+                  return (
+                    <>
+                      <MenuItem onClick={() => { set({ project_id: null }); close2(); }}>None</MenuItem>
+                      {options.length > 0 && <MenuSeparator />}
+                      {options.map((p) => (
+                        <MenuItem
+                          key={p.id}
+                          checked={p.id === current.project_id}
+                          onClick={() => { set({ project_id: p.id }); close2(); }}
+                        >
+                          {p.name || "Untitled project"}
+                        </MenuItem>
+                      ))}
+                    </>
+                  );
+                }}
               </Popover>
             </InspectorRow>
 

@@ -6,7 +6,7 @@ import {
   Search, CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon,
   Target, Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings,
   Plus, CornerDownLeft, CheckSquare, Circle, ArrowRight, Play, SunMedium, MoonStar, Clapperboard,
-  MonitorPlay, NotebookPen,
+  MonitorPlay, NotebookPen, Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
@@ -32,6 +32,7 @@ export function CommandPalette() {
   const books = useStore((s) => s.books);
   const habits = useStore((s) => s.habits);
   const goals = useStore((s) => s.goals);
+  const projects = useStore((s) => s.projects);
   const nodes = useStore((s) => s.nodes);
   const templates = useStore((s) => s.templates);
   const toggleTask = useStore((s) => s.toggleTask);
@@ -59,6 +60,7 @@ export function CommandPalette() {
       { id: "n-today", label: "Today", group: "Go to", icon: Sun, run: () => go("/") },
       { id: "n-cal", label: "Calendar", group: "Go to", icon: CalendarDays, run: () => go("/calendar") },
       { id: "n-inbox", label: "Inbox", group: "Go to", icon: Inbox, run: () => go("/inbox") },
+      { id: "n-projects", label: "Projects", group: "Go to", icon: Boxes, run: () => go("/projects") },
       { id: "n-map", label: "Mind Map", group: "Go to", icon: Network, run: () => go("/map") },
       { id: "n-books", label: "Books", group: "Go to", icon: BookOpen, run: () => go("/books") },
       { id: "n-watch", label: "Films & Anime", group: "Go to", icon: Clapperboard, run: () => go("/watch") },
@@ -125,6 +127,15 @@ export function CommandPalette() {
       icon: Target, run: () => go("/goals"),
     }));
 
+    const projectResults: Command[] = projects.map((p) => ({
+      id: `pj-${p.id}`,
+      label: p.name || "Untitled project",
+      hint: p.status,
+      group: "Projects",
+      icon: Boxes,
+      run: () => go("/projects"),
+    }));
+
     const nodeResults: Command[] = nodes.map((n) => ({
       id: `nd-${n.id}`, label: n.title, hint: n.date ?? "Note", group: "Mind Map",
       icon: Network, run: () => go("/map"),
@@ -143,8 +154,8 @@ export function CommandPalette() {
       },
     }));
 
-    return [...actions, ...nav, ...taskResults, ...bookResults, ...habitResults, ...goalResults, ...nodeResults, ...templateResults];
-  }, [tasks, books, habits, goals, nodes, templates, go, close, openInspector, setSelectedDate, setTheme, startTimer, applyTemplate, toast]);
+    return [...actions, ...nav, ...taskResults, ...bookResults, ...habitResults, ...goalResults, ...projectResults, ...nodeResults, ...templateResults];
+  }, [tasks, books, habits, goals, projects, nodes, templates, go, close, openInspector, setSelectedDate, setTheme, startTimer, applyTemplate, toast]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();

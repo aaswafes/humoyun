@@ -44,11 +44,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       soloBooted = true;
       hydrate(SOLO_USER_ID, "you@local").then(async () => {
         // First boot of a local preview: fill it with a believable week so the
-        // app does not open as thirteen empty states.
-        if (!useStore.getState().soloNeedsSeed) return;
-        const { loadSampleData } = await import("@/components/settings/sample-data");
-        loadSampleData();
-        useStore.setState({ soloNeedsSeed: false });
+        // app does not open as thirteen empty states. A workspace seeded by an
+        // older build gets only the pieces the sample has grown since.
+        const seeder = await import("@/components/settings/sample-data");
+        if (useStore.getState().soloNeedsSeed) {
+          seeder.loadSampleData();
+          useStore.setState({ soloNeedsSeed: false });
+        } else {
+          seeder.topUpSampleData();
+        }
       });
       return;
     }
@@ -109,6 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       "g then t": () => router.push("/"),
       "g then c": () => router.push("/calendar"),
       "g then i": () => router.push("/inbox"),
+      "g then p": () => router.push("/projects"),
       "g then m": () => router.push("/map"),
       "g then b": () => router.push("/books"),
       "g then w": () => router.push("/watch"),

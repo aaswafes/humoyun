@@ -26,8 +26,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 src/
   app/
-    (app)/            the signed-in shell: today, calendar, map, books, habits,
-                      salah, focus, goals, stats, review, templates, settings
+    (app)/            the signed-in shell: today, calendar, projects, map, books,
+                      habits, salah, focus, goals, stats, review, templates,
+                      settings
     login/            email + password
   components/
     ui/               design-system primitives — buttons, overlays, calendar picker
@@ -44,7 +45,8 @@ src/
 ```
 
 Data lives in Supabase with row-level security on every table, so a row is only
-ever readable by the account that owns it.
+ever readable by the account that owns it. Schema changes ship as SQL under
+`docs/sql/` — run them once against the project.
 
 `CONTRACT.md` documents the design tokens and the store API. Read it before
 adding a surface.
@@ -57,5 +59,5 @@ adding a surface.
 | `N` | quick add — one line of natural language |
 | `T` | jump to today |
 | `⇧←` `⇧→` | previous / next day |
-| `G` then `C` | calendar (also `T` today, `I` inbox, `M` map, `B` books, `H` habits, `S` salah, `F` focus, `G` goals, `R` review, `A` stats) |
+| `G` then `C` | calendar (also `T` today, `I` inbox, `P` projects, `N` notes, `M` map, `B` books, `H` habits, `S` salah, `F` focus, `G` goals, `R` review, `A` stats) |
 | `⌘\` | toggle sidebar |

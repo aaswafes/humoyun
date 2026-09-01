@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon, Target,
   Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings, Search, Clapperboard,
-  MonitorPlay, NotebookPen,
+  MonitorPlay, NotebookPen, Boxes,
   Plus, ChevronDown, ChevronRight, LogOut, Monitor, SunMedium, MoonStar, Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -77,7 +77,7 @@ export function Sidebar() {
         { href: "/", label: "Today", icon: Sun },
         { href: "/calendar", label: "Calendar", icon: CalendarDays },
         { href: "/inbox", label: "Inbox", icon: Inbox, badge: inboxCount },
-        { href: "/map", label: "Mind Map", icon: Network },
+        { href: "/projects", label: "Projects", icon: Boxes },
         { href: "/notes", label: "Notes", icon: NotebookPen },
       ],
     },
@@ -96,6 +96,7 @@ export function Sidebar() {
       label: "Reflect",
       items: [
         { href: "/goals", label: "Goals", icon: Target },
+        { href: "/map", label: "Mind Map", icon: Network },
         { href: "/stats", label: "Stats", icon: BarChart3 },
         { href: "/review", label: "Weekly Review", icon: ClipboardCheck },
       ],
