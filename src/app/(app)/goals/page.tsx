@@ -6,9 +6,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import { todayISO } from "@/lib/date";
 import type { Goal, Horizon } from "@/lib/types";
-import { horizonForDate } from "@/lib/timeframe";
+import {
+  TIMEFRAMES, TIMEFRAME_LABELS, horizonForDate, timeframeRange,
+} from "@/lib/timeframe";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { HiddenColumns } from "@/components/goals/column-header";
 import { useColumnPrefs } from "@/components/goals/column-prefs";
@@ -16,13 +17,13 @@ import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primiti
 import { MenuItem, MenuLabel, Popover } from "@/components/ui/overlays";
 import { GoalFinished } from "@/components/goals/goal-finished";
 import { Fold, useFold } from "@/components/goals/goal-fold";
-import { GoalBoard } from "@/components/goals/goal-board";
+import { GoalBoard, dueDateFor } from "@/components/goals/goal-board";
 import { GoalLadder } from "@/components/goals/goal-ladder";
 import { GoalReview } from "@/components/goals/goal-review";
 import { GoalSheet } from "@/components/goals/goal-sheet";
 import { GoalTimeline } from "@/components/goals/goal-timeline";
 import {
-  buildGoalIndex, goalAttention, HORIZON_LABEL, HORIZONS, pct, periodLabel,
+  buildGoalIndex, goalAttention, HORIZONS, pct,
 } from "@/components/goals/goal-model";
 import { useGoalActions } from "@/components/goals/use-goal-actions";
 
@@ -168,14 +169,14 @@ export default function GoalsPage() {
           >
             {(close) => (
               <>
-                <MenuLabel>Start a goal at</MenuLabel>
-                {HORIZONS.map((horizon) => (
+                <MenuLabel>Due when?</MenuLabel>
+                {TIMEFRAMES.map((frame) => (
                   <MenuItem
-                    key={horizon}
-                    onClick={() => { create(horizon); close(); }}
-                    shortcut={periodLabel(horizon, todayISO())}
+                    key={frame}
+                    onClick={() => { createDated({ end_date: dueDateFor(frame) }); close(); }}
+                    shortcut={timeframeRange(frame)}
                   >
-                    {HORIZON_LABEL[horizon]}
+                    {TIMEFRAME_LABELS[frame]}
                   </MenuItem>
                 ))}
               </>
@@ -189,22 +190,22 @@ export default function GoalsPage() {
       <PageBody wide>
         {!ready ? (
           <LadderSkeleton />
-        ) : goals.length === 0 ? (
+        ) : goals.length === 0 && view !== "board" ? (
           <EmptyState
             icon={Target}
             title="Nothing to aim at yet"
-            description="The ladder runs life → year → quarter → month → week. Start at the top with the thing that actually matters, then break it down until a single task can trace all the way up."
+            description="Give a goal a date and it files itself — this month, this quarter, this year, or further out. The ladder is for nesting one goal inside another once you have a few."
             className="py-20"
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                {HORIZONS.map((horizon) => (
+                {TIMEFRAMES.filter((f) => f !== "someday").map((frame, i) => (
                   <Button
-                    key={horizon}
+                    key={frame}
                     size="sm"
-                    variant={horizon === "life" ? "primary" : "secondary"}
-                    onClick={() => create(horizon)}
+                    variant={i === 0 ? "primary" : "secondary"}
+                    onClick={() => createDated({ end_date: dueDateFor(frame) })}
                   >
-                    {HORIZON_LABEL[horizon]} goal
+                    {TIMEFRAME_LABELS[frame]}
                   </Button>
                 ))}
               </div>
