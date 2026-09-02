@@ -7,7 +7,7 @@ import {
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import type { Goal, Horizon } from "@/lib/types";
-import { horizonForDate } from "@/lib/timeframe";
+import { todayISO } from "@/lib/date";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { HiddenColumns } from "@/components/goals/column-header";
 import { useColumnPrefs } from "@/components/goals/column-prefs";
@@ -19,10 +19,10 @@ import { GoalLadder } from "@/components/goals/goal-ladder";
 import { GoalReview } from "@/components/goals/goal-review";
 import { GoalSheet } from "@/components/goals/goal-sheet";
 import { GoalTimeline } from "@/components/goals/goal-timeline";
+import { NewGoalDialog } from "@/components/goals/new-goal-dialog";
 import {
-  buildGoalIndex, goalAttention, HORIZONS, pct,
+  buildGoalIndex, goalAttention, HORIZONS, pct, periodRange,
 } from "@/components/goals/goal-model";
-import { useGoalActions } from "@/components/goals/use-goal-actions";
 
 type View = "board" | "ladder" | "timeline" | "review" | "finished";
 
@@ -48,9 +48,7 @@ export default function GoalsPage() {
   const habitLogs = useStore((s) => s.habitLogs);
   const books = useStore((s) => s.books);
   const ready = useStore((s) => s.ready);
-  const { createGoal } = useGoalActions();
-  const patch = useStore((s) => s.patch);
-  const batchUndo = useStore((s) => s.batchUndo);
+  const weekStart = useStore((s) => s.profile?.week_start ?? 1);
 
   // Dates are how the owner thinks about goals, so the board leads.
   const [view, setView] = React.useState<View>("board");
@@ -122,25 +120,29 @@ export default function GoalsPage() {
     },
   ], [needing]);
 
-  const create = React.useCallback((horizon: Horizon) => {
-    const goal = createGoal({ horizon });
-    setOpenId(goal.id);
-  }, [createGoal]);
-
   /**
-   * The board creates by date. createGoal still needs a horizon to size the
-   * goal's window, so it is derived from the date rather than chosen — and the
-   * two writes are one undo step.
+   * Every route to a new goal opens the same dialog. Nothing is written until
+   * it is submitted — the old buttons created the row first and asked what it
+   * was afterwards, which is how you ended up owning an untitled ten-year Life
+   * goal for pressing a button once.
+   *
+   * The board's "+" already knows which shelf you clicked, so it seeds the
+   * date; the ladder's still knows the horizon, which the dialog turns back
+   * into a date it can show you.
    */
-  const createDated = React.useCallback((seed: Partial<Goal>) => {
-    const due = seed.end_date ?? null;
-    const goal = batchUndo("Add goal", () => {
-      const made = createGoal({ horizon: horizonForDate(due) });
-      if (due) patch("goals", made.id, { end_date: due });
-      return made;
+  const [creating, setCreating] = React.useState<{ date: string | null } | null>(null);
+
+  const create = React.useCallback((horizon: Horizon) => {
+    // A horizon is a period; the dialog speaks in dates, so hand it the day
+    // that period ends. "Life" has no honest end date — it starts as Someday.
+    setCreating({
+      date: horizon === "life" ? null : periodRange(horizon, todayISO(), weekStart).end,
     });
-    setOpenId(goal.id);
-  }, [createGoal, patch, batchUndo]);
+  }, [weekStart]);
+
+  const createDated = React.useCallback((seed: Partial<Goal>) => {
+    setCreating({ date: seed.end_date ?? null });
+  }, []);
 
   // Two facts, not four — how many are running, and how they are doing. What
   // needs attention is already counted on the Review tab.
@@ -154,7 +156,7 @@ export default function GoalsPage() {
         title="Goals"
         subtitle={ready ? subtitle : undefined}
         actions={
-          <Button variant="primary" size="sm" onClick={() => createDated({})}>
+          <Button variant="primary" size="sm" onClick={() => setCreating({ date: null })}>
             <Plus className="size-3.5" />
             New goal
           </Button>
@@ -173,7 +175,7 @@ export default function GoalsPage() {
             description="Give a goal a date and it files itself — this month, this quarter, this year, or further out. The ladder is for nesting one goal inside another once you have a few."
             className="py-20"
             action={
-              <Button variant="primary" size="sm" onClick={() => createDated({})}>
+              <Button variant="primary" size="sm" onClick={() => setCreating({ date: null })}>
                 <Plus className="size-3.5" />
                 New goal
               </Button>
@@ -251,6 +253,13 @@ export default function GoalsPage() {
           </>
         )}
       </PageBody>
+
+      <NewGoalDialog
+        open={!!creating}
+        initialDate={creating?.date ?? null}
+        onClose={() => setCreating(null)}
+        onCreated={setOpenId}
+      />
 
       <GoalSheet
         goalId={openId}
