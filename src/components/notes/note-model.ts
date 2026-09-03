@@ -214,13 +214,13 @@ export interface NoteFilters {
   query: string;
   kind: NoteKind | "all";
   source: SourceFilter;
-  tag: string | null;
   /** every one of these must be on the note — narrowing, not widening */
+  tags: string[];
   categories: string[];
 }
 
 export const NO_FILTERS: NoteFilters = {
-  query: "", kind: "all", source: "all", tag: null, categories: [],
+  query: "", kind: "all", source: "all", tags: [], categories: [],
 };
 
 export function filterNotes(
@@ -229,7 +229,9 @@ export function filterNotes(
   const q = f.query.trim().toLowerCase();
   return notes.filter((note) => {
     if (f.kind !== "all" && note.kind !== f.kind) return false;
-    if (f.tag && !note.tags.includes(f.tag)) return false;
+    for (const tag of f.tags) {
+      if (!note.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) return false;
+    }
     for (const category of f.categories) {
       if (!hasCategory(note.categories, category)) return false;
     }
@@ -270,7 +272,7 @@ export function sortNotes(notes: Note[]): Note[] {
 /** How many of the three folded filters are actually narrowing the list. */
 export function activeFilterCount(f: NoteFilters): number {
   return (f.kind !== "all" ? 1 : 0) + (f.source !== "all" ? 1 : 0)
-    + (f.tag ? 1 : 0) + f.categories.length;
+    + f.tags.length + f.categories.length;
 }
 
 /** What the one filter control says about itself when it is closed. */
@@ -282,8 +284,61 @@ export function filterSummary(f: NoteFilters): string {
   if (f.source !== "all") {
     parts.push(SOURCE_FILTERS.find((s) => s.value === f.source)?.label ?? "");
   }
-  if (f.tag) parts.push(`#${f.tag}`);
+  if (f.tags.length === 1) parts.push("#" + f.tags[0]);
+  else if (f.tags.length > 1) parts.push(f.tags.length + " tags");
   return parts.length ? parts.join(" · ") : "All notes";
+}
+
+// ---------------------------------------------------------
+// Grouping
+//
+// A note can carry three tags, so a note could belong to three groups at once
+// — and a card drawn three times is a card you cannot trust a count of. The
+// first tag is therefore the note's home and the rest are only filters, which
+// is the same rule the chart's ranking makes visible.
+// ---------------------------------------------------------
+
+export type GroupBy = "none" | "tag" | "category" | "kind";
+
+export const GROUP_LABELS: Record<GroupBy, string> = {
+  none: "No grouping",
+  tag: "By tag",
+  category: "By category",
+  kind: "By kind",
+};
+
+export interface NoteGroup {
+  key: string;
+  label: string;
+  notes: Note[];
+}
+
+const NO_HOME = " none";
+
+export function groupNotes(notes: Note[], by: GroupBy): NoteGroup[] {
+  if (by === "none") return [{ key: "all", label: "", notes }];
+
+  const homeOf = (note: Note): { key: string; label: string } => {
+    if (by === "kind") return { key: note.kind, label: NOTE_KIND_LABELS[note.kind] };
+    const first = (by === "tag" ? note.tags : note.categories).find((v) => v.trim());
+    if (first) return { key: first.toLowerCase(), label: first.trim() };
+    return { key: NO_HOME, label: by === "tag" ? "No tag" : "No category" };
+  };
+
+  const groups = new Map<string, NoteGroup>();
+  for (const note of notes) {
+    const home = homeOf(note);
+    const group = groups.get(home.key) ?? { key: home.key, label: home.label, notes: [] };
+    group.notes.push(note);
+    groups.set(home.key, group);
+  }
+
+  // Biggest first, and the homeless bucket always last however big it is.
+  return [...groups.values()].sort((a, b) => {
+    if (a.key === NO_HOME) return 1;
+    if (b.key === NO_HOME) return -1;
+    return b.notes.length - a.notes.length || a.label.localeCompare(b.label);
+  });
 }
 
 // ---------------------------------------------------------

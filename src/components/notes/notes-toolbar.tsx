@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ListFilter, Search, Sun, X } from "lucide-react";
+import { Group, ListFilter, Search, Sun, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NOTE_KINDS, NOTE_KIND_LABELS } from "@/lib/types";
 import { Button, IconButton, Kbd } from "@/components/ui/primitives";
@@ -10,8 +10,11 @@ import { NOTE_KIND_ICONS } from "./note-fields";
 import { CategoryIcon } from "./category-picker";
 import { hasCategory, toggleCategory, type CategoryCount, type CategoryIndex } from "./category-model";
 import {
-  NO_FILTERS, SOURCE_FILTERS, activeFilterCount, filterSummary, type NoteFilters,
+  GROUP_LABELS, NO_FILTERS, SOURCE_FILTERS, activeFilterCount, filterSummary,
+  type GroupBy, type NoteFilters,
 } from "./note-model";
+
+const GROUPS: GroupBy[] = ["none", "tag", "category", "kind"];
 
 /** Past this many, the tag menu asks you to use the search box instead. */
 const TAG_LIMIT = 14;
@@ -25,7 +28,7 @@ const CATEGORY_LIMIT = 16;
  */
 export function NotesToolbar({
   query, onQuery, filters, onFilters, tags, categories, categoryIndex,
-  count, total, searchRef, onDaily, extra, className,
+  count, total, searchRef, onDaily, extra, group, onGroup, className,
 }: {
   query: string;
   onQuery: (next: string) => void;
@@ -41,6 +44,8 @@ export function NotesToolbar({
   onDaily: () => void;
   /** whatever the current view needs to say for itself, e.g. "Tidy up" */
   extra?: React.ReactNode;
+  group?: GroupBy;
+  onGroup?: (next: GroupBy) => void;
   className?: string;
 }) {
   const inputId = React.useId();
@@ -91,6 +96,43 @@ export function NotesToolbar({
 
       <div className="ml-auto flex items-center gap-1">
         {extra}
+
+        {group && onGroup && (
+          <Popover
+            align="end"
+            className="w-[184px]"
+            trigger={
+              <button
+                type="button"
+                aria-label={`Grouping: ${GROUP_LABELS[group].toLowerCase()}. Change it`}
+                className={cn(
+                  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px]",
+                  "transition-colors duration-150 hover:bg-hover hover:text-ink",
+                  group !== "none" ? "bg-hover text-ink" : "text-ink-2",
+                )}
+              >
+                <Group className="size-3.5 shrink-0 text-ink-3" aria-hidden />
+                <span className="truncate">{GROUP_LABELS[group]}</span>
+              </button>
+            }
+          >
+            {(close) => (
+              <>
+                <MenuLabel>Group the notes</MenuLabel>
+                {GROUPS.map((g) => (
+                  <MenuItem
+                    key={g}
+                    checked={group === g}
+                    onClick={() => { onGroup(g); close(); }}
+                  >
+                    {GROUP_LABELS[g]}
+                  </MenuItem>
+                ))}
+              </>
+            )}
+          </Popover>
+        )}
+
         {count !== total && (
           <span className="hidden pr-1 text-[11.5px] text-ink-4 tnum sm:inline">
             {count} of {total}
@@ -189,22 +231,24 @@ export function NotesToolbar({
                 <>
                   <MenuSeparator />
                   <MenuLabel>Tag</MenuLabel>
-                  <MenuItem
-                    checked={filters.tag === null}
-                    onClick={() => onFilters({ ...filters, tag: null })}
-                  >
-                    Any tag
-                  </MenuItem>
-                  {shownTags.map(({ tag, count: n }) => (
-                    <MenuItem
-                      key={tag}
-                      checked={filters.tag === tag}
-                      shortcut={String(n)}
-                      onClick={() => onFilters({ ...filters, tag })}
-                    >
-                      #{tag}
-                    </MenuItem>
-                  ))}
+                  {shownTags.map(({ tag, count: n }) => {
+                    const on = filters.tags.some((t) => t.toLowerCase() === tag.toLowerCase());
+                    return (
+                      <MenuItem
+                        key={tag}
+                        checked={on}
+                        shortcut={String(n)}
+                        onClick={() => onFilters({
+                          ...filters,
+                          tags: on
+                            ? filters.tags.filter((t) => t.toLowerCase() !== tag.toLowerCase())
+                            : [...filters.tags, tag],
+                        })}
+                      >
+                        #{tag}
+                      </MenuItem>
+                    );
+                  })}
                   {tags.length > shownTags.length && (
                     <p className="px-2 pb-1 pt-0.5 text-[11px] text-ink-4 tnum">
                       {tags.length - shownTags.length} more — search for one

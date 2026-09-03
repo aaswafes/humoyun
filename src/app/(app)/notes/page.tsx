@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { LayoutGrid, NotebookPen, Rows3, Share2, Sparkles, Sun } from "lucide-react";
+import { BarChart3, LayoutGrid, NotebookPen, Rows3, Sparkles, Sun } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -13,16 +13,19 @@ import { NoteBoard, usePinnedLayouts } from "@/components/notes/note-board";
 import { NoteList } from "@/components/notes/note-list";
 import { NoteEditor } from "@/components/notes/note-editor";
 import { NotesToolbar } from "@/components/notes/notes-toolbar";
-import { GraphView } from "@/components/notes/graph-view";
+import { TopicsView } from "@/components/notes/topics-view";
+import { isUnfiled, type TopicBy, type TopicRow } from "@/components/notes/topic-model";
 import { TemplateMenu, TemplatesModal } from "@/components/notes/note-templates";
 import { buildCategoryIndex, categoryCounts } from "@/components/notes/category-model";
 import {
-  NO_FILTERS, buildSourceIndex, buildSourceRefs, filterNotes, linkedCount, locatorLabel,
-  readableNotes, sortNotes, tagCounts, type NoteFilters,
+  NO_FILTERS, buildSourceIndex, buildSourceRefs, filterNotes, groupNotes,
+  linkedCount, locatorLabel, readableNotes, sortNotes, tagCounts,
+  type GroupBy, type NoteFilters,
 } from "@/components/notes/note-model";
 
-type View = "cards" | "list" | "graph";
-const VIEWS: readonly View[] = ["cards", "list", "graph"];
+type View = "cards" | "list" | "topics";
+const VIEWS: readonly View[] = ["cards", "list", "topics"];
+const GROUPS: readonly GroupBy[] = ["none", "tag", "category", "kind"];
 
 /** Above this the surface pages rather than laying out a thousand cards. */
 const PAGE_SIZE = 60;
@@ -39,9 +42,9 @@ const VIEW_OPTIONS = [
     title: "One line per note",
   },
   {
-    value: "graph" as const,
-    label: <span className="inline-flex items-center gap-1.5"><Share2 className="size-3.5" />Graph</span>,
-    title: "Islands of notes, divided by category or tag",
+    value: "topics" as const,
+    label: <span className="inline-flex items-center gap-1.5"><BarChart3 className="size-3.5" />Topics</span>,
+    title: "What you are actually writing about, ranked",
   },
 ];
 
@@ -57,6 +60,7 @@ export default function NotesPage() {
   const insert = useStore((s) => s.insert);
 
   const [view, setView] = useStickyChoice<View>("humoyun.notes.view", "cards", VIEWS);
+  const [group, setGroup] = useStickyChoice<GroupBy>("humoyun.notes.group", "none", GROUPS);
   const [filters, setFilters] = React.useState<NoteFilters>(NO_FILTERS);
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [focusBody, setFocusBody] = React.useState(false);
@@ -90,14 +94,7 @@ export default function NotesPage() {
     () => sortNotes(filterNotes(notes, refs, filters)), [notes, refs, filters]);
   const paged = React.useMemo(() => visible.slice(0, limit), [visible, limit]);
 
-  const narrowed = visible.length !== notes.length;
-  /**
-   * The graph keeps drawing every note even while a search is on — a cluster
-   * that vanished mid-search would take its shape with it. What the filters do
-   * there is light the survivors and dim the rest.
-   */
-  const matches = React.useMemo(
-    () => (narrowed ? new Set(visible.map((n) => n.id)) : null), [narrowed, visible]);
+  const sections = React.useMemo(() => groupNotes(paged, group), [paged, group]);
 
   const arranged = usePinnedLayouts(notes);
 
@@ -133,6 +130,35 @@ export default function NotesPage() {
     setFilters(next);
     setLimit(PAGE_SIZE);
   }, []);
+
+/**
+   * A bar is the filter for its own topic, so the chart is not a report you
+   * read and then go elsewhere to act on. The unfiled bar is the exception:
+   * "no tag" is not a tag, and there is nothing to narrow to.
+   */
+  const activeFor = React.useCallback((by: TopicBy) => (
+    by === "tag" ? filters.tags
+      : by === "category" ? filters.categories
+        : filters.kind === "all" ? [] : [filters.kind]
+  ), [filters]);
+
+  const toggleTopic = React.useCallback((by: TopicBy, row: TopicRow) => {
+    if (isUnfiled(row)) return;
+    const has = (list: string[]) => list.some((v) => v.toLowerCase() === row.label.toLowerCase());
+    const without = (list: string[]) => list.filter((v) => v.toLowerCase() !== row.label.toLowerCase());
+
+    if (by === "tag") {
+      changeFilters({ ...filters, tags: has(filters.tags) ? without(filters.tags) : [...filters.tags, row.label] });
+    } else if (by === "category") {
+      changeFilters({
+        ...filters,
+        categories: has(filters.categories) ? without(filters.categories) : [...filters.categories, row.label],
+      });
+    } else {
+      changeFilters({ ...filters, kind: filters.kind === row.key ? "all" : (row.key as NoteFilters["kind"]) });
+    }
+    setView("cards");
+  }, [filters, changeFilters, setView]);
 
   useHotkeys({ "/": () => searchRef.current?.focus() }, { enabled: !openId });
   useTakeKey("n", writeOne, !openId && !templatesOpen);
@@ -188,17 +214,16 @@ export default function NotesPage() {
     </>
   );
 
-  // The graph wants the page, not a column in the middle of it.
-  if (ready && notes.length > 0 && view === "graph") {
+  if (ready && notes.length > 0 && view === "topics") {
     return (
       <>
         {header}
-        <PageBody className="flex h-full max-w-none flex-col px-5 py-4 md:px-6">
-          <GraphView
+        <PageBody wide>
+          <TopicsView
             notes={notes}
             index={catIdx}
-            matches={matches}
-            onOpen={(id) => { setFocusBody(false); setOpenId(id); }}
+            activeFor={activeFor}
+            onToggle={toggleTopic}
           />
         </PageBody>
         {overlays}
@@ -246,6 +271,8 @@ export default function NotesPage() {
               total={notes.length}
               searchRef={searchRef}
               onDaily={openDaily}
+              group={group}
+              onGroup={setGroup}
               extra={view === "cards" && arranged.count > 0 ? (
                 <Button
                   size="sm"
@@ -275,22 +302,33 @@ export default function NotesPage() {
                   </Button>
                 }
               />
-            ) : view === "list" ? (
-              <NoteList
-                notes={paged}
-                refs={refs}
-                locators={locators}
-                categories={catIdx}
-                onOpen={open}
-              />
             ) : (
-              <NoteBoard
-                notes={paged}
-                refs={refs}
-                locators={locators}
-                categories={catIdx}
-                onOpen={open}
-              />
+              <div className={group === "none" ? undefined : "space-y-9"}>
+                {sections.map((section) => (
+                  <section key={section.key}>
+                    {section.label && (
+                      <GroupHeading label={section.label} count={section.notes.length} />
+                    )}
+                    {view === "list" ? (
+                      <NoteList
+                        notes={section.notes}
+                        refs={refs}
+                        locators={locators}
+                        categories={catIdx}
+                        onOpen={open}
+                      />
+                    ) : (
+                      <NoteBoard
+                        notes={section.notes}
+                        refs={refs}
+                        locators={locators}
+                        categories={catIdx}
+                        onOpen={open}
+                      />
+                    )}
+                  </section>
+                ))}
+              </div>
             )}
 
             {visible.length > paged.length && (
@@ -338,6 +376,16 @@ function useTakeKey(key: string, run: () => void, enabled: boolean) {
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
   }, [key, enabled, run]);
+}
+
+/** The one line above a group of notes: what they share, and how many. */
+function GroupHeading({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="mb-3 flex items-baseline gap-2">
+      <h2 className="truncate text-[12.5px] font-medium text-ink-2">{label}</h2>
+      <span className="text-[11.5px] text-ink-4 tnum">{count}</span>
+    </div>
+  );
 }
 
 /** Paper of uneven length, because that is what the loaded wall looks like. */
