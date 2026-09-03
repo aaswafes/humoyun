@@ -190,28 +190,22 @@ export const NOTE_KIND_LABELS: Record<NoteKind, string> = {
  */
 export type NoteFormat = "plain" | "html";
 
-export type NoteCanvasStyle = "text" | "card" | "frame";
-
-export const NOTE_CANVAS_STYLES: NoteCanvasStyle[] = ["text", "card", "frame"];
-export const NOTE_CANVAS_STYLE_LABELS: Record<NoteCanvasStyle, string> = {
-  text: "Plain text",
-  card: "Paper card",
-  frame: "Group frame",
-};
-
 /**
- * Where a note sits on the one infinite canvas. `null` means it has not been
- * placed — the note exists, it is just not on the board yet.
+ * Where a note has been put on the notes board, and how big it was made.
  *
- * A frame is drawn behind everything else so text can be dropped inside it,
- * which is why `z` is stored rather than derived from list order.
+ * `null` means nobody has moved it: the board lays it out itself, in reading
+ * order, and will keep doing so as the window changes width. The moment it is
+ * dragged or resized this is written, and from then on that card stays exactly
+ * where it was put.
+ *
+ * `z` is stored rather than derived from list order so that bringing a card to
+ * the front survives a re-sort.
  */
 export interface NoteLayout {
   x: number;
   y: number;
   w: number;
   h: number;
-  style: NoteCanvasStyle;
   z: number;
 }
 

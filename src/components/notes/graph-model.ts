@@ -48,10 +48,28 @@ export interface GraphCluster {
   count: number;
 }
 
+/**
+ * The soft shape drawn behind an island.
+ *
+ * A halo is what makes "divided by category" legible at a glance: without one
+ * the eye has to infer the grouping from edge density, which is exactly the
+ * work the picture was supposed to do for you.
+ */
+export interface Halo {
+  key: string;
+  label: string;
+  tint: Tint;
+  cx: number;
+  cy: number;
+  r: number;
+  count: number;
+}
+
 export interface Graph {
   nodes: GraphNode[];
   links: GraphLink[];
   clusters: GraphCluster[];
+  halos: Halo[];
   byId: Map<string, GraphNode>;
   /** who touches whom, for the hover highlight */
   neighbours: Map<string, Set<string>>;
@@ -260,7 +278,47 @@ export function buildGraph(notes: Note[], opts: GraphOptions): Graph {
   settle(nodes, links, byId);
   separateLabels(nodes);
 
-  return { nodes, links, clusters, byId, neighbours, bounds: boundsOf(nodes) };
+  return {
+    nodes, links, clusters, byId, neighbours,
+    halos: halosOf(nodes, live),
+    bounds: boundsOf(nodes),
+  };
+}
+
+/**
+ * One blob per island, sized to hold its members.
+ *
+ * A cluster of one still gets a circle wide enough to read as a cluster — a
+ * halo that hugged a single dot would look like a rendering mistake.
+ */
+function halosOf(nodes: GraphNode[], clusters: GraphCluster[]): Halo[] {
+  const out: Halo[] = [];
+
+  for (const cluster of clusters) {
+    const members = nodes.filter((n) => n.group === cluster.key);
+    if (!members.length) continue;
+
+    let cx = 0;
+    let cy = 0;
+    for (const n of members) { cx += n.x; cy += n.y; }
+    cx /= members.length;
+    cy /= members.length;
+
+    let r = 0;
+    for (const n of members) r = Math.max(r, Math.hypot(n.x - cx, n.y - cy) + n.r);
+
+    out.push({
+      key: cluster.key,
+      label: cluster.label,
+      tint: cluster.tint,
+      cx,
+      cy,
+      r: Math.max(r + 32, 74),
+      count: cluster.count,
+    });
+  }
+
+  return out;
 }
 
 // ---------------------------------------------------------

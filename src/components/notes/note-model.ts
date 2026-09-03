@@ -250,19 +250,9 @@ export function writtenNotes(notes: Note[]): Note[] {
   return notes.filter((n) => !n.is_template);
 }
 
-/**
- * A frame on the canvas is a box you drop other things into. It is a note
- * only because the board needs somewhere to keep its position and its label —
- * nobody wrote it, so it does not belong in a list of what you have written,
- * in the count, or as a dot in the graph.
- */
-export function isScenery(note: Note): boolean {
-  return note.layout?.style === "frame";
-}
-
-/** Everything written: no templates, no scenery. */
+/** Everything written. The one list every view on this surface starts from. */
 export function readableNotes(notes: Note[]): Note[] {
-  return notes.filter((n) => !n.is_template && !isScenery(n));
+  return writtenNotes(notes);
 }
 
 export function templateNotes(notes: Note[]): Note[] {

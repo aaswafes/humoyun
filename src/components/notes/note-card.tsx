@@ -23,13 +23,15 @@ const MAX_TAGS = 3;
  * The heading and body are the primary action; the footer stands beside it.
  */
 export function NoteCard({
-  note, refer, locator, categories, onOpen,
+  note, refer, locator, categories, onOpen, className,
 }: {
   note: Note;
   refer: SourceRef;
   locator: string | null;
   categories: CategoryIndex;
   onOpen: (note: Note) => void;
+  /** the board sizes the card itself, so it needs the last word on the box */
+  className?: string;
 }) {
   const deleteNote = useDeleteNote();
   const Kind = NOTE_KIND_ICONS[note.kind];
@@ -42,10 +44,10 @@ export function NoteCard({
     <article
       className={cn(
         `tint-${note.color ?? "slate"}`,
-        "group/note relative mb-4 break-inside-avoid rounded-lg p-4",
-        "transition-[transform,box-shadow] duration-200 ease-[var(--ease-out-apple)]",
-        "hover:-translate-y-0.5 hover:shadow-[var(--shadow-sm)]",
-        "focus-within:-translate-y-0.5 focus-within:shadow-[var(--shadow-sm)]",
+        "group/note relative mb-4 flex break-inside-avoid flex-col overflow-hidden rounded-lg p-4",
+        "transition-[box-shadow] duration-200 ease-[var(--ease-out-apple)]",
+        "hover:shadow-[var(--shadow-sm)] focus-within:shadow-[var(--shadow-sm)]",
+        className,
       )}
       style={{ background: "var(--tint-soft)" }}
     >

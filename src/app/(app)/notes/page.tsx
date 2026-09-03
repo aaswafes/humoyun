@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { LayoutGrid, NotebookPen, Rows3, Share2, Squircle, Sun } from "lucide-react";
+import { LayoutGrid, NotebookPen, Rows3, Share2, Sparkles, Sun } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -9,45 +9,34 @@ import type { Note } from "@/lib/types";
 import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primitives";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { useStickyChoice } from "@/components/notes/note-fields";
-import { NoteCard } from "@/components/notes/note-card";
+import { NoteBoard, usePinnedLayouts } from "@/components/notes/note-board";
 import { NoteList } from "@/components/notes/note-list";
-import { NoteSheet } from "@/components/notes/note-sheet";
+import { NoteEditor } from "@/components/notes/note-editor";
 import { NotesToolbar } from "@/components/notes/notes-toolbar";
-import { CanvasView } from "@/components/notes/canvas-view";
 import { GraphView } from "@/components/notes/graph-view";
 import { TemplateMenu, TemplatesModal } from "@/components/notes/note-templates";
 import { buildCategoryIndex, categoryCounts } from "@/components/notes/category-model";
 import {
   NO_FILTERS, buildSourceIndex, buildSourceRefs, filterNotes, linkedCount, locatorLabel,
-  readableNotes, sortNotes, tagCounts, writtenNotes, type NoteFilters,
+  readableNotes, sortNotes, tagCounts, type NoteFilters,
 } from "@/components/notes/note-model";
 
-type View = "cards" | "list" | "canvas" | "graph";
-const VIEWS: readonly View[] = ["cards", "list", "canvas", "graph"];
+type View = "cards" | "list" | "graph";
+const VIEWS: readonly View[] = ["cards", "list", "graph"];
 
 /** Above this the surface pages rather than laying out a thousand cards. */
 const PAGE_SIZE = 60;
-
-const MASONRY = "columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4";
-
-/** The two views that own the whole page and scroll nothing. */
-const FULL_BLEED: readonly View[] = ["canvas", "graph"];
 
 const VIEW_OPTIONS = [
   {
     value: "cards" as const,
     label: <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5" />Cards</span>,
-    title: "Notes as paper on a wall",
+    title: "Notes as paper you can arrange",
   },
   {
     value: "list" as const,
     label: <span className="inline-flex items-center gap-1.5"><Rows3 className="size-3.5" />List</span>,
     title: "One line per note",
-  },
-  {
-    value: "canvas" as const,
-    label: <span className="inline-flex items-center gap-1.5"><Squircle className="size-3.5" />Canvas</span>,
-    title: "Put groups of text wherever you want them",
   },
   {
     value: "graph" as const,
@@ -75,10 +64,7 @@ export default function NotesPage() {
   const [limit, setLimit] = React.useState(PAGE_SIZE);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
-  // The board owns everything that is on it, frames included.
-  const onCanvas = React.useMemo(() => writtenNotes(allNotes), [allNotes]);
-  // Every other view is a list of what was written, so the templates and the
-  // frames — which nobody wrote — are set aside first.
+  // Templates are notes. Every view on this page starts by setting them aside.
   const notes = React.useMemo(() => readableNotes(allNotes), [allNotes]);
 
   // One index over everything a note can hang off feeds every chip on the page.
@@ -107,14 +93,13 @@ export default function NotesPage() {
   const narrowed = visible.length !== notes.length;
   /**
    * The graph keeps drawing every note even while a search is on — a cluster
-   * that vanished mid-search would take its shape with it. What the filters
-   * do there is light the survivors and dim the rest.
+   * that vanished mid-search would take its shape with it. What the filters do
+   * there is light the survivors and dim the rest.
    */
   const matches = React.useMemo(
     () => (narrowed ? new Set(visible.map((n) => n.id)) : null), [narrowed, visible]);
 
-  const pinned = paged.filter((n) => n.pinned);
-  const rest = paged.filter((n) => !n.pinned);
+  const arranged = usePinnedLayouts(notes);
 
   const open = React.useCallback((note: Note) => {
     setFocusBody(false);
@@ -157,36 +142,19 @@ export default function NotesPage() {
     ? `${notes.length} ${notes.length === 1 ? "note" : "notes"}${linked ? ` · ${linked} linked` : ""}`
     : undefined;
 
-  const actions = (
-    <TemplateMenu
-      notes={allNotes}
-      onNew={writeOne}
-      onManage={() => setTemplatesOpen(true)}
-      onOpen={(note) => { setFocusBody(true); setOpenId(note.id); }}
-    />
-  );
-
-  const cards = (list: Note[]) => (
-    <div className={MASONRY}>
-      {list.map((note) => {
-        const refer = refs.get(note.id);
-        if (!refer) return null;
-        return (
-          <NoteCard
-            key={note.id}
-            note={note}
-            refer={refer}
-            locator={locators.get(note.id) ?? null}
-            categories={catIdx}
-            onOpen={open}
-          />
-        );
-      })}
-    </div>
-  );
-
   const header = (
-    <PageHeader title="Notes" subtitle={subtitle} actions={actions}>
+    <PageHeader
+      title="Notes"
+      subtitle={subtitle}
+      actions={
+        <TemplateMenu
+          notes={allNotes}
+          onNew={writeOne}
+          onManage={() => setTemplatesOpen(true)}
+          onOpen={(note) => { setFocusBody(true); setOpenId(note.id); }}
+        />
+      }
+    >
       {notes.length > 0 && (
         <Segmented<View>
           size="sm"
@@ -199,10 +167,10 @@ export default function NotesPage() {
     </PageHeader>
   );
 
-  const sheet = (
+  const overlays = (
     <>
       {openId && (
-        <NoteSheet
+        <NoteEditor
           noteId={openId}
           focusBody={focusBody}
           onClose={() => { setOpenId(null); setFocusBody(false); }}
@@ -220,24 +188,20 @@ export default function NotesPage() {
     </>
   );
 
-  // The board and the graph want the page, not a column in the middle of it.
-  if (ready && notes.length > 0 && FULL_BLEED.includes(view)) {
+  // The graph wants the page, not a column in the middle of it.
+  if (ready && notes.length > 0 && view === "graph") {
     return (
       <>
         {header}
         <PageBody className="flex h-full max-w-none flex-col px-5 py-4 md:px-6">
-          {view === "canvas" ? (
-            <CanvasView notes={onCanvas} onOpen={(id) => { setFocusBody(false); setOpenId(id); }} />
-          ) : (
-            <GraphView
-              notes={notes}
-              index={catIdx}
-              matches={matches}
-              onOpen={(id) => { setFocusBody(false); setOpenId(id); }}
-            />
-          )}
+          <GraphView
+            notes={notes}
+            index={catIdx}
+            matches={matches}
+            onOpen={(id) => { setFocusBody(false); setOpenId(id); }}
+          />
         </PageBody>
-        {sheet}
+        {overlays}
       </>
     );
   }
@@ -255,12 +219,10 @@ export default function NotesPage() {
             title="Nothing written yet"
             description="A note can stand on its own, or hang off something: a highlight from page 128, a thought after episode four, what today was actually about. Wherever it came from, it lands here."
             action={
-              // The daily page lives in the toolbar, which is not on screen yet,
-              // so the first note can still be today's.
+              // The daily button lives in the toolbar, which is not on screen
+              // yet, so the first note can still be today's.
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Button variant="primary" onClick={writeOne}>
-                  Write one
-                </Button>
+                <Button variant="primary" onClick={writeOne}>Write one</Button>
                 <Button onClick={openDaily}>
                   <Sun className="size-3.5" />
                   Start today&rsquo;s note
@@ -284,6 +246,18 @@ export default function NotesPage() {
               total={notes.length}
               searchRef={searchRef}
               onDaily={openDaily}
+              extra={view === "cards" && arranged.count > 0 ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={arranged.tidy}
+                  title="Put every card back into the automatic layout"
+                >
+                  <Sparkles className="size-3.5" />
+                  Tidy up
+                  <span className="text-ink-4 tnum">{arranged.count}</span>
+                </Button>
+              ) : undefined}
             />
 
             {visible.length === 0 ? (
@@ -309,21 +283,14 @@ export default function NotesPage() {
                 categories={catIdx}
                 onOpen={open}
               />
-            ) : pinned.length > 0 ? (
-              <div className="space-y-8">
-                <section>
-                  <GroupHeading label="Pinned" count={pinned.length} />
-                  {cards(pinned)}
-                </section>
-                {rest.length > 0 && (
-                  <section>
-                    <GroupHeading label="Everything else" count={rest.length} />
-                    {cards(rest)}
-                  </section>
-                )}
-              </div>
             ) : (
-              cards(rest)
+              <NoteBoard
+                notes={paged}
+                refs={refs}
+                locators={locators}
+                categories={catIdx}
+                onOpen={open}
+              />
             )}
 
             {visible.length > paged.length && (
@@ -340,7 +307,7 @@ export default function NotesPage() {
         )}
       </PageBody>
 
-      {sheet}
+      {overlays}
     </>
   );
 }
@@ -355,11 +322,6 @@ export default function NotesPage() {
  * N mean "new note" on this surface and nothing else.
  */
 function useTakeKey(key: string, run: () => void, enabled: boolean) {
-  // The handler is registered once and must still see the newest closure, so
-  // the ref is refreshed after paint rather than during render.
-  const latest = React.useRef(run);
-  React.useEffect(() => { latest.current = run; });
-
   React.useEffect(() => {
     if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
@@ -371,20 +333,11 @@ function useTakeKey(key: string, run: () => void, enabled: boolean) {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
       e.preventDefault();
       e.stopPropagation();
-      latest.current();
+      run();
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [key, enabled]);
-}
-
-function GroupHeading({ label, count }: { label: string; count: number }) {
-  return (
-    <div className="mb-3 flex items-baseline gap-2">
-      <h2 className="truncate text-[12.5px] font-medium text-ink-2">{label}</h2>
-      <span className="text-[11.5px] text-ink-4 tnum">{count}</span>
-    </div>
-  );
+  }, [key, enabled, run]);
 }
 
 /** Paper of uneven length, because that is what the loaded wall looks like. */
@@ -395,7 +348,7 @@ const SKELETON_HEIGHTS = [
 
 function NotesSkeleton() {
   return (
-    <div className={MASONRY} aria-hidden>
+    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4" aria-hidden>
       {SKELETON_HEIGHTS.map((h, i) => (
         <Skeleton key={i} className={`mb-4 block break-inside-avoid rounded-lg ${h}`} />
       ))}

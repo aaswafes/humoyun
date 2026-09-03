@@ -25,7 +25,7 @@ const CATEGORY_LIMIT = 16;
  */
 export function NotesToolbar({
   query, onQuery, filters, onFilters, tags, categories, categoryIndex,
-  count, total, searchRef, onDaily, className,
+  count, total, searchRef, onDaily, extra, className,
 }: {
   query: string;
   onQuery: (next: string) => void;
@@ -39,6 +39,8 @@ export function NotesToolbar({
   total: number;
   searchRef?: React.Ref<HTMLInputElement>;
   onDaily: () => void;
+  /** whatever the current view needs to say for itself, e.g. "Tidy up" */
+  extra?: React.ReactNode;
   className?: string;
 }) {
   const inputId = React.useId();
@@ -88,6 +90,7 @@ export function NotesToolbar({
       </Button>
 
       <div className="ml-auto flex items-center gap-1">
+        {extra}
         {count !== total && (
           <span className="hidden pr-1 text-[11.5px] text-ink-4 tnum sm:inline">
             {count} of {total}
