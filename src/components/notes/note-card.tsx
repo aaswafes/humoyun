@@ -5,6 +5,8 @@ import { Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NOTE_KIND_LABELS, type Note } from "@/lib/types";
 import { NOTE_KIND_ICONS, TagPill } from "./note-fields";
+import { CategoryChips } from "./category-picker";
+import type { CategoryIndex } from "./category-model";
 import { NoteActions, useDeleteNote } from "./note-actions";
 import { SourceChip } from "./note-source-chip";
 import { dayLabel, noteDay, noteHeading, noteRest, type SourceRef } from "./note-model";
@@ -21,11 +23,12 @@ const MAX_TAGS = 3;
  * The heading and body are the primary action; the footer stands beside it.
  */
 export function NoteCard({
-  note, refer, locator, onOpen,
+  note, refer, locator, categories, onOpen,
 }: {
   note: Note;
   refer: SourceRef;
   locator: string | null;
+  categories: CategoryIndex;
   onOpen: (note: Note) => void;
 }) {
   const deleteNote = useDeleteNote();
@@ -93,6 +96,9 @@ export function NoteCard({
       </button>
 
       <footer className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        {/* Where it belongs comes before where it came from: the shelves are
+            what the page is filtered and clustered by. */}
+        <CategoryChips names={note.categories} index={categories} max={2} />
         <SourceChip refer={refer} locator={locator} />
         {tags.map((tag) => <TagPill key={tag} tag={tag} />)}
         {hidden > 0 && <span className="text-[11px] text-ink-4 tnum">+{hidden}</span>}

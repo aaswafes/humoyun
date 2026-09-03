@@ -10,6 +10,7 @@ import { MiniEmpty } from "@/components/ui/form";
 import { NOTE_KIND_LABELS, type NoteKind, type Tint } from "@/lib/types";
 import { NumberField } from "./fields";
 import { removeNote as forgetPrefsNote, updateNote as updatePrefsNote, type BookNote } from "./library-prefs";
+import { noteText } from "@/components/notes/rich-text";
 
 /** What you can write from here. Notes made elsewhere keep whatever kind they have. */
 type Marginal = "highlight" | "thought";
@@ -199,7 +200,8 @@ export function BookNotes({
     const live: Row[] = stored
       .filter((n) => n.book_id === bookId)
       .map((n) => ({
-        id: n.id, kind: n.kind, page: n.locator, text: n.body, at: n.created_at, legacy: false,
+        // A note written in the rich editor is HTML; the margin here is text.
+        id: n.id, kind: n.kind, page: n.locator, text: noteText(n), at: n.created_at, legacy: false,
       }));
     const old: Row[] = legacy.map((n) => ({
       id: n.id, kind: n.kind, page: n.page, text: n.text, at: n.created_at, legacy: true,

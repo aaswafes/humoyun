@@ -1,5 +1,7 @@
 import { formatClock, formatDate, friendlyDate, todayISO, yearOf } from "@/lib/date";
 import { NOTE_KIND_LABELS, type Book, type Goal, type MapNode, type Media, type Note, type NoteKind, type Task } from "@/lib/types";
+import { hasCategory } from "./category-model";
+import { noteText } from "./rich-text";
 
 // =========================================================
 // Where a note came from.
@@ -134,6 +136,17 @@ export function locatorLabel(note: Note, ref: SourceRef, idx: SourceIndex): stri
 // Reading a note at a glance
 // ---------------------------------------------------------
 
+/**
+ * A note's words, whichever shape its body is stored in.
+ *
+ * Everything below reads through here rather than touching `body`, so a note
+ * written in the rich editor and one written before it existed summarise,
+ * search and sort identically.
+ */
+export function notePlain(note: Note): string {
+  return noteText(note);
+}
+
 /** The first line with something on it — what a note is called when it has no title. */
 export function noteExcerpt(body: string): string {
   for (const line of body.split("\n")) {
@@ -150,7 +163,7 @@ export function noteExcerpt(body: string): string {
 export function noteHeading(note: Note, ref: SourceRef): string {
   const title = note.title?.trim();
   if (title) return title;
-  const first = noteExcerpt(note.body);
+  const first = noteExcerpt(notePlain(note));
   if (first) return first;
   if (ref.kind === "day") return ref.label;
   return "Empty note";
@@ -158,11 +171,12 @@ export function noteHeading(note: Note, ref: SourceRef): string {
 
 /** The body with the heading line removed, so a card never says the same thing twice. */
 export function noteRest(note: Note): string {
-  if (note.title?.trim()) return note.body;
-  const first = noteExcerpt(note.body);
+  const plain = notePlain(note);
+  if (note.title?.trim()) return plain;
+  const first = noteExcerpt(plain);
   if (!first) return "";
-  const at = note.body.indexOf(first);
-  return note.body.slice(at + first.length).replace(/^\s*\n/, "");
+  const at = plain.indexOf(first);
+  return plain.slice(at + first.length).replace(/^\s*\n/, "");
 }
 
 /** The day a note belongs to: its own date when it has one, else the day it was written. */
@@ -201,9 +215,13 @@ export interface NoteFilters {
   kind: NoteKind | "all";
   source: SourceFilter;
   tag: string | null;
+  /** every one of these must be on the note — narrowing, not widening */
+  categories: string[];
 }
 
-export const NO_FILTERS: NoteFilters = { query: "", kind: "all", source: "all", tag: null };
+export const NO_FILTERS: NoteFilters = {
+  query: "", kind: "all", source: "all", tag: null, categories: [],
+};
 
 export function filterNotes(
   notes: Note[], refs: Map<string, SourceRef>, f: NoteFilters,
@@ -212,13 +230,43 @@ export function filterNotes(
   return notes.filter((note) => {
     if (f.kind !== "all" && note.kind !== f.kind) return false;
     if (f.tag && !note.tags.includes(f.tag)) return false;
+    for (const category of f.categories) {
+      if (!hasCategory(note.categories, category)) return false;
+    }
     if (f.source !== "all") {
       const ref = refs.get(note.id);
       if (!ref || !matchesSourceFilter(ref.kind, f.source)) return false;
     }
     if (!q) return true;
-    return (note.title ?? "").toLowerCase().includes(q) || note.body.toLowerCase().includes(q);
+    // Searching the stored body would match style attributes, so a note
+    // written in Georgia would answer to "georgia".
+    return (note.title ?? "").toLowerCase().includes(q)
+      || notePlain(note).toLowerCase().includes(q);
   });
+}
+
+/** Templates are notes, and every list on this surface starts by setting them aside. */
+export function writtenNotes(notes: Note[]): Note[] {
+  return notes.filter((n) => !n.is_template);
+}
+
+/**
+ * A frame on the canvas is a box you drop other things into. It is a note
+ * only because the board needs somewhere to keep its position and its label —
+ * nobody wrote it, so it does not belong in a list of what you have written,
+ * in the count, or as a dot in the graph.
+ */
+export function isScenery(note: Note): boolean {
+  return note.layout?.style === "frame";
+}
+
+/** Everything written: no templates, no scenery. */
+export function readableNotes(notes: Note[]): Note[] {
+  return notes.filter((n) => !n.is_template && !isScenery(n));
+}
+
+export function templateNotes(notes: Note[]): Note[] {
+  return notes.filter((n) => n.is_template);
 }
 
 /** Pinned first, then newest. */
@@ -231,12 +279,15 @@ export function sortNotes(notes: Note[]): Note[] {
 
 /** How many of the three folded filters are actually narrowing the list. */
 export function activeFilterCount(f: NoteFilters): number {
-  return (f.kind !== "all" ? 1 : 0) + (f.source !== "all" ? 1 : 0) + (f.tag ? 1 : 0);
+  return (f.kind !== "all" ? 1 : 0) + (f.source !== "all" ? 1 : 0)
+    + (f.tag ? 1 : 0) + f.categories.length;
 }
 
 /** What the one filter control says about itself when it is closed. */
 export function filterSummary(f: NoteFilters): string {
   const parts: string[] = [];
+  if (f.categories.length === 1) parts.push(f.categories[0]);
+  else if (f.categories.length > 1) parts.push(f.categories.length + " categories");
   if (f.kind !== "all") parts.push(NOTE_KIND_LABELS[f.kind]);
   if (f.source !== "all") {
     parts.push(SOURCE_FILTERS.find((s) => s.value === f.source)?.label ?? "");

@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Check, ExternalLink, MoreHorizontal, Palette, Pin, Trash2, X } from "lucide-react";
+import {
+  Check, ExternalLink, LayoutTemplate, MoreHorizontal, Palette, Pin,
+  SquareDashed, Trash2, X,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatClock } from "@/lib/date";
 import { NOTE_KINDS, NOTE_KIND_LABELS, type Note, type Tint } from "@/lib/types";
-import { AutoTextarea, IconButton, InlineInput, SectionLabel } from "@/components/ui/primitives";
+import { IconButton, InlineInput, SectionLabel } from "@/components/ui/primitives";
 import {
   MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
 } from "@/components/ui/overlays";
@@ -14,54 +17,75 @@ import { Disclosure, NOTE_KIND_ICONS, TagEditor } from "./note-fields";
 import { useDeleteNote } from "./note-actions";
 import { useOpenSource } from "./note-source-chip";
 import { SourcePicker } from "./source-picker";
+import { buildCategoryIndex } from "./category-model";
+import { CategoryPicker, CategoryRow } from "./category-picker";
+import { RichEditor } from "./rich-editor";
+import { bodyAsHtml } from "./rich-text";
+import { newLayout, topZ } from "./canvas-model";
 import {
   LOCATOR_LABELS, buildSourceIndex, locatorUnit, noteHeading, resolveSource, tagCounts,
 } from "./note-model";
 
 /** How long the editor waits before writing. Long enough to type through, short enough to trust. */
-const AUTOSAVE_MS = 500;
+const AUTOSAVE_MS = 600;
 
 export function NoteSheet({
-  noteId, focusBody, onClose,
+  noteId, focusBody, onClose, onOpenNote,
 }: {
   noteId: string;
   /** a brand-new note opens with the cursor already in the body */
   focusBody?: boolean;
   onClose: () => void;
+  /** following a [[link]] swaps the sheet rather than opening a second one */
+  onOpenNote?: (id: string) => void;
 }) {
   const note = useStore((s) => s.notes.find((n) => n.id === noteId) ?? null);
 
   return (
-    <Sheet open={!!note} onClose={onClose} width={460}>
-      {note && <NoteSheetBody key={note.id} note={note} focusBody={focusBody} onClose={onClose} />}
+    <Sheet open={!!note} onClose={onClose} width={620}>
+      {note && (
+        <NoteSheetBody
+          key={note.id}
+          note={note}
+          focusBody={focusBody}
+          onClose={onClose}
+          onOpenNote={onOpenNote}
+        />
+      )}
     </Sheet>
   );
 }
 
 function NoteSheetBody({
-  note, focusBody, onClose,
+  note, focusBody, onClose, onOpenNote,
 }: {
   note: Note;
   focusBody?: boolean;
   onClose: () => void;
+  onOpenNote?: (id: string) => void;
 }) {
   const notes = useStore((s) => s.notes);
+  const categories = useStore((s) => s.noteCategories);
   const books = useStore((s) => s.books);
   const media = useStore((s) => s.media);
   const tasks = useStore((s) => s.tasks);
   const goals = useStore((s) => s.goals);
   const nodes = useStore((s) => s.nodes);
   const patch = useStore((s) => s.patch);
-  const remove = useStore((s) => s.remove);
+  const insert = useStore((s) => s.insert);
   const toast = useStore((s) => s.toast);
   const openSource = useOpenSource();
 
   const [title, setTitle] = React.useState(note.title ?? "");
-  const [body, setBody] = React.useState(note.body);
+  const [body, setBody] = React.useState(() => bodyAsHtml(note));
+  // A note written before the rich editor existed is only converted once it is
+  // actually edited. Opening one to read it must not rewrite it.
+  const [touched, setTouched] = React.useState(false);
 
   const idx = React.useMemo(
     () => buildSourceIndex(books, media, tasks, goals, nodes),
     [books, media, tasks, goals, nodes]);
+  const catIdx = React.useMemo(() => buildCategoryIndex(categories), [categories]);
   const refer = React.useMemo(() => resolveSource(note, idx), [note, idx]);
   const unit = locatorUnit(refer, idx, note.media_id);
   const suggestions = React.useMemo(() => tagCounts(notes).map((t) => t.tag), [notes]);
@@ -70,7 +94,8 @@ function NoteSheetBody({
   // what the store holds, the write is still coming. Nothing to reset, nothing
   // to get stuck showing "Saving…" forever.
   const nextTitle = title.trim() || null;
-  const dirty = nextTitle !== note.title || body !== note.body;
+  const bodyChanged = touched && (body !== note.body || note.format !== "html");
+  const dirty = nextTitle !== note.title || bodyChanged;
 
   // Closing the sheet mid-keystroke must not lose the keystroke, so the
   // pending write is kept where the unmount effect can still find it.
@@ -78,14 +103,17 @@ function NoteSheetBody({
   const noteId = note.id;
 
   React.useEffect(() => {
-    pending.current = dirty ? { title: nextTitle, body } : null;
-    if (!dirty) return;
+    const changes: Partial<Note> = {};
+    if (nextTitle !== note.title) changes.title = nextTitle;
+    if (bodyChanged) { changes.body = body; changes.format = "html"; }
+    pending.current = Object.keys(changes).length ? changes : null;
+    if (!pending.current) return;
     const timer = setTimeout(() => {
-      patch("notes", noteId, { title: nextTitle, body });
+      if (pending.current) patch("notes", noteId, pending.current);
       pending.current = null;
     }, AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [dirty, nextTitle, body, noteId, patch]);
+  }, [nextTitle, body, bodyChanged, note.title, noteId, patch]);
 
   React.useEffect(() => () => {
     if (pending.current) patch("notes", noteId, pending.current);
@@ -106,6 +134,27 @@ function NoteSheetBody({
     onClose();
   };
 
+  const saveAsTemplate = () => {
+    const { id: _id, created_at: _c, updated_at: _u, ...rest } = note;
+    void _id; void _c; void _u;
+    insert("notes", {
+      ...rest,
+      title: nextTitle ?? note.title,
+      body: touched ? body : note.body,
+      format: touched ? "html" : note.format,
+      is_template: true,
+      pinned: false,
+      layout: null,
+      date: null,
+    });
+    toast({ title: "Saved as a template", description: "Find it under New note." });
+  };
+
+  const putOnCanvas = () => {
+    patch("notes", noteId, { layout: newLayout("card", 0, 0, topZ(notes)) });
+    toast({ title: "Put on the canvas", description: "Open the Canvas view to place it." });
+  };
+
   const Kind = NOTE_KIND_ICONS[note.kind];
   const tagSummary = note.tags.length
     ? note.tags.map((t) => `#${t}`).join("  ")
@@ -114,7 +163,9 @@ function NoteSheetBody({
   return (
     <>
       <header className="flex h-[var(--topbar-h)] shrink-0 items-center gap-2 px-3 hairline-b">
-        <SectionLabel className="shrink-0">{NOTE_KIND_LABELS[note.kind]}</SectionLabel>
+        <SectionLabel className="shrink-0">
+          {note.is_template ? "Template" : NOTE_KIND_LABELS[note.kind]}
+        </SectionLabel>
 
         <p
           aria-live="polite"
@@ -132,7 +183,7 @@ function NoteSheetBody({
 
         <Popover
           align="end"
-          className="w-[216px]"
+          className="w-[228px]"
           trigger={<IconButton label="Note options" size="md"><MoreHorizontal /></IconButton>}
         >
           {(close) => (
@@ -144,11 +195,32 @@ function NoteSheetBody({
               >
                 {note.pinned ? "Unpin" : "Pin to the top"}
               </MenuItem>
-              {refer.href && !refer.missing && (
+              {!note.is_template && !note.layout && (
+                <MenuItem icon={SquareDashed} onClick={() => { putOnCanvas(); close(); }}>
+                  Put on the canvas
+                </MenuItem>
+              )}
+              {!note.is_template && note.layout && (
                 <MenuItem
-                  icon={ExternalLink}
-                  onClick={() => { openSource(refer); close(); }}
+                  icon={SquareDashed}
+                  onClick={() => { patch("notes", noteId, { layout: null }); close(); }}
                 >
+                  Take off the canvas
+                </MenuItem>
+              )}
+              <MenuItem
+                icon={LayoutTemplate}
+                checked={note.is_template}
+                onClick={() => {
+                  if (note.is_template) patch("notes", noteId, { is_template: false });
+                  else saveAsTemplate();
+                  close();
+                }}
+              >
+                {note.is_template ? "Turn back into a note" : "Save as a template"}
+              </MenuItem>
+              {refer.href && !refer.missing && (
+                <MenuItem icon={ExternalLink} onClick={() => { openSource(refer); close(); }}>
                   Open {refer.label}
                 </MenuItem>
               )}
@@ -163,7 +235,7 @@ function NoteSheetBody({
         <IconButton label="Close" size="md" onClick={onClose}><X /></IconButton>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-16 pt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-16 pt-4">
         <InlineInput
           aria-label="Title"
           placeholder="Untitled"
@@ -210,6 +282,13 @@ function NoteSheetBody({
             )}
           </Popover>
 
+          <CategoryPicker
+            value={note.categories}
+            onChange={(categories) => patch("notes", noteId, { categories })}
+            notes={notes}
+            index={catIdx}
+          />
+
           <SourcePicker refer={refer} onChange={applySource} />
 
           {unit && (
@@ -250,14 +329,26 @@ function NoteSheetBody({
           </div>
         </div>
 
-        <AutoTextarea
+        <CategoryRow
+          value={note.categories}
+          onChange={(categories) => patch("notes", noteId, { categories })}
+          index={catIdx}
+          className="mt-2.5"
+        />
+
+        <RichEditor
           value={body}
-          onChange={setBody}
-          minRows={10}
+          onChange={(html) => { setBody(html); setTouched(true); }}
+          notes={notes}
+          currentId={noteId}
+          onOpenNote={onOpenNote}
           autoFocus={focusBody}
-          aria-label="Note body"
-          placeholder="Write it down…"
-          className="mt-4 text-[13.5px] text-ink placeholder:text-ink-4"
+          minHeight={300}
+          placeholder={note.is_template
+            ? "Write the shape of the note. {{date}} and {{title}} are filled in when it is used."
+            : "Write it down…"}
+          ariaLabel={`Body of ${noteHeading(note, refer)}`}
+          className="mt-4"
         />
 
         <Disclosure
@@ -274,7 +365,6 @@ function NoteSheetBody({
           />
         </Disclosure>
       </div>
-
     </>
   );
 }

@@ -289,6 +289,68 @@ owns what they share.
   the bookmark to the last page, pausing one asks for a resume date. If those
   ever disagree, the drag is wrong, not the menu.
 
+## The notes workspace
+
+`src/components/notes/` is one surface with four views over the same rows, and
+the whole design turns on that: a note on the canvas, a dot in the graph and a
+card in the list are the same note, so arranging the board is never a second
+copy of your writing that can drift from the first.
+
+Schema in `docs/sql/notes-workspace.sql` — four columns on `notes` and one small
+table. Run it once.
+
+**Body.** `format` is `'plain'` for everything written before the rich editor
+and `'html'` after. Nothing is migrated in place: a plain note is converted the
+first time it is actually edited, so opening one to read it leaves it alone.
+Never touch `note.body` directly — `noteText`, `notePlain` and `bodyAsHtml` in
+`rich-text.ts` answer for both shapes, and a summary that read the raw body
+would match style attributes and tag names.
+
+**The editor.** `RichEditor` is a contentEditable, not a document model. Three
+things are load-bearing and were each a bug first:
+
+- Every styling command goes through `wrapSelection`, which borrows execCommand
+  only to split the range and then writes the one declaration asked for. Each
+  property has **its own marker command** — `fontSize` strips inline font-sizes
+  before writing its own, so sharing one marker made highlighting text silently
+  undo its own size.
+- Toolbar controls kill their own `mousedown`. Without it the editor blurs, the
+  selection collapses, and the command lands on nothing.
+- `normalizeBlocks` runs after every block command. The browser nests lists
+  inside paragraphs and leaves childless `<p>`s behind; both only bite once the
+  HTML is stored and re-parsed into a different shape than was on screen.
+
+Paste is the one door untrusted markup comes through, and `sanitizeHtml` is an
+allowlist. Do not add a tag to it casually.
+
+**Categories** are where a note belongs; `kind` is what a note *is*. A note has
+as many categories as apply and exactly one kind — that is the entire
+difference, and it is why one is an array. The name is stored on the note as
+text and `noteCategories` only carries colour, icon and order, so a category
+with no row still works and typing a new one into the picker is safe.
+
+**The canvas** is one infinite board. A note is on it when `layout` is not null.
+Frames are scenery: `readableNotes` keeps them out of the lists, the counts and
+the graph, because nobody wrote them. Dragging never writes to the store — the
+offset lives in the item until the pointer comes up, so a move is one undo step.
+Only the axis a gesture touched is committed; snapping the size on a move grew
+every card by two pixels each time it was picked up.
+
+**The graph** clusters rather than laying out. Notes are pulled hard to their
+own hub and pushed away from everything else, and `separateLabels` then spreads
+titles vertically — the dots were never the problem, the names on top of each
+other were. The legend is a multiselect: switching a cluster off takes it out of
+the layout so the rest spreads into the space.
+
+**Templates are notes** with `is_template`. Same table, same editor, same
+categories; there is no second kind of thing and no second editor. Four
+placeholders are filled on use, everything else is copied exactly.
+
+**Rows that predate a column.** `repair` in the store fills in fields a cached
+or pre-migration row is missing, once, where rows enter. Readers downstream
+trust the type instead of defending themselves — one `for (const c of
+note.categories)` on an old row took the whole page down before it existed.
+
 ## Accessibility floor
 
 - Anything clickable is a `<button>` (or has `role`, `tabIndex={0}` and a key handler).

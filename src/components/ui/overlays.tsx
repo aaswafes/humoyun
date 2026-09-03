@@ -108,7 +108,9 @@ export function Popover({
           role="dialog"
           style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, visibility: pos ? "visible" : "hidden" }}
           className={cn(
-            "fixed z-[80] min-w-[180px] rounded-xl border border-line bg-raised p-1 shadow-lg anim-pop",
+            // Above Sheet (90) and Modal (100): a popover opened from inside
+            // one is always the most recent thing the user asked for.
+            "fixed z-[120] min-w-[180px] rounded-xl border border-line bg-raised p-1 shadow-lg anim-pop",
             className,
           )}
         >

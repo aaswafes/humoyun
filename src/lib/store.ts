@@ -221,8 +221,8 @@ interface StoreState extends CollectionState {
 }
 
 const COLLECTION_KEYS: CollectionKey[] = [
-  "tasks", "books", "media", "notes", "habits", "habitLogs", "goals", "projects", "boards",
-  "nodes", "edges", "templates", "prayers", "dayLogs",
+  "tasks", "books", "media", "notes", "noteCategories", "habits", "habitLogs", "goals",
+  "projects", "boards", "nodes", "edges", "templates", "prayers", "dayLogs",
   "focusSessions", "reviews", "tags",
 ];
 
@@ -238,13 +238,39 @@ const COLLECTION_KEYS: CollectionKey[] = [
  * it failed.
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
-  tasks: true, books: true, media: true, notes: true, habits: true, goals: true, boards: true,
+  tasks: true, books: true, media: true, notes: true, noteCategories: true, habits: true,
+  goals: true, boards: true,
   projects: true, nodes: true, templates: true, dayLogs: true, reviews: true,
   habitLogs: false, edges: false, prayers: false, focusSessions: false, tags: false,
 };
 
 const emptyCollections = () =>
   Object.fromEntries(COLLECTION_KEYS.map((k) => [k, []])) as unknown as CollectionState;
+
+/**
+ * Fill in columns that were added after a row was written.
+ *
+ * A row cached in a local snapshot — or read back before its table was
+ * migrated — can be missing a field the types promise is always there, and
+ * one `for (const c of note.categories)` then takes the whole page down.
+ * Repairing it here, at the one door rows come in through, is what lets every
+ * reader downstream trust the type instead of defending itself.
+ */
+function repair(key: CollectionKey, rows: unknown[]): unknown[] {
+  if (key !== "notes") return rows;
+  return (rows as Note[]).map((n) => (
+    n.categories && n.format && n.layout !== undefined && n.is_template !== undefined
+      ? n
+      : {
+        ...n,
+        tags: n.tags ?? [],
+        categories: n.categories ?? [],
+        format: n.format ?? "plain",
+        is_template: n.is_template ?? false,
+        layout: n.layout ?? null,
+      }
+  ));
+}
 
 // Defaults applied on insert so callers can pass only what they care about.
 function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown> {
@@ -276,11 +302,17 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         url: null, channel: null,
       };
     case "notes":
+      // 'plain' until something actually writes HTML into it. The rich editor
+      // converts on the first edit; the plain textareas on a book, a title and
+      // a project never do, and their notes stay round-trippable text.
       return {
         ...base, title: null, body: "", kind: "note", book_id: null, media_id: null,
         task_id: null, goal_id: null, project_id: null, node_id: null, date: null, locator: null,
-        tags: [], color: null, pinned: false,
+        tags: [], categories: [], color: null, pinned: false,
+        format: "plain", is_template: false, layout: null,
       };
+    case "noteCategories":
+      return { ...base, name: "New category", icon: null, color: "slate", order_index: 0 };
     case "habits":
       return {
         ...base, name: "New habit", icon: "check", color: "emerald", cadence: "daily",
@@ -368,6 +400,7 @@ let batchLabel = "";
 
 const SINGULAR: Partial<Record<CollectionKey, string>> = {
   tasks: "task", books: "book", media: "title", notes: "note", habits: "habit",
+  noteCategories: "category",
   habitLogs: "habit log", goals: "goal", projects: "project", boards: "board", nodes: "node",
   edges: "link", templates: "template", prayers: "prayer", dayLogs: "day",
   focusSessions: "session", reviews: "review", tags: "tag",
@@ -472,7 +505,7 @@ export const useStore = create<StoreState>((set, get) => ({
         for (const key of COLLECTION_KEYS) {
           const rows = saved.collections[key];
           if (Array.isArray(rows)) {
-            (collections as Record<string, unknown[]>)[key] = rows;
+            (collections as Record<string, unknown[]>)[key] = repair(key, rows);
           }
         }
       }
@@ -499,7 +532,7 @@ export const useStore = create<StoreState>((set, get) => ({
     results.forEach((res, i) => {
       const key = tables[i][0];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (next as any)[key] = (res as any).data ?? [];
+      (next as any)[key] = repair(key, (res as any).data ?? []);
     });
 
     let resolvedProfile = profile as Profile | null;

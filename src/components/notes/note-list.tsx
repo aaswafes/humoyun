@@ -5,6 +5,8 @@ import { Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NOTE_KIND_LABELS, type Note } from "@/lib/types";
 import { NOTE_KIND_ICONS, TagPill } from "./note-fields";
+import { CategoryChips } from "./category-picker";
+import type { CategoryIndex } from "./category-model";
 import { SourceChip } from "./note-source-chip";
 import { NoteActions, useDeleteNote } from "./note-actions";
 import { dayLabel, noteDay, noteExcerpt, noteHeading, noteRest, type SourceRef } from "./note-model";
@@ -15,11 +17,12 @@ import { dayLabel, noteDay, noteExcerpt, noteHeading, noteRest, type SourceRef }
  * list is one surface, not fifty.
  */
 export function NoteList({
-  notes, refs, locators, onOpen,
+  notes, refs, locators, categories, onOpen,
 }: {
   notes: Note[];
   refs: Map<string, SourceRef>;
   locators: Map<string, string | null>;
+  categories: CategoryIndex;
   onOpen: (note: Note) => void;
 }) {
   return (
@@ -33,6 +36,7 @@ export function NoteList({
             note={note}
             refer={refer}
             locator={locators.get(note.id) ?? null}
+            categories={categories}
             onOpen={onOpen}
           />
         );
@@ -42,11 +46,12 @@ export function NoteList({
 }
 
 function NoteRow({
-  note, refer, locator, onOpen,
+  note, refer, locator, categories, onOpen,
 }: {
   note: Note;
   refer: SourceRef;
   locator: string | null;
+  categories: CategoryIndex;
   onOpen: (note: Note) => void;
 }) {
   const deleteNote = useDeleteNote();
@@ -87,6 +92,14 @@ function NoteRow({
         )}
       </button>
 
+      {note.categories.length > 0 && (
+        <CategoryChips
+          names={note.categories}
+          index={categories}
+          max={1}
+          className="hidden shrink-0 lg:inline-flex"
+        />
+      )}
       {note.tags[0] && <TagPill tag={note.tags[0]} className="hidden xl:inline-flex" />}
 
       {/* Where it came from survives every breakpoint; the date is what gives way. */}

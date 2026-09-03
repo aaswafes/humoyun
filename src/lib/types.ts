@@ -184,6 +184,57 @@ export const NOTE_KIND_LABELS: Record<NoteKind, string> = {
 };
 
 /**
+ * How a note's body is stored. Everything written before the rich editor is
+ * 'plain' and stays that way until it is opened and edited — so no note ever
+ * has to be migrated in place, and a body is never guessed at.
+ */
+export type NoteFormat = "plain" | "html";
+
+export type NoteCanvasStyle = "text" | "card" | "frame";
+
+export const NOTE_CANVAS_STYLES: NoteCanvasStyle[] = ["text", "card", "frame"];
+export const NOTE_CANVAS_STYLE_LABELS: Record<NoteCanvasStyle, string> = {
+  text: "Plain text",
+  card: "Paper card",
+  frame: "Group frame",
+};
+
+/**
+ * Where a note sits on the one infinite canvas. `null` means it has not been
+ * placed — the note exists, it is just not on the board yet.
+ *
+ * A frame is drawn behind everything else so text can be dropped inside it,
+ * which is why `z` is stored rather than derived from list order.
+ */
+export interface NoteLayout {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  style: NoteCanvasStyle;
+  z: number;
+}
+
+/**
+ * A shelf a note can sit on — Books, Films, Sirah. Unlike `kind`, which is one
+ * word for what a note *is*, a note belongs to as many categories as apply.
+ *
+ * The name is stored on the note as text; this row only carries the colour,
+ * the icon and the order. A category with no row still works, it just draws
+ * slate — which is what makes typing a new one into the picker safe.
+ */
+export interface NoteCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  icon: string | null;
+  color: Tint;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * A note stands on its own but usually came from somewhere — a book, a film,
  * a day. Those links are what let the same note appear on the shelf it belongs
  * to and in one list of everything written.
@@ -205,8 +256,15 @@ export interface Note {
   /** page for a book, minutes for a film, episode for a series */
   locator: number | null;
   tags: string[];
+  /** the shelves it sits on — many at once, unlike `kind` */
+  categories: string[];
   color: Tint | null;
   pinned: boolean;
+  format: NoteFormat;
+  /** a template is a note held back from the lists and offered when writing */
+  is_template: boolean;
+  /** its place on the canvas, or null when it has not been put there */
+  layout: NoteLayout | null;
   created_at: string;
   updated_at: string;
 }
@@ -434,6 +492,7 @@ export interface Collections {
   books: Book;
   media: Media;
   notes: Note;
+  noteCategories: NoteCategory;
   habits: Habit;
   habitLogs: HabitLog;
   goals: Goal;
@@ -456,6 +515,7 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   books: "books",
   media: "media",
   notes: "notes",
+  noteCategories: "note_categories",
   habits: "habits",
   habitLogs: "habit_logs",
   goals: "goals",

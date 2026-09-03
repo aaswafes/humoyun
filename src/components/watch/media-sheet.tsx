@@ -17,6 +17,7 @@ import { MiniEmpty, Toggle, VisuallyHidden } from "@/components/ui/form";
 import {
   ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
 } from "@/components/ui/overlays";
+import { noteText } from "@/components/notes/rich-text";
 import { MediaCover } from "./media-cover";
 import { mediaFacetValues } from "./facets";
 import { EpisodeLog } from "./episode-log";
@@ -1074,7 +1075,7 @@ function MediaNotes({ item, single }: { item: Media; single: boolean }) {
               id={n.id}
               kind={n.kind}
               mark={n.locator}
-              body={n.body}
+              body={noteText(n)}
               max={max}
               single={single}
               tint={item.color}

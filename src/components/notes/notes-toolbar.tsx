@@ -7,12 +7,16 @@ import { NOTE_KINDS, NOTE_KIND_LABELS } from "@/lib/types";
 import { Button, IconButton, Kbd } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover } from "@/components/ui/overlays";
 import { NOTE_KIND_ICONS } from "./note-fields";
+import { CategoryIcon } from "./category-picker";
+import { hasCategory, toggleCategory, type CategoryCount, type CategoryIndex } from "./category-model";
 import {
   NO_FILTERS, SOURCE_FILTERS, activeFilterCount, filterSummary, type NoteFilters,
 } from "./note-model";
 
 /** Past this many, the tag menu asks you to use the search box instead. */
 const TAG_LIMIT = 14;
+/** Categories are picked more often than tags, so more of them are worth showing. */
+const CATEGORY_LIMIT = 16;
 
 /**
  * One line above the notes: what you are looking for, today's page, and a
@@ -20,13 +24,16 @@ const TAG_LIMIT = 14;
  * the calm pass folds away — but nothing is gone, it is one click in.
  */
 export function NotesToolbar({
-  query, onQuery, filters, onFilters, tags, count, total, searchRef, onDaily, className,
+  query, onQuery, filters, onFilters, tags, categories, categoryIndex,
+  count, total, searchRef, onDaily, className,
 }: {
   query: string;
   onQuery: (next: string) => void;
   filters: NoteFilters;
   onFilters: (next: NoteFilters) => void;
   tags: { tag: string; count: number }[];
+  categories: CategoryCount[];
+  categoryIndex: CategoryIndex;
   count: number;
   /** every note written — the count only earns its place when it differs */
   total: number;
@@ -107,6 +114,44 @@ export function NotesToolbar({
         >
           {(close) => (
             <>
+              {categories.length > 0 && (
+                <>
+                  <MenuLabel>Categories</MenuLabel>
+                  {categories.slice(0, CATEGORY_LIMIT).map((category) => {
+                    const on = hasCategory(filters.categories, category.name);
+                    const look = categoryIndex.look(category.name);
+                    return (
+                      <MenuItem
+                        key={category.name}
+                        checked={on}
+                        shortcut={String(category.count)}
+                        onClick={() => onFilters({
+                          ...filters,
+                          categories: toggleCategory(filters.categories, category.name),
+                        })}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            aria-hidden
+                            className={`tint-${look.color}`}
+                            style={{ color: "var(--tint)" }}
+                          >
+                            <CategoryIcon name={look.icon} className="size-3.5" />
+                          </span>
+                          {category.name}
+                        </span>
+                      </MenuItem>
+                    );
+                  })}
+                  {categories.length > CATEGORY_LIMIT && (
+                    <p className="px-2 pb-1 pt-0.5 text-[11px] text-ink-4 tnum">
+                      {categories.length - CATEGORY_LIMIT} more
+                    </p>
+                  )}
+                  <MenuSeparator />
+                </>
+              )}
+
               <MenuLabel>Kind</MenuLabel>
               <MenuItem
                 checked={filters.kind === "all"}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { LayoutGrid, NotebookPen, Plus, Rows3, Sun } from "lucide-react";
+import { LayoutGrid, NotebookPen, Rows3, Share2, Squircle, Sun } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -13,18 +13,25 @@ import { NoteCard } from "@/components/notes/note-card";
 import { NoteList } from "@/components/notes/note-list";
 import { NoteSheet } from "@/components/notes/note-sheet";
 import { NotesToolbar } from "@/components/notes/notes-toolbar";
+import { CanvasView } from "@/components/notes/canvas-view";
+import { GraphView } from "@/components/notes/graph-view";
+import { TemplateMenu, TemplatesModal } from "@/components/notes/note-templates";
+import { buildCategoryIndex, categoryCounts } from "@/components/notes/category-model";
 import {
   NO_FILTERS, buildSourceIndex, buildSourceRefs, filterNotes, linkedCount, locatorLabel,
-  sortNotes, tagCounts, type NoteFilters,
+  readableNotes, sortNotes, tagCounts, writtenNotes, type NoteFilters,
 } from "@/components/notes/note-model";
 
-type View = "cards" | "list";
-const VIEWS: readonly View[] = ["cards", "list"];
+type View = "cards" | "list" | "canvas" | "graph";
+const VIEWS: readonly View[] = ["cards", "list", "canvas", "graph"];
 
 /** Above this the surface pages rather than laying out a thousand cards. */
 const PAGE_SIZE = 60;
 
 const MASONRY = "columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4";
+
+/** The two views that own the whole page and scroll nothing. */
+const FULL_BLEED: readonly View[] = ["canvas", "graph"];
 
 const VIEW_OPTIONS = [
   {
@@ -37,11 +44,22 @@ const VIEW_OPTIONS = [
     label: <span className="inline-flex items-center gap-1.5"><Rows3 className="size-3.5" />List</span>,
     title: "One line per note",
   },
+  {
+    value: "canvas" as const,
+    label: <span className="inline-flex items-center gap-1.5"><Squircle className="size-3.5" />Canvas</span>,
+    title: "Put groups of text wherever you want them",
+  },
+  {
+    value: "graph" as const,
+    label: <span className="inline-flex items-center gap-1.5"><Share2 className="size-3.5" />Graph</span>,
+    title: "Islands of notes, divided by category or tag",
+  },
 ];
 
 export default function NotesPage() {
   const ready = useStore((s) => s.ready);
-  const notes = useStore((s) => s.notes);
+  const allNotes = useStore((s) => s.notes);
+  const categories = useStore((s) => s.noteCategories);
   const books = useStore((s) => s.books);
   const media = useStore((s) => s.media);
   const tasks = useStore((s) => s.tasks);
@@ -53,14 +71,22 @@ export default function NotesPage() {
   const [filters, setFilters] = React.useState<NoteFilters>(NO_FILTERS);
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [focusBody, setFocusBody] = React.useState(false);
+  const [templatesOpen, setTemplatesOpen] = React.useState(false);
   const [limit, setLimit] = React.useState(PAGE_SIZE);
   const searchRef = React.useRef<HTMLInputElement>(null);
+
+  // The board owns everything that is on it, frames included.
+  const onCanvas = React.useMemo(() => writtenNotes(allNotes), [allNotes]);
+  // Every other view is a list of what was written, so the templates and the
+  // frames — which nobody wrote — are set aside first.
+  const notes = React.useMemo(() => readableNotes(allNotes), [allNotes]);
 
   // One index over everything a note can hang off feeds every chip on the page.
   const idx = React.useMemo(
     () => buildSourceIndex(books, media, tasks, goals, nodes),
     [books, media, tasks, goals, nodes]);
   const refs = React.useMemo(() => buildSourceRefs(notes, idx), [notes, idx]);
+  const catIdx = React.useMemo(() => buildCategoryIndex(categories), [categories]);
 
   const locators = React.useMemo(() => {
     const map = new Map<string, string | null>();
@@ -72,10 +98,20 @@ export default function NotesPage() {
   }, [notes, refs, idx]);
 
   const tags = React.useMemo(() => tagCounts(notes), [notes]);
+  const cats = React.useMemo(() => categoryCounts(notes, catIdx), [notes, catIdx]);
 
   const visible = React.useMemo(
     () => sortNotes(filterNotes(notes, refs, filters)), [notes, refs, filters]);
   const paged = React.useMemo(() => visible.slice(0, limit), [visible, limit]);
+
+  const narrowed = visible.length !== notes.length;
+  /**
+   * The graph keeps drawing every note even while a search is on — a cluster
+   * that vanished mid-search would take its shape with it. What the filters
+   * do there is light the survivors and dim the rest.
+   */
+  const matches = React.useMemo(
+    () => (narrowed ? new Set(visible.map((n) => n.id)) : null), [narrowed, visible]);
 
   const pinned = paged.filter((n) => n.pinned);
   const rest = paged.filter((n) => !n.pinned);
@@ -114,18 +150,20 @@ export default function NotesPage() {
   }, []);
 
   useHotkeys({ "/": () => searchRef.current?.focus() }, { enabled: !openId });
-  useTakeKey("n", writeOne, !openId);
+  useTakeKey("n", writeOne, !openId && !templatesOpen);
 
   const linked = React.useMemo(() => linkedCount(refs), [refs]);
   const subtitle = notes.length
     ? `${notes.length} ${notes.length === 1 ? "note" : "notes"}${linked ? ` · ${linked} linked` : ""}`
     : undefined;
 
-  const newButton = (
-    <Button variant="primary" size="sm" onClick={writeOne}>
-      <Plus className="size-3.5" />
-      New note
-    </Button>
+  const actions = (
+    <TemplateMenu
+      notes={allNotes}
+      onNew={writeOne}
+      onManage={() => setTemplatesOpen(true)}
+      onOpen={(note) => { setFocusBody(true); setOpenId(note.id); }}
+    />
   );
 
   const cards = (list: Note[]) => (
@@ -139,6 +177,7 @@ export default function NotesPage() {
             note={note}
             refer={refer}
             locator={locators.get(note.id) ?? null}
+            categories={catIdx}
             onOpen={open}
           />
         );
@@ -146,19 +185,66 @@ export default function NotesPage() {
     </div>
   );
 
+  const header = (
+    <PageHeader title="Notes" subtitle={subtitle} actions={actions}>
+      {notes.length > 0 && (
+        <Segmented<View>
+          size="sm"
+          value={view}
+          onChange={setView}
+          options={VIEW_OPTIONS}
+          className="mr-1"
+        />
+      )}
+    </PageHeader>
+  );
+
+  const sheet = (
+    <>
+      {openId && (
+        <NoteSheet
+          noteId={openId}
+          focusBody={focusBody}
+          onClose={() => { setOpenId(null); setFocusBody(false); }}
+          onOpenNote={(id) => { setFocusBody(false); setOpenId(id); }}
+        />
+      )}
+      <TemplatesModal
+        open={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        notes={allNotes}
+        index={catIdx}
+        onEdit={(note) => { setFocusBody(false); setOpenId(note.id); }}
+        onStarted={(note) => { setFocusBody(true); setOpenId(note.id); }}
+      />
+    </>
+  );
+
+  // The board and the graph want the page, not a column in the middle of it.
+  if (ready && notes.length > 0 && FULL_BLEED.includes(view)) {
+    return (
+      <>
+        {header}
+        <PageBody className="flex h-full max-w-none flex-col px-5 py-4 md:px-6">
+          {view === "canvas" ? (
+            <CanvasView notes={onCanvas} onOpen={(id) => { setFocusBody(false); setOpenId(id); }} />
+          ) : (
+            <GraphView
+              notes={notes}
+              index={catIdx}
+              matches={matches}
+              onOpen={(id) => { setFocusBody(false); setOpenId(id); }}
+            />
+          )}
+        </PageBody>
+        {sheet}
+      </>
+    );
+  }
+
   return (
     <>
-      <PageHeader title="Notes" subtitle={subtitle} actions={newButton}>
-        {notes.length > 0 && (
-          <Segmented<View>
-            size="sm"
-            value={view}
-            onChange={setView}
-            options={VIEW_OPTIONS}
-            className="mr-1"
-          />
-        )}
-      </PageHeader>
+      {header}
 
       <PageBody wide>
         {!ready ? (
@@ -173,7 +259,6 @@ export default function NotesPage() {
               // so the first note can still be today's.
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button variant="primary" onClick={writeOne}>
-                  <Plus className="size-3.5" />
                   Write one
                 </Button>
                 <Button onClick={openDaily}>
@@ -193,6 +278,8 @@ export default function NotesPage() {
               filters={filters}
               onFilters={changeFilters}
               tags={tags}
+              categories={cats}
+              categoryIndex={catIdx}
               count={visible.length}
               total={notes.length}
               searchRef={searchRef}
@@ -207,7 +294,7 @@ export default function NotesPage() {
                   : "Nothing written like that"}
                 description={filters.query.trim()
                   ? "Search runs over every title and every line of every note."
-                  : "No note you have written sits under this kind, source or tag."}
+                  : "No note you have written sits under this category, kind, source or tag."}
                 action={
                   <Button size="sm" onClick={() => changeFilters(NO_FILTERS)}>
                     Show every note
@@ -215,7 +302,13 @@ export default function NotesPage() {
                 }
               />
             ) : view === "list" ? (
-              <NoteList notes={paged} refs={refs} locators={locators} onOpen={open} />
+              <NoteList
+                notes={paged}
+                refs={refs}
+                locators={locators}
+                categories={catIdx}
+                onOpen={open}
+              />
             ) : pinned.length > 0 ? (
               <div className="space-y-8">
                 <section>
@@ -247,13 +340,7 @@ export default function NotesPage() {
         )}
       </PageBody>
 
-      {openId && (
-        <NoteSheet
-          noteId={openId}
-          focusBody={focusBody}
-          onClose={() => { setOpenId(null); setFocusBody(false); }}
-        />
-      )}
+      {sheet}
     </>
   );
 }
@@ -268,8 +355,10 @@ export default function NotesPage() {
  * N mean "new note" on this surface and nothing else.
  */
 function useTakeKey(key: string, run: () => void, enabled: boolean) {
+  // The handler is registered once and must still see the newest closure, so
+  // the ref is refreshed after paint rather than during render.
   const latest = React.useRef(run);
-  latest.current = run;
+  React.useEffect(() => { latest.current = run; });
 
   React.useEffect(() => {
     if (!enabled) return;
