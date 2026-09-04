@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { BarChart3, LayoutGrid, NotebookPen, Rows3, Sparkles, Sun } from "lucide-react";
+import {
+  BarChart3, ChevronsDownUp, ChevronsUpDown, LayoutGrid, NotebookPen, Rows3,
+  Sparkles, Sun,
+} from "lucide-react";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import { useHotkeys } from "@/hooks/use-hotkeys";
@@ -58,6 +61,8 @@ export default function NotesPage() {
   const goals = useStore((s) => s.goals);
   const nodes = useStore((s) => s.nodes);
   const insert = useStore((s) => s.insert);
+  const patch = useStore((s) => s.patch);
+  const batchUndo = useStore((s) => s.batchUndo);
 
   const [view, setView] = useStickyChoice<View>("humoyun.notes.view", "cards", VIEWS);
   const [group, setGroup] = useStickyChoice<GroupBy>("humoyun.notes.group", "none", GROUPS);
@@ -97,6 +102,20 @@ export default function NotesPage() {
   const sections = React.useMemo(() => groupNotes(paged, group), [paged, group]);
 
   const arranged = usePinnedLayouts(notes);
+
+  /**
+   * Fold every card on screen, or unfold them. It acts on what is visible
+   * rather than on everything: folding away notes a filter is hiding would be
+   * a change you cannot see and did not ask for.
+   */
+  const anyExpanded = paged.some((n) => !n.collapsed);
+  const foldAll = React.useCallback(() => {
+    const targets = paged.filter((n) => n.collapsed === anyExpanded);
+    if (!targets.length) return;
+    batchUndo(anyExpanded ? "Fold every note" : "Unfold every note", () => {
+      for (const n of targets) patch("notes", n.id, { collapsed: anyExpanded });
+    });
+  }, [paged, anyExpanded, batchUndo, patch]);
 
   const open = React.useCallback((note: Note) => {
     setFocusBody(false);
@@ -273,18 +292,37 @@ export default function NotesPage() {
               onDaily={openDaily}
               group={group}
               onGroup={setGroup}
-              extra={view === "cards" && arranged.count > 0 ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={arranged.tidy}
-                  title="Put every card back into the automatic layout"
-                >
-                  <Sparkles className="size-3.5" />
-                  Tidy up
-                  <span className="text-ink-4 tnum">{arranged.count}</span>
-                </Button>
-              ) : undefined}
+              extra={
+                <>
+                  {view === "cards" && arranged.count > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={arranged.tidy}
+                      title="Put every card back into the automatic layout"
+                    >
+                      <Sparkles className="size-3.5" />
+                      Tidy up
+                      <span className="text-ink-4 tnum">{arranged.count}</span>
+                    </Button>
+                  )}
+                  {view === "cards" && paged.length > 1 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={foldAll}
+                      title={anyExpanded
+                        ? "Show only the titles"
+                        : "Show what is written in each one"}
+                    >
+                      {anyExpanded
+                        ? <ChevronsDownUp className="size-3.5" />
+                        : <ChevronsUpDown className="size-3.5" />}
+                      {anyExpanded ? "Fold all" : "Unfold all"}
+                    </Button>
+                  )}
+                </>
+              }
             />
 
             {visible.length === 0 ? (

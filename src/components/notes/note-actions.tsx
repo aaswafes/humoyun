@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Ellipsis, Pin, PinOff, Trash2 } from "lucide-react";
+import {
+  ChevronDown, ChevronRight, Copy, Ellipsis, Lock, LockOpen, Pin, PinOff, Trash2,
+} from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { Note } from "@/lib/types";
 import { IconButton } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover, TintPicker } from "@/components/ui/overlays";
+import { LockDialog, UnlockDialog, useRemoveLock } from "./note-lock";
 
 /**
  * Deleting a note is undoable rather than confirmed.
@@ -61,6 +64,11 @@ export function NoteActions({ note }: { note: Note }) {
   const insert = useStore((s) => s.insert);
   const toast = useStore((s) => s.toast);
   const deleteNote = useDeleteNote();
+  const removeLock = useRemoveLock();
+  const [locking, setLocking] = React.useState(false);
+  const [unlocking, setUnlocking] = React.useState(false);
+
+  const locked = note.lock != null;
 
   function duplicate() {
     const { id: _id, created_at: _c, updated_at: _u, ...rest } = note;
@@ -71,6 +79,14 @@ export function NoteActions({ note }: { note: Note }) {
 
   return (
     <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/note:opacity-100">
+      <LockDialog note={note} open={locking} onClose={() => setLocking(false)} />
+      <UnlockDialog
+        note={note}
+        open={unlocking}
+        onClose={() => setUnlocking(false)}
+        onUnlocked={(html) => { setUnlocking(false); removeLock(note, html); }}
+      />
+
       <IconButton
         label={note.pinned ? "Unpin note" : "Pin note"}
         size="sm"
@@ -87,7 +103,28 @@ export function NoteActions({ note }: { note: Note }) {
       >
         {(close) => (
           <>
+            <MenuItem
+              icon={note.collapsed ? ChevronRight : ChevronDown}
+              onClick={() => { patch("notes", note.id, { collapsed: !note.collapsed }); close(); }}
+            >
+              {note.collapsed ? "Expand" : "Fold to title"}
+            </MenuItem>
             <MenuItem icon={Copy} onClick={() => { duplicate(); close(); }}>Duplicate</MenuItem>
+
+            <MenuSeparator />
+            {locked ? (
+              // The password is asked for even when the note is already open
+              // this session. Taking protection off a note is exactly the
+              // moment to prove you are the one who put it on.
+              <MenuItem icon={LockOpen} onClick={() => { setUnlocking(true); close(); }}>
+                Remove the lock
+              </MenuItem>
+            ) : (
+              <MenuItem icon={Lock} onClick={() => { setLocking(true); close(); }}>
+                Lock with a password
+              </MenuItem>
+            )}
+
             <MenuSeparator />
             <MenuLabel>Colour</MenuLabel>
             <TintPicker

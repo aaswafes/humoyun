@@ -3,8 +3,8 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import {
-  ArrowLeft, Check, ExternalLink, LayoutTemplate, MoreHorizontal, Palette, Pin,
-  Trash2,
+  ArrowLeft, Check, ExternalLink, LayoutTemplate, Lock, LockOpen,
+  MoreHorizontal, Palette, Pin, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
@@ -20,6 +20,8 @@ import { buildCategoryIndex } from "./category-model";
 import { CategoryPicker, CategoryRow } from "./category-picker";
 import { RichEditor } from "./rich-editor";
 import { bodyAsHtml } from "./rich-text";
+import { LockDialog, UnlockDialog, useRemoveLock } from "./note-lock";
+import { passwordFor, relockBody } from "./note-crypto";
 import {
   LOCATOR_LABELS, buildSourceIndex, locatorUnit, noteHeading, resolveSource, tagCounts,
 } from "./note-model";
@@ -134,10 +136,18 @@ function NoteEditorBody({
 
   const [toolbarSlot, setToolbarSlot] = React.useState<HTMLElement | null>(null);
   const [title, setTitle] = React.useState(note.title ?? "");
-  const [body, setBody] = React.useState(() => bodyAsHtml(note));
+  /** The decrypted body of a locked note, once the password has been given. */
+  const [opened, setOpened] = React.useState<string | null>(null);
+  const [body, setBody] = React.useState(() => (note.lock ? "" : bodyAsHtml(note)));
   // A note written before the rich editor existed is only converted once it is
   // actually edited. Opening one to read it must not rewrite it.
   const [touched, setTouched] = React.useState(false);
+  const [locking, setLocking] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
+  const removeLock = useRemoveLock();
+
+  const locked = note.lock != null;
+  const readable = !locked || opened !== null;
 
   const idx = React.useMemo(
     () => buildSourceIndex(books, media, tasks, goals, nodes),
@@ -147,31 +157,69 @@ function NoteEditorBody({
   const unit = locatorUnit(refer, idx, note.media_id);
   const suggestions = React.useMemo(() => tagCounts(notes).map((t) => t.tag), [notes]);
 
+  const noteId = note.id;
   const nextTitle = title.trim() || null;
-  const bodyChanged = touched && (body !== note.body || note.format !== "html");
+  // A locked note's stored body is ciphertext, so "has it changed" is measured
+  // against what was decrypted, never against what is in the row.
+  const original = locked ? opened ?? "" : bodyAsHtml(note);
+  const bodyChanged = touched && (body !== original || (!locked && note.format !== "html"));
   const dirty = nextTitle !== note.title || bodyChanged;
 
   // Closing mid-keystroke must not lose the keystroke, so the pending write is
-  // kept where the unmount effect can still find it.
-  const pending = React.useRef<Partial<Note> | null>(null);
-  const noteId = note.id;
+  // kept where the unmount flush can still find it.
+  const pending = React.useRef<{ title?: string | null; body?: string } | null>(null);
+
+  /**
+   * The only place a note is written.
+   *
+   * One writer rather than two because a locked note has to be sealed again
+   * before it can be stored, and doing that in both the timer and the unmount
+   * is exactly how one of them ends up saving plaintext. If the password is
+   * not in memory the body is left alone entirely — a locked note is never
+   * downgraded to readable by an autosave.
+   */
+  const commit = React.useCallback(async () => {
+    const next = pending.current;
+    pending.current = null;
+    if (!next) return;
+
+    const changes: Partial<Note> = {};
+    if ("title" in next) changes.title = next.title ?? null;
+
+    if (next.body !== undefined) {
+      if (note.lock) {
+        const password = passwordFor(noteId);
+        if (password) {
+          const sealed = await relockBody(next.body, password, note.lock);
+          changes.body = sealed.body;
+          changes.lock = sealed.lock;
+          changes.format = "html";
+        }
+      } else {
+        changes.body = next.body;
+        changes.format = "html";
+      }
+    }
+
+    if (Object.keys(changes).length) patch("notes", noteId, changes);
+  }, [noteId, note.lock, patch]);
+
+  // Held in a ref so the unmount flush does not fire every time commit is
+  // rebuilt — which would save halfway through a sentence.
+  const commitRef = React.useRef(commit);
+  React.useEffect(() => { commitRef.current = commit; }, [commit]);
 
   React.useEffect(() => {
-    const changes: Partial<Note> = {};
-    if (nextTitle !== note.title) changes.title = nextTitle;
-    if (bodyChanged) { changes.body = body; changes.format = "html"; }
-    pending.current = Object.keys(changes).length ? changes : null;
+    const next: { title?: string | null; body?: string } = {};
+    if (nextTitle !== note.title) next.title = nextTitle;
+    if (bodyChanged) next.body = body;
+    pending.current = Object.keys(next).length ? next : null;
     if (!pending.current) return;
-    const timer = setTimeout(() => {
-      if (pending.current) patch("notes", noteId, pending.current);
-      pending.current = null;
-    }, AUTOSAVE_MS);
+    const timer = setTimeout(() => { void commitRef.current(); }, AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [nextTitle, body, bodyChanged, note.title, noteId, patch]);
+  }, [nextTitle, body, bodyChanged, note.title]);
 
-  React.useEffect(() => () => {
-    if (pending.current) patch("notes", noteId, pending.current);
-  }, [noteId, patch]);
+  React.useEffect(() => () => { void commitRef.current(); }, []);
 
   /**
    * A note lives in one place, so a new source replaces the old one — and the
@@ -260,17 +308,31 @@ function NoteEditorBody({
         >
           {(close) => (
             <>
-              <MenuItem
-                icon={LayoutTemplate}
-                checked={note.is_template}
-                onClick={() => {
-                  if (note.is_template) patch("notes", noteId, { is_template: false });
-                  else saveAsTemplate();
-                  close();
-                }}
-              >
-                {note.is_template ? "Turn back into a note" : "Save as a template"}
-              </MenuItem>
+              {locked ? (
+                <MenuItem icon={LockOpen} onClick={() => { setRemoving(true); close(); }}>
+                  Remove the lock
+                </MenuItem>
+              ) : (
+                <MenuItem icon={Lock} onClick={() => { setLocking(true); close(); }}>
+                  Lock with a password
+                </MenuItem>
+              )}
+
+              {/* A template made from a locked note would be a template of
+                  ciphertext, so it is simply not offered. */}
+              {!locked && (
+                <MenuItem
+                  icon={LayoutTemplate}
+                  checked={note.is_template}
+                  onClick={() => {
+                    if (note.is_template) patch("notes", noteId, { is_template: false });
+                    else saveAsTemplate();
+                    close();
+                  }}
+                >
+                  {note.is_template ? "Turn back into a note" : "Save as a template"}
+                </MenuItem>
+              )}
               {refer.href && !refer.missing && (
                 <MenuItem icon={ExternalLink} onClick={() => { openSource(refer); close(); }}>
                   Open {refer.label}
@@ -285,6 +347,38 @@ function NoteEditorBody({
         </Popover>
       </header>
 
+      <LockDialog note={note} open={locking} onClose={() => setLocking(false)} />
+      <UnlockDialog
+        note={note}
+        open={removing}
+        onClose={() => setRemoving(false)}
+        onUnlocked={(html) => {
+          setRemoving(false);
+          removeLock(note, html);
+          setOpened(html);
+          setBody(html);
+        }}
+      />
+
+      {/* Nothing of a locked note is drawn until it is open — not the body,
+          not a skeleton of it, not its length. */}
+      {!readable ? (
+        <div className="grid min-h-0 flex-1 place-items-center px-6">
+          <div className="text-center">
+            <Lock className="mx-auto size-5 text-ink-4" aria-hidden />
+            <p className="mt-3 text-[13.5px] text-ink-2">This note is locked.</p>
+            <p className="mt-1 text-[12.5px] text-ink-4">
+              {note.lock?.hint ? `Hint: ${note.lock.hint}` : "Enter the password to read it."}
+            </p>
+          </div>
+          <UnlockDialog
+            note={note}
+            open
+            onClose={onClose}
+            onUnlocked={(html) => { setOpened(html); setBody(html); setTouched(false); }}
+          />
+        </div>
+      ) : (
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={cn(MEASURE, "pb-32 pt-10")}>
           <input
@@ -402,6 +496,7 @@ function NoteEditorBody({
           </Disclosure>
         </div>
       </div>
+      )}
     </>
   );
 }

@@ -60,17 +60,30 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
-/** A note's words, whichever shape its body is stored in. */
-export function noteText(note: Pick<Note, "body" | "format">): string {
+/**
+ * A note's words, whichever shape its body is stored in.
+ *
+ * A locked note has none as far as everything else is concerned: its body is
+ * ciphertext, and running search, previews or word counts over base64 would
+ * both be nonsense and leak how long the note is. One guard here keeps every
+ * caller honest without any of them having to know about encryption.
+ */
+export function noteText(note: Pick<Note, "body" | "format" | "lock">): string {
+  if (note.lock) return "";
   return note.format === "html" ? htmlToText(note.body) : note.body;
 }
 
 /** True when there is nothing written — an empty paragraph counts as nothing. */
-export function isEmptyBody(note: Pick<Note, "body" | "format">): boolean {
+export function isEmptyBody(note: Pick<Note, "body" | "format" | "lock">): boolean {
   return noteText(note).trim() === "";
 }
 
-/** What the editor opens with, given a body that may still be plain. */
+/**
+ * What the editor opens with, given a body that may still be plain.
+ *
+ * Never called for a locked note: the editor holds the decrypted text itself
+ * and hands it in, because this function has no password to work with.
+ */
 export function bodyAsHtml(note: Pick<Note, "body" | "format">): string {
   if (note.format === "html") return note.body || "<p><br></p>";
   return plainToHtml(note.body);
@@ -205,7 +218,7 @@ export function linkedNoteIds(html: string): string[] {
 }
 
 /** The titles a body points at with [[…]], whatever shape the body is in. */
-export function linkedTitles(note: Pick<Note, "body" | "format">): string[] {
+export function linkedTitles(note: Pick<Note, "body" | "format" | "lock">): string[] {
   const out = new Set<string>();
   for (const m of noteText(note).matchAll(WIKILINK_RE)) {
     const name = m[1].trim();
@@ -216,10 +229,12 @@ export function linkedTitles(note: Pick<Note, "body" | "format">): string[] {
 
 /** Both kinds of link, resolved to ids, for one note. */
 export function outgoingLinks(
-  note: Pick<Note, "body" | "format">,
+  note: Pick<Note, "body" | "format" | "lock">,
   byTitle: Map<string, string>,
 ): string[] {
-  const ids = new Set<string>(note.format === "html" ? linkedNoteIds(note.body) : []);
+  const ids = new Set<string>(
+    !note.lock && note.format === "html" ? linkedNoteIds(note.body) : [],
+  );
   for (const title of linkedTitles(note)) {
     const id = byTitle.get(title.toLowerCase());
     if (id) ids.add(id);

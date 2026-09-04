@@ -310,6 +310,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         task_id: null, goal_id: null, project_id: null, node_id: null, date: null, locator: null,
         tags: [], categories: [], color: null, pinned: false,
         format: "plain", is_template: false, layout: null,
+        collapsed: false, lock: null,
       };
     case "noteCategories":
       return { ...base, name: "New category", icon: null, color: "slate", order_index: 0 };

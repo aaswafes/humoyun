@@ -229,6 +229,26 @@ export interface NoteCategory {
 }
 
 /**
+ * What is needed to try a password against a locked note.
+ *
+ * Deliberately not a password, a hash of one, or anything derived from one:
+ * a salt and an IV are public inputs. The key is derived in the browser from
+ * what the reader types and never leaves it, so a locked note is unreadable to
+ * the database, to the network and to whoever is looking over your shoulder —
+ * and to you, permanently, if the password is forgotten.
+ */
+export interface NoteLock {
+  /** scheme version, so the derivation can change without stranding old notes */
+  v: 1;
+  /** base64, 16 bytes, unique per note */
+  salt: string;
+  /** base64, 12 bytes, re-rolled on every save */
+  iv: string;
+  /** an optional nudge, shown on the unlock prompt. Never the password. */
+  hint?: string | null;
+}
+
+/**
  * A note stands on its own but usually came from somewhere — a book, a film,
  * a day. Those links are what let the same note appear on the shelf it belongs
  * to and in one list of everything written.
@@ -255,6 +275,10 @@ export interface Note {
   color: Tint | null;
   pinned: boolean;
   format: NoteFormat;
+  /** folded down to its title on the cards and the board */
+  collapsed: boolean;
+  /** set when `body` is ciphertext rather than words */
+  lock: NoteLock | null;
   /** a template is a note held back from the lists and offered when writing */
   is_template: boolean;
   /** its place on the canvas, or null when it has not been put there */
