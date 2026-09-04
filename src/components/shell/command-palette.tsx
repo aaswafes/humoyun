@@ -33,7 +33,6 @@ export function CommandPalette() {
   const habits = useStore((s) => s.habits);
   const goals = useStore((s) => s.goals);
   const projects = useStore((s) => s.projects);
-  const nodes = useStore((s) => s.nodes);
   const templates = useStore((s) => s.templates);
   const toggleTask = useStore((s) => s.toggleTask);
   const openInspector = useStore((s) => s.openInspector);
@@ -61,7 +60,6 @@ export function CommandPalette() {
       { id: "n-cal", label: "Calendar", group: "Go to", icon: CalendarDays, run: () => go("/calendar") },
       { id: "n-inbox", label: "Inbox", group: "Go to", icon: Inbox, run: () => go("/inbox") },
       { id: "n-projects", label: "Projects", group: "Go to", icon: Boxes, run: () => go("/projects") },
-      { id: "n-map", label: "Mind Map", group: "Go to", icon: Network, run: () => go("/map") },
       { id: "n-books", label: "Books", group: "Go to", icon: BookOpen, run: () => go("/books") },
       { id: "n-watch", label: "Films & Anime", group: "Go to", icon: Clapperboard, run: () => go("/watch") },
       { id: "n-youtube", label: "YouTube", group: "Go to", icon: MonitorPlay, run: () => go("/youtube") },
@@ -136,11 +134,6 @@ export function CommandPalette() {
       run: () => go("/projects"),
     }));
 
-    const nodeResults: Command[] = nodes.map((n) => ({
-      id: `nd-${n.id}`, label: n.title, hint: n.date ?? "Note", group: "Mind Map",
-      icon: Network, run: () => go("/map"),
-    }));
-
     const templateResults: Command[] = templates.map((t) => ({
       id: `tp-${t.id}`,
       label: `Apply “${t.name}” to today`,
@@ -154,8 +147,8 @@ export function CommandPalette() {
       },
     }));
 
-    return [...actions, ...nav, ...taskResults, ...bookResults, ...habitResults, ...goalResults, ...projectResults, ...nodeResults, ...templateResults];
-  }, [tasks, books, habits, goals, projects, nodes, templates, go, close, openInspector, setSelectedDate, setTheme, startTimer, applyTemplate, toast]);
+    return [...actions, ...nav, ...taskResults, ...bookResults, ...habitResults, ...goalResults, ...projectResults, ...templateResults];
+  }, [tasks, books, habits, goals, projects, templates, go, close, openInspector, setSelectedDate, setTheme, startTimer, applyTemplate, toast]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();

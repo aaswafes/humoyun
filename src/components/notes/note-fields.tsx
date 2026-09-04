@@ -31,7 +31,6 @@ export const SOURCE_ICONS: Record<SourceKind, React.ComponentType<{ className?: 
   media: Clapperboard,
   task: ListTodo,
   goal: Target,
-  node: Network,
   day: CalendarDays,
   none: NotebookPen,
 };

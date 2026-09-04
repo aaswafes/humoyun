@@ -18,7 +18,7 @@ import type { SourceRef } from "./note-model";
  * the card and the source filter from disagreeing about where a note lives.
  */
 export const CLEARED_SOURCE = {
-  book_id: null, media_id: null, task_id: null, goal_id: null, node_id: null, date: null,
+  book_id: null, media_id: null, task_id: null, goal_id: null, date: null,
 } satisfies Partial<Note>;
 
 /** Long shelves stay usable by asking you to type rather than scrolling forever. */

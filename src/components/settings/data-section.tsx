@@ -30,9 +30,6 @@ const LABELS: Record<CollectionKey, string> = {
   habitLogs: "Habit logs",
   goals: "Goals",
   projects: "Projects",
-  boards: "Boards",
-  nodes: "Map nodes",
-  edges: "Map edges",
   templates: "Templates",
   prayers: "Prayers",
   dayLogs: "Day logs",
@@ -91,9 +88,6 @@ const VALIDATORS: Record<CollectionKey, (r: AnyRow) => string | null> = {
       : !oneOf(r.status, ["idea", "active", "paused", "done", "dropped"]) ? "unknown status"
         : !dateish(r.due_date) ? "due_date is not yyyy-mm-dd"
           : null,
-  boards: (r) => (str(r.name) ? null : "no name"),
-  nodes: (r) => (str(r.title) ? null : "no title"),
-  edges: (r) => (!str(r.source_id) || !str(r.target_id) ? "edge is missing an end" : null),
   templates: (r) => (!str(r.name) ? "no name" : r.items != null && !Array.isArray(r.items) ? "items is not a list" : null),
   prayers: (r) =>
     !ISO_DATE.test(String(r.date)) ? "date is not yyyy-mm-dd"
@@ -481,7 +475,7 @@ export function DataSection() {
           }
         >
           Ninety-one days of a believable life — tasks, four books on reading plans, six habits with two
-          months of history, prayers, focus sessions, goals, two mind maps and a set of templates. It is
+          months of history, prayers, focus sessions, goals, notes and a set of templates. It is
           real data: edit it, or delete all of it in one click.
         </Callout>
       )}
@@ -595,7 +589,7 @@ export function DataSection() {
           label={seeded ? "Sample data is loaded" : "Load sample data"}
           hint={
             seeded
-              ? "Ninety-one days of tasks, reading plans, habits, prayers, focus sessions, goals and two mind maps."
+              ? "Ninety-one days of tasks, reading plans, habits, prayers, focus sessions, goals and notes."
               : "Ninety-one days centred on today: every day has something, the past is mostly done, the future is planned."
           }
         >

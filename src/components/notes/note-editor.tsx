@@ -128,7 +128,6 @@ function NoteEditorBody({
   const media = useStore((s) => s.media);
   const tasks = useStore((s) => s.tasks);
   const goals = useStore((s) => s.goals);
-  const nodes = useStore((s) => s.nodes);
   const patch = useStore((s) => s.patch);
   const insert = useStore((s) => s.insert);
   const toast = useStore((s) => s.toast);
@@ -150,8 +149,8 @@ function NoteEditorBody({
   const readable = !locked || opened !== null;
 
   const idx = React.useMemo(
-    () => buildSourceIndex(books, media, tasks, goals, nodes),
-    [books, media, tasks, goals, nodes]);
+    () => buildSourceIndex(books, media, tasks, goals),
+    [books, media, tasks, goals]);
   const catIdx = React.useMemo(() => buildCategoryIndex(categories), [categories]);
   const refer = React.useMemo(() => resolveSource(note, idx), [note, idx]);
   const unit = locatorUnit(refer, idx, note.media_id);

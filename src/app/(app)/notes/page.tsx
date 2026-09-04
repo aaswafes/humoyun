@@ -59,7 +59,6 @@ export default function NotesPage() {
   const media = useStore((s) => s.media);
   const tasks = useStore((s) => s.tasks);
   const goals = useStore((s) => s.goals);
-  const nodes = useStore((s) => s.nodes);
   const insert = useStore((s) => s.insert);
   const patch = useStore((s) => s.patch);
   const batchUndo = useStore((s) => s.batchUndo);
@@ -78,8 +77,8 @@ export default function NotesPage() {
 
   // One index over everything a note can hang off feeds every chip on the page.
   const idx = React.useMemo(
-    () => buildSourceIndex(books, media, tasks, goals, nodes),
-    [books, media, tasks, goals, nodes]);
+    () => buildSourceIndex(books, media, tasks, goals),
+    [books, media, tasks, goals]);
   const refs = React.useMemo(() => buildSourceRefs(notes, idx), [notes, idx]);
   const catIdx = React.useMemo(() => buildCategoryIndex(categories), [categories]);
 

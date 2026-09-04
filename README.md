@@ -3,9 +3,8 @@
 A calendar-first personal operating system. Notion's structure, Apple's manners.
 
 Tasks and events live on one timeline. Books drag onto the calendar and schedule
-themselves. A mind map anchors notes to dates, so a thought in May points at a
-milestone in June. Habits, salah, focus timers and a weekly review all feed the
-same day.
+themselves. Notes carry categories, tags and a password when one is needed.
+Habits, salah, focus timers and a weekly review all feed the same day.
 
 ## Run it
 
@@ -26,7 +25,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 src/
   app/
-    (app)/            the signed-in shell: today, calendar, projects, map, books,
+    (app)/            the signed-in shell: today, calendar, projects, books,
                       habits, salah, focus, goals, stats, review, templates,
                       settings
     login/            email + password
@@ -59,5 +58,5 @@ adding a surface.
 | `N` | quick add — one line of natural language |
 | `T` | jump to today |
 | `⇧←` `⇧→` | previous / next day |
-| `G` then `C` | calendar (also `T` today, `I` inbox, `P` projects, `N` notes, `M` map, `B` books, `H` habits, `S` salah, `F` focus, `G` goals, `R` review, `A` stats) |
+| `G` then `C` | calendar (also `T` today, `I` inbox, `P` projects, `N` notes, `B` books, `H` habits, `S` salah, `F` focus, `G` goals, `R` review, `A` stats) |
 | `⌘\` | toggle sidebar |

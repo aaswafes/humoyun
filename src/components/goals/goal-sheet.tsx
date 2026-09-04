@@ -83,7 +83,6 @@ function GoalSheetBody({
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
   const goals = useStore((s) => s.goals);
-  const nodes = useStore((s) => s.nodes);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
   const { createGoal, breakDown } = useGoalActions();
@@ -115,10 +114,7 @@ function GoalSheetBody({
 
   const markers = React.useMemo(() => rangeMarkers(goal), [goal]);
 
-  const linkCount =
-    stats.meta.book_ids.length +
-    stats.meta.habit_ids.length +
-    nodes.filter((n) => n.goal_id === goal.id).length;
+  const linkCount = stats.meta.book_ids.length + stats.meta.habit_ids.length;
 
   const progressSummary = [
     PROGRESS_MODE_LABEL[stats.mode],

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, Network, Plus, Repeat2, X } from "lucide-react";
+import { BookOpen, Plus, Repeat2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { dayNameOf, todayISO } from "@/lib/date";
@@ -15,20 +15,15 @@ import type { GoalStats } from "./goal-model";
 import { useGoalMeta } from "./use-goal-actions";
 
 /**
- * A goal is not only its tasks. A reading plan, a habit and a corner of the
- * mind map can all be the thing that actually moves it — and once they are
- * linked, their activity is what keeps the goal off the stalled list.
+ * A goal is not only its tasks. A reading plan or a habit can be the thing
+ * that actually moves it — and once they are linked, their activity is what
+ * keeps the goal off the stalled list.
  */
 export function GoalLinks({ goal, stats }: { goal: Goal; stats: GoalStats }) {
   const books = useStore((s) => s.books);
   const habits = useStore((s) => s.habits);
   const habitLogs = useStore((s) => s.habitLogs);
-  const nodes = useStore((s) => s.nodes);
-  const boards = useStore((s) => s.boards);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
-  const patch = useStore((s) => s.patch);
-  const insert = useStore((s) => s.insert);
-  const toast = useStore((s) => s.toast);
   const { toggleLink } = useGoalMeta();
 
   const meta = stats.meta;
@@ -42,45 +37,16 @@ export function GoalLinks({ goal, stats }: { goal: Goal; stats: GoalStats }) {
     () => meta.habit_ids.map((id) => habits.find((h) => h.id === id)).filter((h): h is NonNullable<typeof h> => !!h),
     [meta.habit_ids, habits],
   );
-  const linkedNodes = React.useMemo(
-    () => nodes.filter((n) => n.goal_id === goal.id),
-    [nodes, goal.id],
-  );
-
   const logIndex = React.useMemo(() => buildLogIndex(habitLogs), [habitLogs]);
 
-  const empty = !linkedBooks.length && !linkedHabits.length && !linkedNodes.length;
-
-  function createNode() {
-    const board = boards[0] ?? null;
-    // Laid out on a grid rather than scattered, so a run of new nodes never
-    // lands on top of itself.
-    const slot = nodes.length;
-    const node = insert("nodes", {
-      board_id: board?.id ?? null,
-      title: goal.title || "Untitled goal",
-      kind: "goal",
-      shape: "card",
-      color: goal.color,
-      date: goal.end_date,
-      goal_id: goal.id,
-      x: 120 + (slot % 5) * 260,
-      y: 120 + Math.floor(slot / 5) * 180,
-    });
-    toast({
-      title: "Added to the mind map",
-      description: board ? `On ${board.name}` : "On the default board",
-      tone: "success",
-      action: { label: "Undo", run: () => useStore.getState().remove("nodes", node.id) },
-    });
-  }
+  const empty = !linkedBooks.length && !linkedHabits.length;
 
   return (
     <section>
       <div className="flex items-center gap-2">
         <SubLabel>Also connected</SubLabel>
         <span className="text-[11px] text-ink-4 tnum">
-          {linkedBooks.length + linkedHabits.length + linkedNodes.length}
+          {linkedBooks.length + linkedHabits.length}
         </span>
         <div className="flex-1" />
 
@@ -126,22 +92,6 @@ export function GoalLinks({ goal, stats }: { goal: Goal; stats: GoalStats }) {
                 </MenuItem>
               ))}
 
-              <MenuLabel>Mind map</MenuLabel>
-              {nodes.filter((n) => !n.goal_id || n.goal_id === goal.id).slice(0, 40).map((node) => (
-                <MenuItem
-                  key={node.id}
-                  icon={Network}
-                  checked={node.goal_id === goal.id}
-                  onClick={() =>
-                    patch("nodes", node.id, { goal_id: node.goal_id === goal.id ? null : goal.id })
-                  }
-                >
-                  <span className="block truncate">{node.title || "Untitled node"}</span>
-                </MenuItem>
-              ))}
-              <MenuItem icon={Plus} onClick={() => { createNode(); close(); }}>
-                New node for this goal
-              </MenuItem>
             </>
           )}
         </Popover>
@@ -149,7 +99,7 @@ export function GoalLinks({ goal, stats }: { goal: Goal; stats: GoalStats }) {
 
       {empty ? (
         <MiniEmpty className="mt-1">
-          Nothing else points here yet. A book, a habit or a mind-map node keeps this goal alive
+          Nothing else points here yet. A book or a habit keeps this goal alive
           between tasks.
         </MiniEmpty>
       ) : (
@@ -185,18 +135,6 @@ export function GoalLinks({ goal, stats }: { goal: Goal; stats: GoalStats }) {
               />
             );
           })}
-
-          {linkedNodes.map((node) => (
-            <LinkRow
-              key={node.id}
-              icon={Network}
-              title={node.title || "Untitled node"}
-              detail={node.kind}
-              tint={node.color}
-              onUnlink={() => patch("nodes", node.id, { goal_id: null })}
-              unlinkLabel={`Unlink ${node.title || "node"} from this goal`}
-            />
-          ))}
         </div>
       )}
     </section>

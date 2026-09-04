@@ -114,7 +114,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       "g then c": () => router.push("/calendar"),
       "g then i": () => router.push("/inbox"),
       "g then p": () => router.push("/projects"),
-      "g then m": () => router.push("/map"),
       "g then b": () => router.push("/books"),
       "g then w": () => router.push("/watch"),
       "g then y": () => router.push("/youtube"),

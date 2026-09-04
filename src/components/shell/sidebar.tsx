@@ -96,7 +96,6 @@ export function Sidebar() {
       label: "Reflect",
       items: [
         { href: "/goals", label: "Goals", icon: Target },
-        { href: "/map", label: "Mind Map", icon: Network },
         { href: "/stats", label: "Stats", icon: BarChart3 },
         { href: "/review", label: "Weekly Review", icon: ClipboardCheck },
       ],

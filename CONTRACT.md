@@ -8,7 +8,7 @@ re-invent it, do not edit the files listed under "Do not touch".
 A calendar-first personal operating system. Notion's structure (checkboxes, inline
 editing, tints, templates) with Apple's manners (hairlines, springs, restraint,
 tabular numerals). One user, their whole life: tasks, events, reading plans, habits,
-salah, goals, a mind map anchored to dates, focus timers, and weekly review.
+salah, goals, notes, focus timers, and weekly review.
 
 ## Stack
 

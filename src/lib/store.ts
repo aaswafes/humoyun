@@ -15,9 +15,6 @@ import {
   type Goal,
   type Habit,
   type HabitLog,
-  type MapEdge,
-  type MapNode,
-  type Board,
   type Prayer,
   type PrayerName,
   type PrayerStatus,
@@ -222,7 +219,7 @@ interface StoreState extends CollectionState {
 
 const COLLECTION_KEYS: CollectionKey[] = [
   "tasks", "books", "media", "notes", "noteCategories", "habits", "habitLogs", "goals",
-  "projects", "boards", "nodes", "edges", "templates", "prayers", "dayLogs",
+  "projects", "templates", "prayers", "dayLogs",
   "focusSessions", "reviews", "tags",
 ];
 
@@ -239,9 +236,8 @@ const COLLECTION_KEYS: CollectionKey[] = [
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
   tasks: true, books: true, media: true, notes: true, noteCategories: true, habits: true,
-  goals: true, boards: true,
-  projects: true, nodes: true, templates: true, dayLogs: true, reviews: true,
-  habitLogs: false, edges: false, prayers: false, focusSessions: false, tags: false,
+  goals: true, projects: true, templates: true, dayLogs: true, reviews: true,
+  habitLogs: false, prayers: false, focusSessions: false, tags: false,
 };
 
 const emptyCollections = () =>
@@ -282,7 +278,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         date: null, start_min: null, end_min: null, all_day: true, duration_min: null,
         actual_min: 0, completed_at: null, color: null, icon: null, tags: [], checklist: [],
         order_index: 0, parent_id: null, book_id: null, habit_id: null, goal_id: null,
-        project_id: null, node_id: null, template_id: null, page_from: null, page_to: null,
+        project_id: null, template_id: null, page_from: null, page_to: null,
         media_id: null, episode_from: null, episode_to: null,
         recurrence: null, series_id: null,
       };
@@ -307,7 +303,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
       // a project never do, and their notes stay round-trippable text.
       return {
         ...base, title: null, body: "", kind: "note", book_id: null, media_id: null,
-        task_id: null, goal_id: null, project_id: null, node_id: null, date: null, locator: null,
+        task_id: null, goal_id: null, project_id: null, date: null, locator: null,
         tags: [], categories: [], color: null, pinned: false,
         format: "plain", is_template: false, layout: null,
         collapsed: false, lock: null,
@@ -333,15 +329,6 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         ...base, name: "New project", description: null, status: "active", color: "blue",
         icon: null, start_date: null, due_date: null, goal_id: null, order_index: 0,
       };
-    case "boards":
-      return { ...base, name: "Mind Map", icon: "network", color: "blue", order_index: 0 };
-    case "nodes":
-      return {
-        ...base, board_id: null, title: "Untitled", body: null, x: 0, y: 0, w: 220, h: 120,
-        color: "slate", shape: "card", kind: "note", date: null, collapsed: false, goal_id: null,
-      };
-    case "edges":
-      return { id: base.id, user_id: userId, created_at: nowIso(), board_id: null, source_id: "", target_id: "", label: null, style: "solid", color: "slate" };
     case "templates":
       return { ...base, name: "New template", description: null, icon: "layout-template", color: "violet", scope: "day", items: [], use_count: 0, order_index: 0 };
     case "prayers":
@@ -402,8 +389,8 @@ let batchLabel = "";
 const SINGULAR: Partial<Record<CollectionKey, string>> = {
   tasks: "task", books: "book", media: "title", notes: "note", habits: "habit",
   noteCategories: "category",
-  habitLogs: "habit log", goals: "goal", projects: "project", boards: "board", nodes: "node",
-  edges: "link", templates: "template", prayers: "prayer", dayLogs: "day",
+  habitLogs: "habit log", goals: "goal", projects: "project",
+  templates: "template", prayers: "prayer", dayLogs: "day",
   focusSessions: "session", reviews: "review", tags: "tag",
 };
 
@@ -1268,6 +1255,6 @@ export function focusMinutesOn(sessions: FocusSession[], date: string): number {
 }
 
 export type {
-  Task, Book, Media, Note, Habit, HabitLog, Goal, Board, MapNode, MapEdge,
+  Task, Book, Media, Note, Habit, HabitLog, Goal,
   Template, Prayer, DayLog, FocusSession, Review, Tag, Profile, Tint,
 };

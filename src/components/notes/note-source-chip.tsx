@@ -33,7 +33,6 @@ function openLabel(ref: SourceRef): string {
     case "media": return `Open ${ref.label} on the shelf`;
     case "task": return `Open the task ${ref.label}`;
     case "goal": return `Open the goal ${ref.label}`;
-    case "node": return `Open ${ref.label} on the mind map`;
     case "day": return `Open ${ref.label} in the calendar`;
     default: return "This note stands alone";
   }

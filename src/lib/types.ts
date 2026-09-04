@@ -86,7 +86,6 @@ export interface Task {
   habit_id: string | null;
   goal_id: string | null;
   project_id: string | null;
-  node_id: string | null;
   template_id: string | null;
   page_from: number | null;
   page_to: number | null;
@@ -264,7 +263,6 @@ export interface Note {
   task_id: string | null;
   goal_id: string | null;
   project_id: string | null;
-  node_id: string | null;
   /** the day a daily note belongs to */
   date: string | null;
   /** page for a book, minutes for a film, episode for a series */
@@ -363,49 +361,6 @@ export interface Project {
   order_index: number;
   created_at: string;
   updated_at: string;
-}
-
-export interface Board {
-  id: string;
-  user_id: string;
-  name: string;
-  icon: string;
-  color: Tint;
-  order_index: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MapNode {
-  id: string;
-  user_id: string;
-  board_id: string | null;
-  title: string;
-  body: string | null;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  color: Tint;
-  shape: "card" | "pill" | "diamond" | "circle" | "sticky";
-  kind: "note" | "milestone" | "project" | "idea" | "question" | "goal";
-  date: string | null;
-  collapsed: boolean;
-  goal_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MapEdge {
-  id: string;
-  user_id: string;
-  board_id: string | null;
-  source_id: string;
-  target_id: string;
-  label: string | null;
-  style: "solid" | "dashed" | "dotted";
-  color: Tint;
-  created_at: string;
 }
 
 export interface TemplateItem {
@@ -515,9 +470,6 @@ export interface Collections {
   habitLogs: HabitLog;
   goals: Goal;
   projects: Project;
-  boards: Board;
-  nodes: MapNode;
-  edges: MapEdge;
   templates: Template;
   prayers: Prayer;
   dayLogs: DayLog;
@@ -538,9 +490,6 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   habitLogs: "habit_logs",
   goals: "goals",
   projects: "projects",
-  boards: "boards",
-  nodes: "nodes",
-  edges: "edges",
   templates: "templates",
   prayers: "prayers",
   dayLogs: "day_logs",

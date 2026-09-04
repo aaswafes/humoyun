@@ -19,8 +19,6 @@ import {
   TABLE_OF,
   type CollectionKey,
   type FocusSession,
-  type MapEdge,
-  type MapNode,
   type PrayerStatus,
   type Task,
   type TaskKind,
@@ -38,8 +36,6 @@ const FUTURE = 45;
 /** Bumped whenever the seed changes shape, so an old workspace can be re-seeded. */
 export const SAMPLE_VERSION = "sample-v5";
 const SEED_PREF_KEY = "sample_seed";
-const BOARD_NAME = "Life Map";
-const SECOND_BOARD_NAME = "Reading & Ideas";
 
 const H = (h: number, m = 0) => h * 60 + m;
 
@@ -183,9 +179,9 @@ const PROJECT: readonly Item[] = [
     checklist: ["Cell scale", "Screen-reader summary", "Streak overlay"],
   },
   {
-    title: "Mind map — timeline mode", dur: 120, priority: 3, color: "violet", tags: ["deep", "ship"], goal: "v1",
-    notes: "Dated nodes on a horizontal axis. Undated ones sit in a tray underneath.",
-    checklist: ["Axis scale", "Node lanes", "Undated tray"],
+    title: "Notes — lock a note with a password", dur: 120, priority: 3, color: "violet", tags: ["deep", "ship"], goal: "v1",
+    notes: "Encrypted in the browser. A forgotten password is a lost note, and the dialog has to say so.",
+    checklist: ["Key derivation", "Fresh IV per save", "Wrong-password path"],
   },
   {
     title: "Weekly review — guided flow", dur: 90, priority: 2, color: "violet", tags: ["deep", "ship"], goal: "v1",
@@ -256,7 +252,7 @@ const ANCHORS: { day: number; item: Item }[] = [
   { day: 18, item: { title: "Tashkent Dev Days — day one", kind: "event", start: H(10), dur: 420, color: "orange", tags: ["travel"] } },
   { day: 19, item: { title: "Tashkent Dev Days — day two", kind: "event", start: H(10), dur: 420, color: "orange", tags: ["travel"] } },
   { day: 20, item: { title: "Give the lightning talk", kind: "event", start: H(15), dur: 30, color: "orange", priority: 3, tags: ["travel"] } },
-  { day: 26, item: { title: "v1.1 — mind map timeline", kind: "milestone", color: "violet", tags: ["ship"], goal: "v1" } },
+  { day: 26, item: { title: "v1.1 — locked notes", kind: "milestone", color: "violet", tags: ["ship"], goal: "v1" } },
   { day: 31, item: { title: "Nodira's birthday", kind: "event", color: "pink", priority: 2, tags: ["family"] } },
   { day: 40, item: { title: "Quarter close — write the recap", start: H(10), dur: 120, priority: 2, color: "amber", tags: ["writing", "review"] } },
 ];
@@ -334,78 +330,6 @@ const HABITS: HabitSeed[] = [
   { key: "water", name: "Eight glasses of water", icon: "droplet", color: "blue", cadence: "daily", weekdays: [0, 1, 2, 3, 4, 5, 6], timesPerWeek: 7, target: 8, unit: "glasses", rate: 0.57 },
 ];
 
-// ---------------------------------------------------------
-// Mind map
-// ---------------------------------------------------------
-interface NodeSeed {
-  key: string;
-  title: string;
-  body: string | null;
-  kind: MapNode["kind"];
-  shape: MapNode["shape"];
-  x: number; y: number; w: number; h: number;
-  color: Tint;
-  day: number;
-  goal?: string;
-}
-
-const NODES: NodeSeed[] = [
-  { key: "v1", title: "Humoyun v1", body: "Calendar first. Every surface has to earn its place in the sidebar.", kind: "project", shape: "card", x: 60, y: 60, w: 250, h: 130, color: "blue", day: -60, goal: "v1" },
-  { key: "beta", title: "Public beta", body: null, kind: "milestone", shape: "diamond", x: 380, y: 60, w: 190, h: 110, color: "emerald", day: 12, goal: "beta" },
-  { key: "hundred", title: "First hundred users", body: "Not sign-ups. People who open it on a Tuesday.", kind: "milestone", shape: "diamond", x: 660, y: 60, w: 200, h: 120, color: "emerald", day: 62, goal: "users" },
-  { key: "juz", title: "Memorise Juz Amma", body: null, kind: "goal", shape: "circle", x: 930, y: 50, w: 175, h: 175, color: "teal", day: 120, goal: "juz" },
-
-  { key: "essay", title: "Write the launch essay", body: "Why a calendar, and not another list.", kind: "note", shape: "sticky", x: 60, y: 250, w: 230, h: 125, color: "amber", day: -6 },
-  { key: "who", title: "Who is this actually for?", body: null, kind: "question", shape: "pill", x: 360, y: 250, w: 235, h: 72, color: "pink", day: -20 },
-  { key: "timeline", title: "Mind map timeline", body: "Dated nodes on an axis. The undated ones wait in a tray.", kind: "idea", shape: "card", x: 660, y: 240, w: 220, h: 120, color: "violet", day: 26 },
-  { key: "run", title: "Half marathon", body: "March. The twelve-week block starts in December.", kind: "goal", shape: "circle", x: 930, y: 270, w: 180, h: 180, color: "red", day: 150, goal: "run" },
-
-  { key: "bet", title: "Calendar-first is the whole bet", body: "If the calendar is wrong, nothing downstream saves it.", kind: "note", shape: "card", x: 60, y: 430, w: 250, h: 130, color: "slate", day: -45 },
-  { key: "pricing", title: "Free, or three dollars a month?", body: null, kind: "question", shape: "pill", x: 360, y: 360, w: 235, h: 72, color: "pink", day: 20 },
-  { key: "talk", title: "Talk to ten users", body: "Five before the beta, five after.", kind: "note", shape: "card", x: 360, y: 470, w: 230, h: 115, color: "orange", day: 8, goal: "users" },
-  { key: "finish", title: "Finish Deep Work", body: null, kind: "idea", shape: "card", x: 660, y: 420, w: 210, h: 105, color: "blue", day: 17 },
-
-  { key: "offline", title: "Offline-first sync", body: "The local store already looks like this. Make it official.", kind: "idea", shape: "card", x: 660, y: 570, w: 230, h: 120, color: "teal", day: 75 },
-  { key: "ramadan", title: "Ramadan mode", body: "Suhoor and iftar on the day view, a lighter task load, a Qur'an plan.", kind: "idea", shape: "card", x: 60, y: 610, w: 250, h: 135, color: "emerald", day: 95 },
-  { key: "hire", title: "Hire a designer?", body: null, kind: "question", shape: "pill", x: 360, y: 630, w: 230, h: 72, color: "brown", day: 45 },
-  { key: "v04", title: "v0.4 — calendar grid", body: null, kind: "milestone", shape: "diamond", x: 930, y: 500, w: 180, h: 105, color: "slate", day: -38 },
-];
-
-const EDGES: { from: string; to: string; label: string | null; style: MapEdge["style"]; color: Tint }[] = [
-  { from: "bet", to: "v1", label: "premise", style: "solid", color: "slate" },
-  { from: "v04", to: "v1", label: null, style: "solid", color: "slate" },
-  { from: "v1", to: "beta", label: "then", style: "solid", color: "blue" },
-  { from: "beta", to: "hundred", label: "then", style: "solid", color: "emerald" },
-  { from: "v1", to: "essay", label: "needs", style: "solid", color: "amber" },
-  { from: "essay", to: "who", label: "answer first", style: "dashed", color: "pink" },
-  { from: "who", to: "talk", label: null, style: "dashed", color: "orange" },
-  { from: "talk", to: "hundred", label: "feeds", style: "solid", color: "orange" },
-  { from: "who", to: "pricing", label: null, style: "dotted", color: "pink" },
-  { from: "pricing", to: "hundred", label: "blocks", style: "dashed", color: "emerald" },
-  { from: "timeline", to: "v1", label: "after v1", style: "dotted", color: "violet" },
-  { from: "finish", to: "v1", label: "feeds", style: "dotted", color: "blue" },
-  { from: "offline", to: "beta", label: "not yet", style: "dotted", color: "teal" },
-  { from: "hire", to: "beta", label: "if it lands", style: "dashed", color: "brown" },
-  { from: "ramadan", to: "juz", label: null, style: "dashed", color: "teal" },
-  { from: "run", to: "hundred", label: null, style: "dotted", color: "red" },
-];
-
-const SIDE_NODES: NodeSeed[] = [
-  { key: "s-read", title: "Reading system", body: "Pages per day beats a finish date. The calendar does the maths.", kind: "project", shape: "card", x: 70, y: 70, w: 250, h: 130, color: "amber", day: -30 },
-  { key: "s-notes", title: "Marginalia → notes", body: null, kind: "idea", shape: "card", x: 390, y: 70, w: 220, h: 110, color: "violet", day: 14 },
-  { key: "s-spaced", title: "Spaced repetition for books", body: "Re-surface a highlight seven days later, then thirty.", kind: "idea", shape: "sticky", x: 70, y: 260, w: 240, h: 130, color: "orange", day: 40 },
-  { key: "s-why", title: "Why do I abandon books at page 60?", body: null, kind: "question", shape: "pill", x: 390, y: 250, w: 250, h: 72, color: "pink", day: -12 },
-  { key: "s-24", title: "24 books this year", body: null, kind: "goal", shape: "circle", x: 700, y: 90, w: 170, h: 170, color: "amber", day: 128, goal: "books" },
-  { key: "s-shelf", title: "Shelf for next quarter", body: "Seneca, Ghazali, one novel, one biography.", kind: "note", shape: "card", x: 390, y: 400, w: 240, h: 120, color: "brown", day: 55 },
-];
-
-const SIDE_EDGES: { from: string; to: string; label: string | null; style: MapEdge["style"]; color: Tint }[] = [
-  { from: "s-read", to: "s-24", label: "serves", style: "solid", color: "amber" },
-  { from: "s-read", to: "s-notes", label: null, style: "solid", color: "violet" },
-  { from: "s-notes", to: "s-spaced", label: "then", style: "dashed", color: "orange" },
-  { from: "s-why", to: "s-read", label: "the real problem", style: "dashed", color: "pink" },
-  { from: "s-shelf", to: "s-24", label: null, style: "dotted", color: "brown" },
-];
 
 // ---------------------------------------------------------
 // Templates
@@ -634,7 +558,6 @@ export function sampleDataPresent(): boolean {
   const prefs = (s.profile?.prefs ?? {}) as Record<string, unknown>;
   if (prefs[SEED_PREF_KEY] === SAMPLE_VERSION) return true;
   if (s.books.some((b) => BOOK_TITLES.has(b.title))) return true;
-  if (s.boards.some((b) => b.name === BOARD_NAME || b.name === SECOND_BOARD_NAME)) return true;
   return false;
 }
 
@@ -678,7 +601,6 @@ export function loadSampleData(): number {
   seedFocus(ctx);
   seedDayLogs(ctx);
   seedReviews(ctx);
-  seedMap(ctx);
   seedTemplates(ctx);
 
   s.updateProfile({
@@ -1582,56 +1504,6 @@ function seedReviews(ctx: Ctx) {
     rating: 3,
   });
   ctx.rows++;
-}
-
-function seedMap(ctx: Ctx) {
-  const s = store();
-
-  const board = s.insert("boards", { name: BOARD_NAME, icon: "network", color: "violet", order_index: 0 });
-  ctx.rows++;
-
-  const ids: Record<string, string> = {};
-  NODES.forEach((n) => {
-    const node = s.insert("nodes", {
-      board_id: board.id, title: n.title, body: n.body, kind: n.kind, shape: n.shape,
-      x: n.x, y: n.y, w: n.w, h: n.h, color: n.color,
-      date: addDays(ctx.today, n.day),
-      goal_id: n.goal ? (ctx.goals[n.goal] ?? null) : null,
-    });
-    ids[n.key] = node.id;
-    ctx.rows++;
-  });
-  EDGES.forEach((e) => {
-    if (!ids[e.from] || !ids[e.to]) return;
-    s.insert("edges", {
-      board_id: board.id, source_id: ids[e.from], target_id: ids[e.to],
-      label: e.label, style: e.style, color: e.color,
-    });
-    ctx.rows++;
-  });
-
-  const side = s.insert("boards", { name: SECOND_BOARD_NAME, icon: "book-open", color: "amber", order_index: 1 });
-  ctx.rows++;
-
-  const sideIds: Record<string, string> = {};
-  SIDE_NODES.forEach((n) => {
-    const node = s.insert("nodes", {
-      board_id: side.id, title: n.title, body: n.body, kind: n.kind, shape: n.shape,
-      x: n.x, y: n.y, w: n.w, h: n.h, color: n.color,
-      date: addDays(ctx.today, n.day),
-      goal_id: n.goal ? (ctx.goals[n.goal] ?? null) : null,
-    });
-    sideIds[n.key] = node.id;
-    ctx.rows++;
-  });
-  SIDE_EDGES.forEach((e) => {
-    if (!sideIds[e.from] || !sideIds[e.to]) return;
-    s.insert("edges", {
-      board_id: side.id, source_id: sideIds[e.from], target_id: sideIds[e.to],
-      label: e.label, style: e.style, color: e.color,
-    });
-    ctx.rows++;
-  });
 }
 
 function seedTemplates(ctx: Ctx) {

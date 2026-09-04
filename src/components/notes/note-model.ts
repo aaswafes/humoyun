@@ -1,5 +1,5 @@
 import { formatClock, formatDate, friendlyDate, todayISO, yearOf } from "@/lib/date";
-import { NOTE_KIND_LABELS, type Book, type Goal, type MapNode, type Media, type Note, type NoteKind, type Task } from "@/lib/types";
+import { NOTE_KIND_LABELS, type Book, type Goal, type Media, type Note, type NoteKind, type Task } from "@/lib/types";
 import { hasCategory } from "./category-model";
 import { noteText } from "./rich-text";
 
@@ -12,25 +12,23 @@ import { noteText } from "./rich-text";
 // and the source filter telling the same story.
 // =========================================================
 
-export type SourceKind = "book" | "media" | "task" | "goal" | "node" | "day" | "none";
+export type SourceKind = "book" | "media" | "task" | "goal" | "day" | "none";
 
 export interface SourceIndex {
   books: Map<string, Book>;
   media: Map<string, Media>;
   tasks: Map<string, Task>;
   goals: Map<string, Goal>;
-  nodes: Map<string, MapNode>;
 }
 
 export function buildSourceIndex(
-  books: Book[], media: Media[], tasks: Task[], goals: Goal[], nodes: MapNode[],
+  books: Book[], media: Media[], tasks: Task[], goals: Goal[],
 ): SourceIndex {
   return {
     books: new Map(books.map((b) => [b.id, b])),
     media: new Map(media.map((m) => [m.id, m])),
     tasks: new Map(tasks.map((t) => [t.id, t])),
     goals: new Map(goals.map((g) => [g.id, g])),
-    nodes: new Map(nodes.map((n) => [n.id, n])),
   };
 }
 
@@ -85,13 +83,6 @@ export function resolveSource(note: Note, idx: SourceIndex): SourceRef {
     return {
       kind: "goal", id: note.goal_id, href: "/goals",
       label: goal?.title ?? "Goal removed", missing: !goal,
-    };
-  }
-  if (note.node_id) {
-    const node = idx.nodes.get(note.node_id);
-    return {
-      kind: "node", id: note.node_id, href: "/map",
-      label: node?.title ?? "Node removed", missing: !node,
     };
   }
   if (note.date) {
@@ -195,7 +186,7 @@ export const SOURCE_FILTERS: { value: SourceFilter; label: string }[] = [
   { value: "book", label: "From books" },
   { value: "media", label: "From films" },
   { value: "day", label: "Daily" },
-  { value: "work", label: "Tasks, goals & map" },
+  { value: "work", label: "Tasks & goals" },
   { value: "none", label: "Standalone" },
 ];
 
@@ -205,7 +196,7 @@ export function matchesSourceFilter(kind: SourceKind, filter: SourceFilter): boo
     case "book": return kind === "book";
     case "media": return kind === "media";
     case "day": return kind === "day";
-    case "work": return kind === "task" || kind === "goal" || kind === "node";
+    case "work": return kind === "task" || kind === "goal";
     case "none": return kind === "none";
   }
 }

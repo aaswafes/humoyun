@@ -30,7 +30,6 @@ const GO_TO: Shortcut[] = [
   { label: "Inbox", keys: ["I"] },
   { label: "Projects", keys: ["P"] },
   { label: "Notes", keys: ["N"] },
-  { label: "Mind Map", keys: ["M"] },
   { label: "Books", keys: ["B"] },
   { label: "Habits", keys: ["H"] },
   { label: "Salah", keys: ["S"] },
