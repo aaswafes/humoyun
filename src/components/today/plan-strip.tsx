@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover } from "@/components/ui/overlays";
 import { VisuallyHidden } from "@/components/ui/form";
 import { Fold, useFold } from "./fold";
+import { RibbonBlock } from "./ribbon-block";
 import { TimeBudget } from "./time-budget";
 import {
   SLOT_MIN, blockLength, budgetFor, busyRanges, estimateOf, hourLabel,
@@ -168,12 +169,15 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
   const moveTask = useStore((s) => s.moveTask);
   const patch = useStore((s) => s.patch);
   const toast = useStore((s) => s.toast);
+  const openInspector = useStore((s) => s.openInspector);
 
   const [dragging, setDragging] = React.useState<Task | null>(null);
   const [overMin, setOverMin] = React.useState<number | null>(null);
   const [showAll, setShowAll] = React.useState(false);
   const ribbonId = React.useId();
   const budgetId = React.useId();
+  // A resize turns pixels into minutes, so it needs the ribbon's own width.
+  const trackRef = React.useRef<HTMLDivElement>(null);
   // The planner is a tool you reach for, not a thing you read. It rests folded.
   const { open, toggle } = useFold("planOpen", false);
 
@@ -270,6 +274,26 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
   const estimate = React.useCallback((task: Task, minutes: number) => {
     patch("tasks", task.id, { duration_min: task.duration_min === minutes ? null : minutes });
   }, [patch]);
+
+  /**
+   * An edge was dragged. Only the two times are written: `estimateOf` already
+   * prefers end minus start over the stored estimate, so the budget follows on
+   * its own and there is no second number to keep in step.
+   */
+  const resize = React.useCallback((task: Task, start: number, end: number) => {
+    const before = snapshotOf(task);
+    patch("tasks", task.id, { start_min: start, end_min: end, all_day: false });
+    toast({
+      title: `${task.title || "Task"} · ${formatTime(start, hour12)}–${formatTime(end, hour12)}`,
+      description: formatDuration(end - start),
+      action: {
+        label: "Undo",
+        run: () => patch("tasks", before.id, {
+          start_min: before.start, end_min: before.end, all_day: before.allDay,
+        }),
+      },
+    });
+  }, [hour12, patch, toast]);
 
   const push = React.useCallback((task: Task) => {
     const before = snapshotOf(task);
@@ -437,6 +461,7 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
             </div>
 
             <div
+              ref={trackRef}
               role="group"
               aria-label="Hour ribbon — drop a task on a half hour to schedule it"
               aria-describedby={ribbonId}
@@ -461,34 +486,22 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
                 {slots.map((m) => <Slot key={m} min={m} />)}
               </div>
 
-              {blocks.items.map(({ task, range, lane }) => {
-                const left = Math.max(0, pctOf(range.start));
-                const width = Math.min(Math.max(1.2, pctOf(range.end) - pctOf(range.start)), 100 - left);
-                const done = task.status === "done";
-                return (
-                  <span
-                    key={task.id}
-                    aria-hidden
-                    title={`${task.title || "Untitled"} · ${formatTime(range.start, hour12)}–${formatTime(range.end, hour12)}`}
-                    className={cn(
-                      "absolute overflow-hidden whitespace-nowrap rounded-[4px] px-1 text-[10.5px] font-medium leading-[14px]",
-                      task.color ? `tint-${task.color}` : "tint-slate",
-                      done && "opacity-55",
-                    )}
-                    style={{
-                      left: `${left}%`,
-                      width: `calc(${width}% - 2px)`,
-                      top: 2 + lane * (laneH + laneGap),
-                      height: laneH,
-                      background: "var(--tint-soft)",
-                      color: "var(--tint-ink)",
-                      boxShadow: "inset 2px 0 0 0 var(--tint)",
-                    }}
-                  >
-                    {laneH >= 16 ? task.title : ""}
-                  </span>
-                );
-              })}
+              {blocks.items.map(({ task, range, lane }) => (
+                <RibbonBlock
+                  key={task.id}
+                  task={task}
+                  range={range}
+                  lane={lane}
+                  laneH={laneH}
+                  laneGap={laneGap}
+                  rangeStart={rangeStart}
+                  rangeEnd={rangeEnd}
+                  hour12={hour12}
+                  trackRef={trackRef}
+                  onCommit={resize}
+                  onOpen={(t) => openInspector(t.id)}
+                />
+              ))}
 
               {overMin != null && dragging && (
                 <span
@@ -537,7 +550,8 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
             <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-snug text-ink-4">
               <Clock className="size-3 shrink-0" aria-hidden />
               Drag a task onto the ribbon, or press M to pick it up and place it with the arrow keys.
-              Enter opens its time list.
+              Drag either edge of a block to change when it starts or ends — Alt for
+              single minutes, or tab to an edge and use the arrow keys.
             </p>
           </div>
 
