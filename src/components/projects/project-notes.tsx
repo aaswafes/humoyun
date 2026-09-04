@@ -66,9 +66,13 @@ function NoteRow({ note }: { note: Note }) {
 }
 
 /**
- * The running log of a project — decisions, blockers, what you tried. These are
- * real rows in `notes`, so they also appear on the Notes page with everything
- * else you have written.
+ * The running log of a project — decisions, blockers, what you tried, the link
+ * you will need on Tuesday.
+ *
+ * These are real rows in `notes`, but they stay here: the Notes page sets
+ * aside anything carrying a project_id. Working material for one project is
+ * not a note you go back and read, and mixing the two made the Notes page a
+ * dumping ground.
  */
 export function ProjectNotes({ project, notes }: { project: Project; notes: Note[] }) {
   const insert = useStore((s) => s.insert);

@@ -243,9 +243,22 @@ export function writtenNotes(notes: Note[]): Note[] {
   return notes.filter((n) => !n.is_template);
 }
 
-/** Everything written. The one list every view on this surface starts from. */
+/**
+ * Everything written, as the Notes page understands it.
+ *
+ * A note filed against a project is working material for that project — what
+ * happened, what was decided, the link you need on Tuesday. It belongs in the
+ * project sheet and nowhere else, so it is set aside here along with the
+ * templates.
+ *
+ * This is safe precisely because the source picker cannot set a project: a
+ * project note is only ever made from inside a project, so nothing can be
+ * filed away from this page by accident and then be impossible to find.
+ * A book highlight is the opposite case and deliberately still appears — it
+ * was written to be read again.
+ */
 export function readableNotes(notes: Note[]): Note[] {
-  return writtenNotes(notes);
+  return writtenNotes(notes).filter((n) => !n.project_id);
 }
 
 export function templateNotes(notes: Note[]): Note[] {
