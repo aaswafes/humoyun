@@ -77,8 +77,11 @@ export function NoteCard({
         size="sm"
         aria-expanded={!note.collapsed}
         onClick={() => patch("notes", note.id, { collapsed: !note.collapsed })}
+        // Sat in the card's corner before, which put it above the title's
+        // first line and half over the rounded edge. These two numbers centre
+        // it on that line, inside the gutter the heading reserves for it.
         className={cn(
-          "absolute left-1 top-1 z-10 transition-opacity duration-150",
+          "absolute left-3 top-[13px] z-10 transition-opacity duration-150",
           "focus-visible:opacity-100 group-hover/note:opacity-100",
           note.collapsed ? "opacity-70" : "opacity-0",
         )}

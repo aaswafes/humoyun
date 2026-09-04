@@ -35,22 +35,45 @@ const BOX = cn(
   "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft",
 );
 
-/** One password box. A real component, so it has a name and a single home. */
+/**
+ * One password box, and a small fight with the browser.
+ *
+ * `autocomplete="off"` is ignored on password fields by every engine that
+ * ships a password manager — which is how an unlock prompt ended up
+ * pre-filled with a saved credential, defeating the point of asking. What
+ * they do honour is `new-password`, which says "this is not a login, do not
+ * offer what you have saved". The randomised `name` matters as much: a
+ * manager matches saved entries by field name, so a name that is different on
+ * every mount has nothing to match against.
+ *
+ * The `data-*` attributes are the opt-outs the popular extensions read.
+ * None of this can force a manager to behave — it is the browser's window,
+ * not ours — but between them they cover what people actually run.
+ */
 function PasswordBox({
-  wiring, value, onChange, autoFocus, complete,
+  wiring, value, onChange, autoFocus,
 }: {
   wiring: FieldWiring;
   value: string;
   onChange: (next: string) => void;
   autoFocus?: boolean;
-  complete: "off" | "new-password";
 }) {
+  // Unique per mount, so there is nothing stable to key a saved entry to.
+  const name = React.useId();
   return (
     <input
       {...wiring}
       type="password"
+      name={name}
       autoFocus={autoFocus}
-      autoComplete={complete}
+      autoComplete="new-password"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      data-1p-ignore
+      data-lpignore="true"
+      data-bwignore="true"
+      data-form-type="other"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={BOX}
@@ -113,7 +136,7 @@ export function UnlockDialog({
       }
       width={400}
     >
-      <form onSubmit={submit} className="px-4 pb-4 pt-3">
+      <form onSubmit={submit} autoComplete="off" data-form-type="other" className="px-4 pb-4 pt-3">
         <Field
           label="Password"
           error={error ?? undefined}
@@ -125,7 +148,6 @@ export function UnlockDialog({
               value={password}
               onChange={(v) => { setPassword(v); setError(null); }}
               autoFocus
-              complete="off"
             />
           )}
         </Field>
@@ -199,7 +221,7 @@ export function LockDialog({
       }
       width={420}
     >
-      <form onSubmit={submit} className="px-4 pb-4 pt-3">
+      <form onSubmit={submit} autoComplete="off" data-form-type="other" className="px-4 pb-4 pt-3">
         <div
           className="mb-4 flex gap-2.5 rounded-lg p-3"
           style={{ background: "var(--warn-soft)" }}
@@ -221,7 +243,6 @@ export function LockDialog({
                 value={password}
                 onChange={(v) => { setPassword(v); setError(null); }}
                 autoFocus
-                complete="new-password"
               />
             )}
           </Field>
@@ -231,7 +252,6 @@ export function LockDialog({
                 wiring={props}
                 value={again}
                 onChange={(v) => { setAgain(v); setError(null); }}
-                complete="new-password"
               />
             )}
           </Field>
