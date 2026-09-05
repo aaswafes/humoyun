@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   BookOpen, CalendarDays, ChevronRight, Clapperboard, FileText, Highlighter,
-  Lightbulb, ListTodo, Network, NotebookPen, Quote, StickyNote, Sun, Target, X,
+  Lightbulb, ListTodo, NotebookPen, Quote, StickyNote, Sun, Target, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { NoteKind } from "@/lib/types";

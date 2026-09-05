@@ -20,8 +20,8 @@ import { buildCategoryIndex } from "./category-model";
 import { CategoryPicker, CategoryRow } from "./category-picker";
 import { RichEditor } from "./rich-editor";
 import { bodyAsHtml } from "./rich-text";
-import { LockDialog, UnlockDialog, useRemoveLock } from "./note-lock";
-import { passwordFor, relockBody } from "./note-crypto";
+import { LockDialog, UnlockDialog, useLockNote, useRemoveLock, useVault } from "./note-lock";
+import { lockWithVault, passwordFor } from "./note-crypto";
 import {
   LOCATOR_LABELS, buildSourceIndex, locatorUnit, noteHeading, resolveSource, tagCounts,
 } from "./note-model";
@@ -144,6 +144,8 @@ function NoteEditorBody({
   const [locking, setLocking] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const removeLock = useRemoveLock();
+  const lockNow = useLockNote();
+  const { vault } = useVault();
 
   const locked = note.lock != null;
   const readable = !locked || opened !== null;
@@ -187,9 +189,11 @@ function NoteEditorBody({
 
     if (next.body !== undefined) {
       if (note.lock) {
-        const password = passwordFor(noteId);
-        if (password) {
-          const sealed = await relockBody(next.body, password, note.lock);
+        const password = passwordFor(note);
+        // A fresh IV every time, which lockWithVault guarantees. Never write a
+        // body we cannot seal — a locked note is not downgraded by a timer.
+        if (password && vault) {
+          const sealed = await lockWithVault(next.body, vault, password);
           changes.body = sealed.body;
           changes.lock = sealed.lock;
           changes.format = "html";
@@ -201,7 +205,7 @@ function NoteEditorBody({
     }
 
     if (Object.keys(changes).length) patch("notes", noteId, changes);
-  }, [noteId, note.lock, patch]);
+  }, [noteId, note, vault, patch]);
 
   // Held in a ref so the unmount flush does not fire every time commit is
   // rebuilt — which would save halfway through a sentence.
@@ -312,7 +316,13 @@ function NoteEditorBody({
                   Remove the lock
                 </MenuItem>
               ) : (
-                <MenuItem icon={Lock} onClick={() => { setLocking(true); close(); }}>
+                <MenuItem
+                  icon={Lock}
+                  onClick={() => {
+                    close();
+                    void lockNow(note).then((done) => { if (!done) setLocking(true); });
+                  }}
+                >
                   Lock with a password
                 </MenuItem>
               )}

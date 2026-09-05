@@ -237,14 +237,50 @@ export interface NoteCategory {
  * and to you, permanently, if the password is forgotten.
  */
 export interface NoteLock {
-  /** scheme version, so the derivation can change without stranding old notes */
-  v: 1;
-  /** base64, 16 bytes, unique per note */
-  salt: string;
-  /** base64, 12 bytes, re-rolled on every save */
+  /**
+   * 1 — a password belonging to this note alone, with its own salt.
+   * 2 — the one vault password, whose salt lives on the profile. A v1 note
+   *     joins the vault the next time it is opened, so nothing is stranded.
+   */
+  v: 1 | 2;
+  /** base64, 16 bytes. Only a v1 note carries its own; v2 uses the vault's. */
+  salt?: string;
+  /** base64, 12 bytes, re-rolled on every save. Never shared, never reused. */
   iv: string;
   /** an optional nudge, shown on the unlock prompt. Never the password. */
   hint?: string | null;
+}
+
+/**
+ * What proves a vault password is the right one, kept in `profile.prefs`.
+ *
+ * There is no hash of the password here and nothing derived from it that could
+ * be attacked offline any faster than the notes themselves. `check` is a fixed
+ * sentence encrypted under the derived key: decrypt it and you have the right
+ * password, fail and you do not. That is the whole mechanism.
+ */
+export interface NoteVault {
+  v: 2;
+  salt: string;
+  iv: string;
+  check: string;
+  hint?: string | null;
+}
+
+/**
+ * A note's one home. Unlike categories — of which a note has as many as apply —
+ * a note is in exactly one folder or none, which is what makes it something
+ * you can drag into a place and out of another.
+ */
+export interface NoteFolder {
+  id: string;
+  user_id: string;
+  name: string;
+  icon: string | null;
+  color: Tint;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
@@ -273,6 +309,8 @@ export interface Note {
   color: Tint | null;
   pinned: boolean;
   format: NoteFormat;
+  /** the one folder it lives in, or null for Unfiled */
+  folder_id: string | null;
   /** folded down to its title on the cards and the board */
   collapsed: boolean;
   /** set when `body` is ciphertext rather than words */
@@ -466,6 +504,7 @@ export interface Collections {
   media: Media;
   notes: Note;
   noteCategories: NoteCategory;
+  noteFolders: NoteFolder;
   habits: Habit;
   habitLogs: HabitLog;
   goals: Goal;
@@ -486,6 +525,7 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   media: "media",
   notes: "notes",
   noteCategories: "note_categories",
+  noteFolders: "note_folders",
   habits: "habits",
   habitLogs: "habit_logs",
   goals: "goals",

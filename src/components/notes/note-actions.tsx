@@ -8,7 +8,7 @@ import { useStore } from "@/lib/store";
 import type { Note } from "@/lib/types";
 import { IconButton } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover, TintPicker } from "@/components/ui/overlays";
-import { LockDialog, UnlockDialog, useRemoveLock } from "./note-lock";
+import { LockDialog, UnlockDialog, useLockNote, useRemoveLock } from "./note-lock";
 
 /**
  * Deleting a note is undoable rather than confirmed.
@@ -65,6 +65,7 @@ export function NoteActions({ note }: { note: Note }) {
   const toast = useStore((s) => s.toast);
   const deleteNote = useDeleteNote();
   const removeLock = useRemoveLock();
+  const lockNow = useLockNote();
   const [locking, setLocking] = React.useState(false);
   const [unlocking, setUnlocking] = React.useState(false);
 
@@ -120,7 +121,14 @@ export function NoteActions({ note }: { note: Note }) {
                 Remove the lock
               </MenuItem>
             ) : (
-              <MenuItem icon={Lock} onClick={() => { setLocking(true); close(); }}>
+              <MenuItem
+                icon={Lock}
+                onClick={() => {
+                  close();
+                  // Already holding the password? Then there is nothing to ask.
+                  void lockNow(note).then((done) => { if (!done) setLocking(true); });
+                }}
+              >
                 Lock with a password
               </MenuItem>
             )}

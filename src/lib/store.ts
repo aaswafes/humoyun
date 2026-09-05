@@ -218,7 +218,7 @@ interface StoreState extends CollectionState {
 }
 
 const COLLECTION_KEYS: CollectionKey[] = [
-  "tasks", "books", "media", "notes", "noteCategories", "habits", "habitLogs", "goals",
+  "tasks", "books", "media", "notes", "noteCategories", "noteFolders", "habits", "habitLogs", "goals",
   "projects", "templates", "prayers", "dayLogs",
   "focusSessions", "reviews", "tags",
 ];
@@ -235,7 +235,8 @@ const COLLECTION_KEYS: CollectionKey[] = [
  * it failed.
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
-  tasks: true, books: true, media: true, notes: true, noteCategories: true, habits: true,
+  tasks: true, books: true, media: true, notes: true, noteCategories: true,
+  noteFolders: true, habits: true,
   goals: true, projects: true, templates: true, dayLogs: true, reviews: true,
   habitLogs: false, prayers: false, focusSessions: false, tags: false,
 };
@@ -306,10 +307,12 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         task_id: null, goal_id: null, project_id: null, date: null, locator: null,
         tags: [], categories: [], color: null, pinned: false,
         format: "plain", is_template: false, layout: null,
-        collapsed: false, lock: null,
+        collapsed: false, lock: null, folder_id: null,
       };
     case "noteCategories":
       return { ...base, name: "New category", icon: null, color: "slate", order_index: 0 };
+    case "noteFolders":
+      return { ...base, name: "New folder", icon: null, color: "slate", order_index: 0 };
     case "habits":
       return {
         ...base, name: "New habit", icon: "check", color: "emerald", cadence: "daily",
@@ -388,7 +391,7 @@ let batchLabel = "";
 
 const SINGULAR: Partial<Record<CollectionKey, string>> = {
   tasks: "task", books: "book", media: "title", notes: "note", habits: "habit",
-  noteCategories: "category",
+  noteCategories: "category", noteFolders: "folder",
   habitLogs: "habit log", goals: "goal", projects: "project",
   templates: "template", prayers: "prayer", dayLogs: "day",
   focusSessions: "session", reviews: "review", tags: "tag",

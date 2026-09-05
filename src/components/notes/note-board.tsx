@@ -8,6 +8,7 @@ import type { Note } from "@/lib/types";
 import { NoteCard } from "./note-card";
 import type { CategoryIndex } from "./category-model";
 import type { SourceRef } from "./note-model";
+import { folderUnderPointer } from "./folder-rail";
 import {
   BOARD_MIN_WIDTH, GAP, MIN_H, MIN_W, type Box, type PlacedNote,
   boardHeight, layoutBoard, pinFrom, topZ,
@@ -42,8 +43,11 @@ interface Live {
   moved: boolean;
 }
 
+export interface Modifiers { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }
+
 export function NoteBoard({
   notes, refs, locators, categories, onOpen, className,
+  selected, onSelected, onDropTarget, onFileInto,
 }: {
   notes: Note[];
   refs: Map<string, SourceRef>;
@@ -51,15 +55,23 @@ export function NoteBoard({
   categories: CategoryIndex;
   onOpen: (note: Note) => void;
   className?: string;
+  /** every card currently picked out, by id */
+  selected: Set<string>;
+  onSelected: (next: Set<string>) => void;
+  /** the folder row under the pointer mid-drag, so the rail can light it up */
+  onDropTarget: (folderId: string | null) => void;
+  /** a drag that ends on a folder files the notes instead of moving them */
+  onFileInto: (folderId: string, ids: string[]) => void;
 }) {
   const patch = useStore((s) => s.patch);
 
   const hostRef = React.useRef<HTMLDivElement>(null);
   const cardsRef = React.useRef(new Map<string, HTMLElement>());
+  // Where a shift-click measures its range from.
+  const anchorRef = React.useRef<string | null>(null);
   const [width, setWidth] = React.useState(0);
   const [heights, setHeights] = React.useState<Map<string, number>>(() => new Map());
   const [live, setLive] = React.useState<Live | null>(null);
-  const [selected, setSelected] = React.useState<string | null>(null);
 
   // ---- how wide the board is ----
   React.useLayoutEffect(() => {
@@ -107,11 +119,52 @@ export function NoteBoard({
     () => (free && width ? layoutBoard(notes, width, heights) : []),
     [free, width, notes, heights]);
 
+  /**
+   * Reading order on screen, which is what a shift-range has to follow. The
+   * order cards were written in is not the order you see them in, and a range
+   * you select by pointing must be the range you can see.
+   */
+  const order = React.useMemo(
+    () => (placed.length ? placed.map((p) => p.note.id) : notes.map((n) => n.id)),
+    [placed, notes]);
+
+  /** Clicking a card, with the two modifiers everything else in the world uses. */
+  const pick = React.useCallback((id: string, e: Modifiers) => {
+    if (e.shiftKey && anchorRef.current && order.includes(anchorRef.current)) {
+      const from = order.indexOf(anchorRef.current);
+      const to = order.indexOf(id);
+      if (to >= 0) {
+        const [lo, hi] = from < to ? [from, to] : [to, from];
+        onSelected(new Set(order.slice(lo, hi + 1)));
+        return;
+      }
+    }
+
+    if (e.metaKey || e.ctrlKey) {
+      const next = new Set(selected);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      anchorRef.current = id;
+      onSelected(next);
+      return;
+    }
+
+    anchorRef.current = id;
+    onSelected(new Set([id]));
+  }, [order, selected, onSelected]);
+
   // ---- picking a card up ----
   const begin = (e: React.PointerEvent, p: PlacedNote, mode: Mode) => {
     if (e.button !== 0) return;
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    setSelected(p.note.id);
+    // A modifier always re-decides the selection. Without one, a drag that
+    // starts on an already-picked card carries the whole selection with it.
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      // Shift-clicking two cards otherwise drags a native text selection
+      // across everything between them, which is not what was asked for.
+      e.preventDefault();
+      pick(p.note.id, e);
+    }
+    else if (!selected.has(p.note.id)) pick(p.note.id, e);
     setLive({
       key: `${p.note.id}:${mode}:${e.clientX}:${e.clientY}`,
       id: p.note.id, mode, startX: e.clientX, startY: e.clientY, box: p.box, moved: false,
@@ -119,11 +172,12 @@ export function NoteBoard({
   };
 
   const move = (e: React.PointerEvent) => {
+    const x = e.clientX;
+    const y = e.clientY;
     setLive((cur) => {
       if (!cur) return cur;
-      const dx = e.clientX - cur.startX;
-      const dy = e.clientY - cur.startY;
-      const moved = cur.moved || Math.hypot(dx, dy) > DRAG_SLOP;
+      const moved = cur.moved || Math.hypot(x - cur.startX, y - cur.startY) > DRAG_SLOP;
+      if (moved && cur.mode === "move") onDropTarget(folderUnderPointer(x, y));
       return moved === cur.moved ? cur : { ...cur, moved };
     });
   };
@@ -131,7 +185,18 @@ export function NoteBoard({
   const end = (e: React.PointerEvent) => {
     const cur = live;
     setLive(null);
+    onDropTarget(null);
     if (!cur || !cur.moved) return;
+
+    // Let go over a folder and the gesture meant "file this", not "put it
+    // here". One drag, two meanings, decided by where the pointer ended.
+    if (cur.mode === "move") {
+      const folder = folderUnderPointer(e.clientX, e.clientY);
+      if (folder) {
+        onFileInto(folder, selected.has(cur.id) ? [...selected] : [cur.id]);
+        return;
+      }
+    }
 
     const dx = e.clientX - cur.startX;
     const dy = e.clientY - cur.startY;
@@ -215,7 +280,7 @@ export function NoteBoard({
             refer={refer}
             locator={locators.get(p.note.id) ?? null}
             categories={categories}
-            selected={selected === p.note.id}
+            selected={selected.has(p.note.id)}
             live={live?.id === p.note.id ? live : null}
             register={registerCard}
             onOpen={onOpen}
@@ -223,7 +288,6 @@ export function NoteBoard({
             onMove={move}
             onEnd={end}
             onKeyDown={onCardKeyDown}
-            onSelect={() => setSelected(p.note.id)}
           />
         );
       })}
@@ -233,7 +297,7 @@ export function NoteBoard({
 
 function BoardCard({
   placed, refer, locator, categories, selected, live, register,
-  onOpen, onBegin, onMove, onEnd, onKeyDown, onSelect,
+  onOpen, onBegin, onMove, onEnd, onKeyDown,
 }: {
   placed: PlacedNote;
   refer: SourceRef;
@@ -247,7 +311,6 @@ function BoardCard({
   onMove: (e: React.PointerEvent) => void;
   onEnd: (e: React.PointerEvent) => void;
   onKeyDown: (e: React.KeyboardEvent, p: PlacedNote) => void;
-  onSelect: () => void;
 }) {
   const { note, box, pinned } = placed;
   const ref = React.useRef<HTMLDivElement>(null);
@@ -300,10 +363,13 @@ function BoardCard({
       onPointerUp={onEnd}
       onPointerCancel={onEnd}
       onClickCapture={(e) => {
-        // A drag that ends over the card must not also count as opening it.
-        if (dragging) { e.preventDefault(); e.stopPropagation(); }
+        // Neither a drag nor a modifier-click is a request to open the note:
+        // the first was arranging, the second was selecting.
+        if (dragging || e.shiftKey || e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }}
-      onFocusCapture={onSelect}
       onKeyDown={(e) => onKeyDown(e, placed)}
       className={cn(
         "group/board absolute",
