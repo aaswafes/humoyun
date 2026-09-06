@@ -268,22 +268,6 @@ export interface NoteVault {
 }
 
 /**
- * A note's one home. Unlike categories — of which a note has as many as apply —
- * a note is in exactly one folder or none, which is what makes it something
- * you can drag into a place and out of another.
- */
-export interface NoteFolder {
-  id: string;
-  user_id: string;
-  name: string;
-  icon: string | null;
-  color: Tint;
-  order_index: number;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
  * A note stands on its own but usually came from somewhere — a book, a film,
  * a day. Those links are what let the same note appear on the shelf it belongs
  * to and in one list of everything written.
@@ -309,8 +293,6 @@ export interface Note {
   color: Tint | null;
   pinned: boolean;
   format: NoteFormat;
-  /** the one folder it lives in, or null for Unfiled */
-  folder_id: string | null;
   /** folded down to its title on the cards and the board */
   collapsed: boolean;
   /** set when `body` is ciphertext rather than words */
@@ -504,7 +486,6 @@ export interface Collections {
   media: Media;
   notes: Note;
   noteCategories: NoteCategory;
-  noteFolders: NoteFolder;
   habits: Habit;
   habitLogs: HabitLog;
   goals: Goal;
@@ -525,7 +506,6 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   media: "media",
   notes: "notes",
   noteCategories: "note_categories",
-  noteFolders: "note_folders",
   habits: "habits",
   habitLogs: "habit_logs",
   goals: "goals",

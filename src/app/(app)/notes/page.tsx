@@ -13,9 +13,6 @@ import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primiti
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { useStickyChoice } from "@/components/notes/note-fields";
 import { NoteBoard, usePinnedLayouts, type Modifiers } from "@/components/notes/note-board";
-import {
-  ALL_FOLDERS, FolderRail, UNFILED_FOLDER, matchesFolder, type FolderFilter,
-} from "@/components/notes/folder-rail";
 import { NoteBulkBar } from "@/components/notes/note-bulk-bar";
 import { NoteList } from "@/components/notes/note-list";
 import { NoteEditor } from "@/components/notes/note-editor";
@@ -59,7 +56,6 @@ export default function NotesPage() {
   const ready = useStore((s) => s.ready);
   const allNotes = useStore((s) => s.notes);
   const categories = useStore((s) => s.noteCategories);
-  const folders = useStore((s) => s.noteFolders);
   const books = useStore((s) => s.books);
   const media = useStore((s) => s.media);
   const tasks = useStore((s) => s.tasks);
@@ -68,8 +64,6 @@ export default function NotesPage() {
   const patch = useStore((s) => s.patch);
   const batchUndo = useStore((s) => s.batchUndo);
 
-  const toast = useStore((s) => s.toast);
-
   const [view, setView] = useStickyChoice<View>("humoyun.notes.view", "cards", VIEWS);
   const [group, setGroup] = useStickyChoice<GroupBy>("humoyun.notes.group", "none", GROUPS);
   const [filters, setFilters] = React.useState<NoteFilters>(NO_FILTERS);
@@ -77,9 +71,7 @@ export default function NotesPage() {
   const [focusBody, setFocusBody] = React.useState(false);
   const [templatesOpen, setTemplatesOpen] = React.useState(false);
   const [limit, setLimit] = React.useState(PAGE_SIZE);
-  const [folder, setFolder] = React.useState<FolderFilter>(ALL_FOLDERS);
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
-  const [dropTarget, setDropTarget] = React.useState<string | null>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
   // Templates are notes. Every view on this page starts by setting them aside.
@@ -105,8 +97,7 @@ export default function NotesPage() {
   const cats = React.useMemo(() => categoryCounts(notes, catIdx), [notes, catIdx]);
 
   const visible = React.useMemo(
-    () => sortNotes(filterNotes(notes, refs, filters).filter((n) => matchesFolder(n, folder))),
-    [notes, refs, filters, folder]);
+    () => sortNotes(filterNotes(notes, refs, filters)), [notes, refs, filters]);
   const paged = React.useMemo(() => visible.slice(0, limit), [visible, limit]);
 
   const sections = React.useMemo(() => groupNotes(paged, group), [paged, group]);
@@ -150,38 +141,6 @@ export default function NotesPage() {
   }, [order]);
 
   const arranged = usePinnedLayouts(notes);
-
-  /**
-   * Filing, from a drag or from the bulk bar — the same function either way, so
-   * the two paths can never disagree about what "move to a folder" means.
-   */
-  const fileInto = React.useCallback((target: string, ids: string[]) => {
-    if (target === ALL_FOLDERS || !ids.length) return;
-    const next = target === UNFILED_FOLDER ? null : target;
-    const before = ids
-      .map((id) => allNotes.find((n) => n.id === id))
-      .filter((n): n is Note => !!n)
-      .map((n) => ({ id: n.id, folder_id: n.folder_id }));
-    if (!before.length || before.every((b) => b.folder_id === next)) return;
-
-    const name = target === UNFILED_FOLDER
-      ? "Unfiled"
-      : folders.find((f) => f.id === next)?.name ?? "the folder";
-
-    batchUndo(`Move to ${name}`, () => {
-      for (const b of before) patch("notes", b.id, { folder_id: next });
-    });
-    setSelected(new Set());
-    toast({
-      title: `${before.length} ${before.length === 1 ? "note" : "notes"} moved to ${name}`,
-      action: {
-        label: "Undo",
-        run: () => batchUndo("Move them back", () => {
-          for (const b of before) patch("notes", b.id, { folder_id: b.folder_id });
-        }),
-      },
-    });
-  }, [allNotes, folders, batchUndo, patch, toast]);
 
   // A selection is about what is on screen. Filter the page and anything that
   // scrolled out of it stops being selected, rather than being acted on unseen.
@@ -365,19 +324,7 @@ export default function NotesPage() {
             className="py-24"
           />
         ) : (
-          <div className="flex items-start gap-6">
-            {/* The rail is the drop target for a drag, so it has to be on
-                screen whenever cards are — which is every view but Topics. */}
-            <FolderRail
-              notes={notes}
-              folders={folders}
-              active={folder}
-              onActive={(next) => { setFolder(next); setSelected(new Set()); }}
-              dropTarget={dropTarget}
-              className="sticky top-[68px] hidden lg:block"
-            />
-
-            <div className="min-w-0 flex-1">
+          <>
             <NotesToolbar
               className="mb-6"
               query={filters.query}
@@ -463,8 +410,6 @@ export default function NotesPage() {
                         onOpen={open}
                         selected={liveSelection}
                         onPick={pickNote}
-                        onDropTarget={setDropTarget}
-                        onFileInto={fileInto}
                       />
                     )}
                   </section>
@@ -482,8 +427,7 @@ export default function NotesPage() {
                 </Button>
               </div>
             )}
-            </div>
-          </div>
+          </>
         )}
       </PageBody>
 
@@ -491,9 +435,7 @@ export default function NotesPage() {
         <NoteBulkBar
           selected={liveSelection}
           notes={notes}
-          folders={folders}
           onClear={() => setSelected(new Set())}
-          onFileInto={fileInto}
         />
       )}
 

@@ -1,15 +1,12 @@
 "use client";
 
 import * as React from "react";
-import {
-  ChevronsDownUp, ChevronsUpDown, FolderInput, Palette, Trash2, X,
-} from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Palette, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import type { Note, NoteFolder, Tint } from "@/lib/types";
+import type { Note, Tint } from "@/lib/types";
 import { Button, IconButton } from "@/components/ui/primitives";
-import { MenuItem, MenuLabel, MenuSeparator, Popover, TintPicker } from "@/components/ui/overlays";
-import { UNFILED_FOLDER } from "./folder-rail";
+import { Popover, TintPicker } from "@/components/ui/overlays";
 import { useDeleteNotes } from "./note-actions";
 
 // =========================================================
@@ -21,14 +18,12 @@ import { useDeleteNotes } from "./note-actions";
 // =========================================================
 
 export function NoteBulkBar({
-  selected, notes, folders, onClear, onFileInto,
+  selected, notes, onClear,
 }: {
   /** ids, already narrowed to what is actually on screen */
   selected: Set<string>;
   notes: Note[];
-  folders: NoteFolder[];
   onClear: () => void;
-  onFileInto: (target: string, ids: string[]) => void;
 }) {
   const patch = useStore((s) => s.patch);
   const batchUndo = useStore((s) => s.batchUndo);
@@ -78,48 +73,6 @@ export function NoteBulkBar({
       </span>
 
       <span aria-hidden className="mx-0.5 h-4 w-px bg-line" />
-
-      <Popover
-        align="center"
-        side="top"
-        className="max-h-[300px] w-[214px] overflow-y-auto"
-        trigger={
-          <Button size="sm" variant="ghost">
-            <FolderInput className="size-3.5" />
-            Move to
-          </Button>
-        }
-      >
-        {(close) => (
-          <>
-            <MenuLabel>Move to a folder</MenuLabel>
-            {folders.length === 0 && (
-              <p className="px-2 pb-1 text-[11.5px] leading-snug text-ink-4">
-                No folders yet. Make one in the rail on the left.
-              </p>
-            )}
-            {folders.map((f) => (
-              <MenuItem
-                key={f.id}
-                onClick={() => { onFileInto(f.id, ids); close(); }}
-              >
-                <span className={cn(`tint-${f.color}`, "flex items-center gap-2")}>
-                  <span
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-[3px]"
-                    style={{ background: "var(--tint)" }}
-                  />
-                  <span className="truncate">{f.name}</span>
-                </span>
-              </MenuItem>
-            ))}
-            <MenuSeparator />
-            <MenuItem onClick={() => { onFileInto(UNFILED_FOLDER, ids); close(); }}>
-              Take out of its folder
-            </MenuItem>
-          </>
-        )}
-      </Popover>
 
       <Button size="sm" variant="ghost" onClick={fold}>
         {anyExpanded ? <ChevronsDownUp className="size-3.5" /> : <ChevronsUpDown className="size-3.5" />}

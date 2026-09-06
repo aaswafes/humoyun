@@ -8,7 +8,6 @@ import type { Note } from "@/lib/types";
 import { NoteCard } from "./note-card";
 import type { CategoryIndex } from "./category-model";
 import type { SourceRef } from "./note-model";
-import { folderUnderPointer } from "./folder-rail";
 import {
   BOARD_MIN_WIDTH, GAP, MIN_H, MIN_W, type Box, type PlacedNote,
   boardHeight, layoutBoard, pinFrom, topZ,
@@ -47,7 +46,7 @@ export interface Modifiers { shiftKey: boolean; metaKey: boolean; ctrlKey: boole
 
 export function NoteBoard({
   notes, refs, locators, categories, onOpen, className,
-  selected, onPick, onDropTarget, onFileInto,
+  selected, onPick,
 }: {
   notes: Note[];
   refs: Map<string, SourceRef>;
@@ -63,10 +62,6 @@ export function NoteBoard({
    * one board per group, and a shift-range has to be able to cross a heading.
    */
   onPick: (id: string, mods: Modifiers) => void;
-  /** the folder row under the pointer mid-drag, so the rail can light it up */
-  onDropTarget: (folderId: string | null) => void;
-  /** a drag that ends on a folder files the notes instead of moving them */
-  onFileInto: (folderId: string, ids: string[]) => void;
 }) {
   const patch = useStore((s) => s.patch);
 
@@ -147,7 +142,6 @@ export function NoteBoard({
     setLive((cur) => {
       if (!cur) return cur;
       const moved = cur.moved || Math.hypot(x - cur.startX, y - cur.startY) > DRAG_SLOP;
-      if (moved && cur.mode === "move") onDropTarget(folderUnderPointer(x, y));
       return moved === cur.moved ? cur : { ...cur, moved };
     });
   };
@@ -155,18 +149,7 @@ export function NoteBoard({
   const end = (e: React.PointerEvent) => {
     const cur = live;
     setLive(null);
-    onDropTarget(null);
     if (!cur || !cur.moved) return;
-
-    // Let go over a folder and the gesture meant "file this", not "put it
-    // here". One drag, two meanings, decided by where the pointer ended.
-    if (cur.mode === "move") {
-      const folder = folderUnderPointer(e.clientX, e.clientY);
-      if (folder) {
-        onFileInto(folder, selected.has(cur.id) ? [...selected] : [cur.id]);
-        return;
-      }
-    }
 
     const dx = e.clientX - cur.startX;
     const dy = e.clientY - cur.startY;
