@@ -333,6 +333,40 @@ export function Sheet({
   const view = React.useMemo(
     () => ({ maximized, toggle: toggleMax }), [maximized, toggleMax]);
 
+  /**
+   * Maximised means "as wide as the page", and the page starts where the
+   * sidebar ends — not at the left edge of the window. Covering the navigation
+   * is not filling the page, it is hiding it.
+   *
+   * The offset is measured rather than taken from --sidebar-w because the
+   * sidebar unmounts when it is collapsed, so there is no width to read; the
+   * observer on <main> catches the collapse and the window resize alike.
+   *
+   * It is written straight to the node instead of through state: this is a
+   * layout measurement driving a style, and putting a setState in the middle
+   * of that only adds a render for React to undo.
+   */
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    if (!maximized) { panel.style.left = ""; return; }
+
+    const host = document.querySelector<HTMLElement>("[data-app-main]");
+    const apply = () => {
+      panel.style.left = host ? `${Math.max(0, host.getBoundingClientRect().left)}px` : "0px";
+    };
+    apply();
+
+    const observer = new ResizeObserver(apply);
+    if (host) observer.observe(host);
+    window.addEventListener("resize", apply);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", apply);
+    };
+  }, [maximized, open]);
+
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -377,17 +411,21 @@ export function Sheet({
     <div className="fixed inset-0 z-[90]">
       <div className="absolute inset-0 bg-scrim anim-fade" onClick={onClose} />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         style={{
-          width: maximized ? "100%" : size,
-          maxWidth: maximized ? "100%" : undefined,
+          // Maximised, the panel is pinned to both sides and the left offset
+          // is set by the effect above; otherwise it is a fixed width on the right.
+          width: maximized ? "auto" : size,
+          right: 0,
+          maxWidth: maximized ? "none" : undefined,
           // The entrance slide is skipped mid-drag, or every pointermove
           // restarts it and the panel judders under the cursor.
           animation: dragging ? undefined : "hm-sheet-in 260ms var(--ease-out-apple) both",
         }}
         className={cn(
-          "absolute right-0 top-0 flex h-full flex-col border-l border-line bg-canvas shadow-pop",
+          "absolute top-0 flex h-full flex-col border-l border-line bg-canvas shadow-pop",
           !maximized && "max-w-[96vw]",
           className,
         )}

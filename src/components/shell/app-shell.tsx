@@ -144,7 +144,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas">
       <Sidebar />
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      {/* data-app-main is what a maximised Sheet measures itself against, so
+          it stops at the sidebar instead of covering it. */}
+      <main data-app-main className="flex min-w-0 flex-1 flex-col">{children}</main>
       <CommandPalette />
       <QuickAdd />
       <TaskInspector />
