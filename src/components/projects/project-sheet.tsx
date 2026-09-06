@@ -10,7 +10,7 @@ import {
   AutoTextarea, Button, IconButton, Progress, Segmented,
 } from "@/components/ui/primitives";
 import { Select } from "@/components/ui/form";
-import { MenuItem, Popover, Sheet } from "@/components/ui/overlays";
+import { MenuItem, Popover, Sheet, SheetMaximize } from "@/components/ui/overlays";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 import { TaskList } from "@/components/tasks/task-list";
 import { Fold, useFold } from "./fold";
@@ -165,6 +165,7 @@ function ProjectSheetBody({
 
         <div className="flex-1" />
         <ProjectMenu project={project} onDeleted={onClose} />
+        <SheetMaximize />
         <IconButton label="Close project" onClick={onClose}>
           <X />
         </IconButton>

@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Check, X } from "lucide-react";
+import { Check, Maximize2, Minimize2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TINTS, type Tint } from "@/lib/types";
+// primitives imports nothing from here, so this direction cannot cycle.
+import { IconButton } from "./primitives";
 
 // =========================================================
 // useMounted — portals need the client
@@ -232,6 +234,40 @@ export function Modal({
 const SHEET_MIN = 360;
 const SHEET_MAX = 1200;
 
+/**
+ * Whether the panel currently covers the page, and how to change that.
+ *
+ * Through context rather than a prop because the button belongs in the
+ * surface's own header, beside its close button, where the reader is already
+ * looking — but the state belongs to the shell that owns the width.
+ */
+const SheetView = React.createContext<{ maximized: boolean; toggle: () => void } | null>(null);
+
+/**
+ * The maximize button. Put it in a sheet header next to Close; outside a
+ * Sheet it renders nothing, so it is safe to drop into a shared header.
+ */
+export function SheetMaximize({ size = "sm" }: { size?: "sm" | "md" | "lg" }) {
+  const view = React.useContext(SheetView);
+  if (!view) return null;
+  return (
+    <IconButton
+      label={view.maximized ? "Shrink back to a panel" : "Fill the page"}
+      size={size}
+      aria-pressed={view.maximized}
+      onClick={view.toggle}
+    >
+      {view.maximized ? <Minimize2 /> : <Maximize2 />}
+    </IconButton>
+  );
+}
+
+function sheetMaxed(key: string | undefined): boolean {
+  if (!key || typeof window === "undefined") return false;
+  try { return localStorage.getItem("humoyun.sheet." + key + ".max") === "1"; }
+  catch { return false; }
+}
+
 function sheetWidth(key: string | undefined, fallback: number): number {
   if (!key || typeof window === "undefined") return fallback;
   try {
@@ -281,6 +317,22 @@ export function Sheet({
   const setSize = React.useCallback(
     (px: number) => setSized({ key: activeKey, px }), [activeKey]);
 
+  // Maximised is remembered the same way, and for the same reason: a panel you
+  // opened out is a panel you meant to keep open out.
+  const [full, setFull] = React.useState<{ key: string; on: boolean } | null>(null);
+  const maximized = full?.key === activeKey ? full.on : sheetMaxed(resizeKey);
+
+  const toggleMax = React.useCallback(() => {
+    const next = !(full?.key === activeKey ? full.on : sheetMaxed(resizeKey));
+    setFull({ key: activeKey, on: next });
+    if (!resizeKey) return;
+    try { localStorage.setItem("humoyun.sheet." + resizeKey + ".max", next ? "1" : "0"); }
+    catch { /* private mode */ }
+  }, [full, activeKey, resizeKey]);
+
+  const view = React.useMemo(
+    () => ({ maximized, toggle: toggleMax }), [maximized, toggleMax]);
+
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -328,19 +380,22 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         style={{
-          width: size,
+          width: maximized ? "100%" : size,
+          maxWidth: maximized ? "100%" : undefined,
           // The entrance slide is skipped mid-drag, or every pointermove
           // restarts it and the panel judders under the cursor.
           animation: dragging ? undefined : "hm-sheet-in 260ms var(--ease-out-apple) both",
         }}
         className={cn(
-          "absolute right-0 top-0 flex h-full max-w-[96vw] flex-col border-l border-line bg-canvas shadow-pop",
+          "absolute right-0 top-0 flex h-full flex-col border-l border-line bg-canvas shadow-pop",
+          !maximized && "max-w-[96vw]",
           className,
         )}
       >
         <style>{`@keyframes hm-sheet-in { from { transform: translateX(16px); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
 
-        {resizeKey && (
+        {/* Nothing to drag when it already fills the page. */}
+        {resizeKey && !maximized && (
           <div
             role="separator"
             aria-orientation="vertical"
@@ -367,7 +422,7 @@ export function Sheet({
           />
         )}
 
-        {children}
+        <SheetView.Provider value={view}>{children}</SheetView.Provider>
       </div>
     </div>,
     document.body,

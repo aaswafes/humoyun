@@ -21,7 +21,7 @@ import type { Template, Tint } from "@/lib/types";
 import {
   AutoTextarea, Badge, Button, IconButton, InlineInput, Segmented, Tooltip,
 } from "@/components/ui/primitives";
-import { ConfirmDialog, MenuItem, MenuSeparator, Sheet, TintPicker } from "@/components/ui/overlays";
+import { ConfirmDialog, MenuItem, MenuSeparator, Sheet, TintPicker, SheetMaximize } from "@/components/ui/overlays";
 import { LayeredPopover } from "./layered";
 import { Fold, useFold } from "./fold";
 import { MiniEmpty } from "@/components/ui/form";
@@ -452,6 +452,7 @@ export function TemplateEditor({
           )}
         </LayeredPopover>
 
+        <SheetMaximize />
         <IconButton label="Close editor" onClick={close}>
           <X />
         </IconButton>

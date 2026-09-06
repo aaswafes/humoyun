@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/primitives";
 import { MiniEmpty, Toggle, VisuallyHidden } from "@/components/ui/form";
 import {
-  ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
+  ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker, SheetMaximize,
 } from "@/components/ui/overlays";
 import { noteText } from "@/components/notes/rich-text";
 import { MediaCover } from "./media-cover";
@@ -313,6 +313,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
           )}
         </Popover>
 
+        <SheetMaximize size="sm" />
         <IconButton label="Close" size="sm" onClick={onClose}><X /></IconButton>
       </header>
 

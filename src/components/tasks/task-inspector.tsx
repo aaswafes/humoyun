@@ -15,7 +15,7 @@ import {
 } from "@/lib/date";
 import { PRIORITY_LABELS, type ChecklistItem, type Recurrence, type Task, type Tint } from "@/lib/types";
 import {
-  Sheet, Popover, MenuItem, MenuSeparator, MenuLabel, TintPicker, ConfirmDialog,
+  Sheet, Popover, MenuItem, MenuSeparator, MenuLabel, TintPicker, ConfirmDialog, SheetMaximize,
 } from "@/components/ui/overlays";
 import {
   AutoTextarea, Badge, Button, Checkbox, IconButton, Input, Progress,
@@ -583,6 +583,7 @@ export function TaskInspector() {
           <IconButton label="Delete task" size="md" tone="danger" onClick={() => setConfirmDelete(true)}>
             <Trash2 />
           </IconButton>
+          <SheetMaximize />
           <IconButton label="Close" size="md" onClick={close}><X /></IconButton>
         </div>
 

@@ -14,7 +14,7 @@ import type { Habit, HabitLog, Tint } from "@/lib/types";
 import {
   AutoTextarea, Button, IconButton, Input, SectionLabel,
 } from "@/components/ui/primitives";
-import { MenuItem, Popover, Sheet, TintPicker } from "@/components/ui/overlays";
+import { MenuItem, Popover, Sheet, TintPicker, SheetMaximize } from "@/components/ui/overlays";
 import { Field, MiniEmpty, Select, VisuallyHidden } from "@/components/ui/form";
 import { HabitIcon } from "./habit-icons";
 import { Heatmap, HeatmapLegend } from "./heatmap";
@@ -200,6 +200,7 @@ function SheetBody({
             </>
           )}
         </Popover>
+        <SheetMaximize />
         <IconButton label="Close habit" onClick={onClose}><X /></IconButton>
       </header>
 

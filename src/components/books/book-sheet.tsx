@@ -13,7 +13,7 @@ import {
   AutoTextarea, Button, Checkbox, IconButton, InlineInput, Input, SectionLabel,
 } from "@/components/ui/primitives";
 import {
-  ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker,
+  ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker, SheetMaximize,
 } from "@/components/ui/overlays";
 import { facetValues } from "./facets";
 import { BookCover } from "./book-cover";
@@ -338,6 +338,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
           )}
         </Popover>
 
+        <SheetMaximize size="sm" />
         <IconButton label="Close" size="sm" onClick={onClose}><X /></IconButton>
       </header>
 

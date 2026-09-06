@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/primitives";
 import { Select } from "@/components/ui/form";
 import {
-  ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Popover, Sheet, TintPicker,
+  ConfirmDialog, MenuItem, MenuLabel, MenuSeparator, Popover, Sheet, TintPicker, SheetMaximize,
 } from "@/components/ui/overlays";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 import { TaskList } from "@/components/tasks/task-list";
@@ -228,6 +228,7 @@ function GoalSheetBody({
 
         <div className="flex-1" />
 
+        <SheetMaximize />
         <IconButton label="Close goal" onClick={onClose}>
           <X />
         </IconButton>
