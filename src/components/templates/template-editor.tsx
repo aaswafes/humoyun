@@ -400,7 +400,7 @@ export function TemplateEditor({
   const boardMode = scope === "week" && view === "board";
 
   return (
-    <Sheet open={open} onClose={close} width={boardMode ? 1040 : 600}>
+    <Sheet open={open} onClose={close} width={boardMode ? 1040 : 600} resizeKey={boardMode ? "template-board" : "template"}>
       <header className="flex h-[var(--topbar-h)] shrink-0 items-center gap-2 px-3 hairline-b">
         <LayeredPopover
           align="start"

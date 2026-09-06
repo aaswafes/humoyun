@@ -47,7 +47,7 @@ export function HabitSheet({
 }) {
   const habit = useStore((s) => (habitId ? s.habits.find((h) => h.id === habitId) ?? null : null));
   return (
-    <Sheet open={!!habit} onClose={onClose} width={520}>
+    <Sheet open={!!habit} onClose={onClose} width={520} resizeKey="habit">
       {habit && (
         <SheetBody
           key={habit.id}

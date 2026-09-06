@@ -109,7 +109,7 @@ export function BookSheet({ bookId, onClose }: { bookId: string | null; onClose:
   const book = useStore((s) => s.books.find((b) => b.id === bookId) ?? null);
 
   return (
-    <Sheet open={!!book} onClose={onClose} width={470}>
+    <Sheet open={!!book} onClose={onClose} width={470} resizeKey="book">
       {book && <BookSheetBody key={book.id} book={book} onClose={onClose} />}
     </Sheet>
   );

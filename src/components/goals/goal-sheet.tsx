@@ -59,7 +59,7 @@ export function GoalSheet({
   const goal = useStore((s) => (goalId ? s.goals.find((g) => g.id === goalId) ?? null : null));
 
   return (
-    <Sheet open={!!goal} onClose={onClose} width={496}>
+    <Sheet open={!!goal} onClose={onClose} width={496} resizeKey="goal">
       {goal && (
         <GoalSheetBody key={goal.id} goal={goal} index={index} onClose={onClose} onOpen={onOpen} />
       )}

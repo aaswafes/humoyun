@@ -241,6 +241,22 @@ const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
   habitLogs: false, prayers: false, focusSessions: false, tags: false,
 };
 
+/**
+ * Collections whose rows are identified by something real as well as by id.
+ *
+ * A habit log is one row per habit per day — Postgres enforces that, and it is
+ * right to. But the local store is optimistic and can be behind: a second tab,
+ * a write that landed after this one rolled back, a device that was asleep.
+ * Then "is there already a log for today" is answered from a stale list, the
+ * answer is no, and the insert hits the constraint.
+ *
+ * Naming the conflict here turns that from an error into what the user
+ * actually meant: the row for that habit and that day now says this.
+ */
+const UPSERT_ON: Partial<Record<CollectionKey, string>> = {
+  habitLogs: "habit_id,date",
+};
+
 const emptyCollections = () =>
   Object.fromEntries(COLLECTION_KEYS.map((k) => [k, []])) as unknown as CollectionState;
 
@@ -350,6 +366,22 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
     default:
       return base;
   }
+}
+
+/**
+ * The log for one habit on one day.
+ *
+ * There should only ever be one, and the database guarantees it — but a stale
+ * tab can briefly hold two locally. The newest is the one the user just made,
+ * so it is the one every path should act on.
+ */
+function logFor(state: StoreState, habitId: string, date: string): HabitLog | undefined {
+  let best: HabitLog | undefined;
+  for (const log of state.habitLogs) {
+    if (log.habit_id !== habitId || log.date !== date) continue;
+    if (!best || log.logged_at > best.logged_at) best = log;
+  }
+  return best;
 }
 
 function persistTimer(timer: TimerState) {
@@ -571,7 +603,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (SOLO) { persistSolo(get()); return full; }
 
-    enqueue(() => supabase.from(TABLE_OF[key]).insert(full as object)).then(({ error }) => {
+    const conflict = UPSERT_ON[key];
+    enqueue(() => (conflict
+      ? supabase.from(TABLE_OF[key]).upsert(full as object, { onConflict: conflict })
+      : supabase.from(TABLE_OF[key]).insert(full as object)
+    )).then(({ error }) => {
       if (error) {
         set((s) => ({
           [key]: (s[key] as { id: string }[]).filter((r) => r.id !== (full as { id: string }).id),
@@ -850,13 +886,13 @@ export const useStore = create<StoreState>((set, get) => ({
   // Habits
   // -------------------------------------------------------
   logHabit(habitId, date, count = 1) {
-    const existing = get().habitLogs.find((l) => l.habit_id === habitId && l.date === date);
+    const existing = logFor(get(), habitId, date);
     if (existing) get().patch("habitLogs", existing.id, { count, logged_at: nowIso() });
     else get().insert("habitLogs", { habit_id: habitId, date, count });
   },
 
   toggleHabit(habitId, date) {
-    const existing = get().habitLogs.find((l) => l.habit_id === habitId && l.date === date);
+    const existing = logFor(get(), habitId, date);
     const habit = get().habits.find((h) => h.id === habitId);
     const target = habit?.target_count ?? 1;
     if (!existing) { get().insert("habitLogs", { habit_id: habitId, date, count: 1 }); return; }

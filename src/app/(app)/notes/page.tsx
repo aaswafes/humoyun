@@ -12,14 +12,14 @@ import type { Note } from "@/lib/types";
 import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primitives";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { useStickyChoice } from "@/components/notes/note-fields";
-import { NoteBoard, usePinnedLayouts } from "@/components/notes/note-board";
+import { NoteBoard, usePinnedLayouts, type Modifiers } from "@/components/notes/note-board";
 import {
   ALL_FOLDERS, FolderRail, UNFILED_FOLDER, matchesFolder, type FolderFilter,
 } from "@/components/notes/folder-rail";
 import { NoteBulkBar } from "@/components/notes/note-bulk-bar";
 import { NoteList } from "@/components/notes/note-list";
 import { NoteEditor } from "@/components/notes/note-editor";
-import { NotesToolbar } from "@/components/notes/notes-toolbar";
+import { GroupPicker, NotesToolbar } from "@/components/notes/notes-toolbar";
 import { TopicsView } from "@/components/notes/topics-view";
 import { isUnfiled, type TopicBy, type TopicRow } from "@/components/notes/topic-model";
 import { TemplateMenu, TemplatesModal } from "@/components/notes/note-templates";
@@ -110,6 +110,44 @@ export default function NotesPage() {
   const paged = React.useMemo(() => visible.slice(0, limit), [visible, limit]);
 
   const sections = React.useMemo(() => groupNotes(paged, group), [paged, group]);
+  /**
+   * Every card on the page in the order it is drawn, flattened across the
+   * groups. Shift-click measures its range against this, so selecting from one
+   * group into the next works the way pointing at two cards suggests it will.
+   */
+  const order = React.useMemo(
+    () => sections.flatMap((s) => s.notes.map((n) => n.id)), [sections]);
+
+  /** Where a shift-range measures from — the last card touched, anywhere. */
+  const anchorRef = React.useRef<string | null>(null);
+
+  /**
+   * Clicking a card, with the two modifiers everything else in the world uses.
+   * Shift takes the run between the last card touched and this one, in the
+   * order they are drawn; Cmd or Ctrl toggles a single card.
+   */
+  const pickNote = React.useCallback((id: string, mods: Modifiers) => {
+    if (mods.shiftKey && anchorRef.current && order.includes(anchorRef.current)) {
+      const from = order.indexOf(anchorRef.current);
+      const to = order.indexOf(id);
+      if (to >= 0) {
+        const [lo, hi] = from < to ? [from, to] : [to, from];
+        setSelected(new Set(order.slice(lo, hi + 1)));
+        return;
+      }
+    }
+
+    anchorRef.current = id;
+    if (mods.metaKey || mods.ctrlKey) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
+      return;
+    }
+    setSelected(new Set([id]));
+  }, [order]);
 
   const arranged = usePinnedLayouts(notes);
 
@@ -248,6 +286,9 @@ export default function NotesPage() {
         />
       }
     >
+      {notes.length > 0 && view !== "topics" && (
+        <GroupPicker group={group} onGroup={setGroup} />
+      )}
       {notes.length > 0 && (
         <Segmented<View>
           size="sm"
@@ -350,8 +391,6 @@ export default function NotesPage() {
               total={notes.length}
               searchRef={searchRef}
               onDaily={openDaily}
-              group={group}
-              onGroup={setGroup}
               extra={
                 <>
                   {view === "cards" && arranged.count > 0 && (
@@ -423,7 +462,7 @@ export default function NotesPage() {
                         categories={catIdx}
                         onOpen={open}
                         selected={liveSelection}
-                        onSelected={setSelected}
+                        onPick={pickNote}
                         onDropTarget={setDropTarget}
                         onFileInto={fileInto}
                       />

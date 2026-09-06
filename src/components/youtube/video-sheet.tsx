@@ -105,7 +105,7 @@ export function VideoSheet({ mediaId, onClose }: { mediaId: string; onClose: () 
   const item = useStore((s) => s.media.find((m) => m.id === mediaId) ?? null);
 
   return (
-    <Sheet open={!!item} onClose={onClose} width={470}>
+    <Sheet open={!!item} onClose={onClose} width={470} resizeKey="video">
       {item && <VideoSheetBody key={item.id} item={item} onClose={onClose} />}
     </Sheet>
   );

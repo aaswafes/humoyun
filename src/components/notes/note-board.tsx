@@ -47,7 +47,7 @@ export interface Modifiers { shiftKey: boolean; metaKey: boolean; ctrlKey: boole
 
 export function NoteBoard({
   notes, refs, locators, categories, onOpen, className,
-  selected, onSelected, onDropTarget, onFileInto,
+  selected, onPick, onDropTarget, onFileInto,
 }: {
   notes: Note[];
   refs: Map<string, SourceRef>;
@@ -57,7 +57,12 @@ export function NoteBoard({
   className?: string;
   /** every card currently picked out, by id */
   selected: Set<string>;
-  onSelected: (next: Set<string>) => void;
+  /**
+   * A click on a card, with its modifiers. What that means for the selection
+   * is the page's decision, not this board's: grouping splits the page into
+   * one board per group, and a shift-range has to be able to cross a heading.
+   */
+  onPick: (id: string, mods: Modifiers) => void;
   /** the folder row under the pointer mid-drag, so the rail can light it up */
   onDropTarget: (folderId: string | null) => void;
   /** a drag that ends on a folder files the notes instead of moving them */
@@ -67,8 +72,6 @@ export function NoteBoard({
 
   const hostRef = React.useRef<HTMLDivElement>(null);
   const cardsRef = React.useRef(new Map<string, HTMLElement>());
-  // Where a shift-click measures its range from.
-  const anchorRef = React.useRef<string | null>(null);
   const [width, setWidth] = React.useState(0);
   const [heights, setHeights] = React.useState<Map<string, number>>(() => new Map());
   const [live, setLive] = React.useState<Live | null>(null);
@@ -119,39 +122,6 @@ export function NoteBoard({
     () => (free && width ? layoutBoard(notes, width, heights) : []),
     [free, width, notes, heights]);
 
-  /**
-   * Reading order on screen, which is what a shift-range has to follow. The
-   * order cards were written in is not the order you see them in, and a range
-   * you select by pointing must be the range you can see.
-   */
-  const order = React.useMemo(
-    () => (placed.length ? placed.map((p) => p.note.id) : notes.map((n) => n.id)),
-    [placed, notes]);
-
-  /** Clicking a card, with the two modifiers everything else in the world uses. */
-  const pick = React.useCallback((id: string, e: Modifiers) => {
-    if (e.shiftKey && anchorRef.current && order.includes(anchorRef.current)) {
-      const from = order.indexOf(anchorRef.current);
-      const to = order.indexOf(id);
-      if (to >= 0) {
-        const [lo, hi] = from < to ? [from, to] : [to, from];
-        onSelected(new Set(order.slice(lo, hi + 1)));
-        return;
-      }
-    }
-
-    if (e.metaKey || e.ctrlKey) {
-      const next = new Set(selected);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      anchorRef.current = id;
-      onSelected(next);
-      return;
-    }
-
-    anchorRef.current = id;
-    onSelected(new Set([id]));
-  }, [order, selected, onSelected]);
-
   // ---- picking a card up ----
   const begin = (e: React.PointerEvent, p: PlacedNote, mode: Mode) => {
     if (e.button !== 0) return;
@@ -162,9 +132,9 @@ export function NoteBoard({
       // Shift-clicking two cards otherwise drags a native text selection
       // across everything between them, which is not what was asked for.
       e.preventDefault();
-      pick(p.note.id, e);
+      onPick(p.note.id, e);
     }
-    else if (!selected.has(p.note.id)) pick(p.note.id, e);
+    else if (!selected.has(p.note.id)) onPick(p.note.id, e);
     setLive({
       key: `${p.note.id}:${mode}:${e.clientX}:${e.clientY}`,
       id: p.note.id, mode, startX: e.clientX, startY: e.clientY, box: p.box, moved: false,

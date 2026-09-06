@@ -105,7 +105,7 @@ export function MediaSheet({ mediaId, onClose }: { mediaId: string; onClose: () 
   const item = useStore((s) => s.media.find((m) => m.id === mediaId) ?? null);
 
   return (
-    <Sheet open={!!item} onClose={onClose} width={470}>
+    <Sheet open={!!item} onClose={onClose} width={470} resizeKey="media">
       {item && <MediaSheetBody key={item.id} item={item} onClose={onClose} />}
     </Sheet>
   );

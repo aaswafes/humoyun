@@ -228,16 +228,58 @@ export function Modal({
 // =========================================================
 // Sheet — right-hand inspector panel
 // =========================================================
+/** Narrower than this and the forms inside stop fitting; wider and it is a page. */
+const SHEET_MIN = 360;
+const SHEET_MAX = 1200;
+
+function sheetWidth(key: string | undefined, fallback: number): number {
+  if (!key || typeof window === "undefined") return fallback;
+  try {
+    const raw = Number(localStorage.getItem("humoyun.sheet." + key));
+    return Number.isFinite(raw) && raw >= SHEET_MIN ? raw : fallback;
+  } catch {
+    return fallback;   // private mode
+  }
+}
+
+/**
+ * The right-hand panel, which the reader can widen.
+ *
+ * Every surface has a different idea of how wide it should start — a task
+ * inspector is not a template editor — so `width` stays the default. What
+ * `resizeKey` adds is the memory: drag the left edge and that surface opens
+ * that wide from then on, on this browser.
+ *
+ * The width is read once, on open, rather than watched: re-reading storage on
+ * every render would fight the drag it is meant to remember.
+ */
 export function Sheet({
-  open, onClose, children, width = 400, className,
+  open, onClose, children, width = 400, resizeKey, className,
 }: {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   width?: number;
+  /** enables the drag handle and remembers the width under this name */
+  resizeKey?: string;
   className?: string;
 }) {
   const mounted = useMounted();
+  const [dragging, setDragging] = React.useState(false);
+
+  /**
+   * The width is derived, not stored.
+   *
+   * Untouched, it is whatever this surface remembered — read on the render
+   * that needs it, with no effect to run and nothing to get out of step when
+   * the surface changes its mind about its default. A drag records a width
+   * against the key it was made for; a different key falls back to storage.
+   */
+  const [sized, setSized] = React.useState<{ key: string; px: number } | null>(null);
+  const activeKey = resizeKey ?? "";
+  const size = sized?.key === activeKey ? sized.px : sheetWidth(resizeKey, width);
+  const setSize = React.useCallback(
+    (px: number) => setSized({ key: activeKey, px }), [activeKey]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -245,6 +287,37 @@ export function Sheet({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  const commit = React.useCallback((next: number) => {
+    setSize(next);
+    if (!resizeKey) return;
+    try { localStorage.setItem("humoyun.sheet." + resizeKey, String(Math.round(next))); }
+    catch { /* private mode: it just will not be remembered */ }
+  }, [resizeKey, setSize]);
+
+  const limit = React.useCallback((px: number) => {
+    const ceiling = typeof window === "undefined"
+      ? SHEET_MAX
+      : Math.min(SHEET_MAX, window.innerWidth - 80);
+    return Math.max(SHEET_MIN, Math.min(px, ceiling));
+  }, []);
+
+  const startResize = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    setDragging(true);
+    // The panel is pinned right, so its width is simply the distance from the
+    // pointer to the right edge of the window.
+    const onMove = (ev: PointerEvent) => setSize(limit(window.innerWidth - ev.clientX));
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setDragging(false);
+      commit(limit(window.innerWidth - ev.clientX));
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   if (!mounted || !open) return null;
 
@@ -254,13 +327,46 @@ export function Sheet({
       <div
         role="dialog"
         aria-modal="true"
-        style={{ width, animation: "hm-sheet-in 260ms var(--ease-out-apple) both" }}
+        style={{
+          width: size,
+          // The entrance slide is skipped mid-drag, or every pointermove
+          // restarts it and the panel judders under the cursor.
+          animation: dragging ? undefined : "hm-sheet-in 260ms var(--ease-out-apple) both",
+        }}
         className={cn(
-          "absolute right-0 top-0 flex h-full max-w-[92vw] flex-col border-l border-line bg-canvas shadow-pop",
+          "absolute right-0 top-0 flex h-full max-w-[96vw] flex-col border-l border-line bg-canvas shadow-pop",
           className,
         )}
       >
         <style>{`@keyframes hm-sheet-in { from { transform: translateX(16px); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
+
+        {resizeKey && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Drag to resize this panel"
+            aria-valuenow={Math.round(size)}
+            aria-valuemin={SHEET_MIN}
+            aria-valuemax={SHEET_MAX}
+            tabIndex={0}
+            onPointerDown={startResize}
+            onDoubleClick={() => commit(width)}
+            onKeyDown={(e) => {
+              const step = e.shiftKey ? 80 : 16;
+              if (e.key === "ArrowLeft") { e.preventDefault(); commit(limit(size + step)); }
+              if (e.key === "ArrowRight") { e.preventDefault(); commit(limit(size - step)); }
+              if (e.key === "Home") { e.preventDefault(); commit(width); }
+            }}
+            className={cn(
+              "absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none",
+              "before:absolute before:inset-y-0 before:left-[3px] before:w-[2px]",
+              "before:bg-accent before:opacity-0 before:transition-opacity before:duration-150",
+              "hover:before:opacity-60 focus-visible:outline-none focus-visible:before:opacity-100",
+              dragging && "before:opacity-100",
+            )}
+          />
+        )}
+
         {children}
       </div>
     </div>,

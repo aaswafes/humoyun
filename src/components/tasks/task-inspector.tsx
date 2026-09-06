@@ -502,7 +502,7 @@ export function TaskInspector() {
 
   return (
     <>
-      <Sheet open onClose={close} width={420}>
+      <Sheet open onClose={close} width={420} resizeKey="task">
         {/* header */}
         <div className="flex items-center gap-1 border-b border-line px-3 py-2.5">
           <Checkbox

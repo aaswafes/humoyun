@@ -54,7 +54,7 @@ export function ProjectSheet({
   );
 
   return (
-    <Sheet open={!!project} onClose={onClose} width={520}>
+    <Sheet open={!!project} onClose={onClose} width={520} resizeKey="project">
       {project && (
         <ProjectSheetBody key={project.id} project={project} index={index} onClose={onClose} />
       )}

@@ -28,7 +28,7 @@ const CATEGORY_LIMIT = 16;
  */
 export function NotesToolbar({
   query, onQuery, filters, onFilters, tags, categories, categoryIndex,
-  count, total, searchRef, onDaily, extra, group, onGroup, className,
+  count, total, searchRef, onDaily, extra, className,
 }: {
   query: string;
   onQuery: (next: string) => void;
@@ -44,8 +44,6 @@ export function NotesToolbar({
   onDaily: () => void;
   /** whatever the current view needs to say for itself, e.g. "Tidy up" */
   extra?: React.ReactNode;
-  group?: GroupBy;
-  onGroup?: (next: GroupBy) => void;
   className?: string;
 }) {
   const inputId = React.useId();
@@ -96,42 +94,6 @@ export function NotesToolbar({
 
       <div className="ml-auto flex items-center gap-1">
         {extra}
-
-        {group && onGroup && (
-          <Popover
-            align="end"
-            className="w-[184px]"
-            trigger={
-              <button
-                type="button"
-                aria-label={`Grouping: ${GROUP_LABELS[group].toLowerCase()}. Change it`}
-                className={cn(
-                  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px]",
-                  "transition-colors duration-150 hover:bg-hover hover:text-ink",
-                  group !== "none" ? "bg-hover text-ink" : "text-ink-2",
-                )}
-              >
-                <Group className="size-3.5 shrink-0 text-ink-3" aria-hidden />
-                <span className="truncate">{GROUP_LABELS[group]}</span>
-              </button>
-            }
-          >
-            {(close) => (
-              <>
-                <MenuLabel>Group the notes</MenuLabel>
-                {GROUPS.map((g) => (
-                  <MenuItem
-                    key={g}
-                    checked={group === g}
-                    onClick={() => { onGroup(g); close(); }}
-                  >
-                    {GROUP_LABELS[g]}
-                  </MenuItem>
-                ))}
-              </>
-            )}
-          </Popover>
-        )}
 
         {count !== total && (
           <span className="hidden pr-1 text-[11.5px] text-ink-4 tnum sm:inline">
@@ -272,5 +234,51 @@ export function NotesToolbar({
         </Popover>
       </div>
     </div>
+  );
+}
+
+/**
+ * Grouping, on the line with the view switcher rather than in the toolbar.
+ *
+ * How the notes are cut up is the same kind of decision as which view you are
+ * in — both change the shape of the page rather than narrowing what is on it,
+ * which is what the toolbar below is for.
+ */
+export function GroupPicker({
+  group, onGroup,
+}: {
+  group: GroupBy;
+  onGroup: (next: GroupBy) => void;
+}) {
+  return (
+    <Popover
+      align="end"
+      className="w-[184px]"
+      trigger={
+        <button
+          type="button"
+          aria-label={`Grouping: ${GROUP_LABELS[group].toLowerCase()}. Change it`}
+          className={cn(
+            "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px]",
+            "transition-colors duration-150 hover:bg-hover hover:text-ink",
+            group !== "none" ? "bg-hover text-ink" : "text-ink-2",
+          )}
+        >
+          <Group className="size-3.5 shrink-0 text-ink-3" aria-hidden />
+          <span className="truncate">{GROUP_LABELS[group]}</span>
+        </button>
+      }
+    >
+      {(close) => (
+        <>
+          <MenuLabel>Group the notes</MenuLabel>
+          {GROUPS.map((g) => (
+            <MenuItem key={g} checked={group === g} onClick={() => { onGroup(g); close(); }}>
+              {GROUP_LABELS[g]}
+            </MenuItem>
+          ))}
+        </>
+      )}
+    </Popover>
   );
 }
