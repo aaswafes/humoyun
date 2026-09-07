@@ -47,6 +47,11 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// `api/` and `sw.js` sit outside the gate on purpose. A route handler is
+// reached by callers with no session cookie — Telegram's webhook, a cron —
+// so it authenticates itself with its own secret; redirecting one to /login
+// would answer a webhook with an HTML page. And the service worker must be
+// fetchable before anyone signs in, or it can never install.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$).*)"],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icon|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$).*)"],
 };

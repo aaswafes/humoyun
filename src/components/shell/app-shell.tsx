@@ -11,6 +11,7 @@ import { Sidebar } from "./sidebar";
 import { CommandPalette } from "./command-palette";
 import { QuickAdd, openQuickAdd } from "./quick-add";
 import { TimerBar } from "./timer-bar";
+import { OfflineBar } from "./offline-bar";
 import { TaskInspector } from "@/components/tasks/task-inspector";
 import { Spinner } from "@/components/ui/primitives";
 
@@ -146,7 +147,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       {/* data-app-main is what a maximised Sheet measures itself against, so
           it stops at the sidebar instead of covering it. */}
-      <main data-app-main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      <main data-app-main className="flex min-w-0 flex-1 flex-col">
+        <OfflineBar />
+        {children}
+      </main>
       <CommandPalette />
       <QuickAdd />
       <TaskInspector />

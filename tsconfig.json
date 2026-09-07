@@ -30,5 +30,8 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // supabase/functions is Deno, not Next: it resolves npm: specifiers and has
+  // its own globals, so typechecking it with this config only ever produces
+  // false errors.
+  "exclude": ["node_modules", "supabase/functions"]
 }
