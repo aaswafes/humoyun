@@ -1,4 +1,4 @@
-# Humoyun
+# Qalamchi
 
 A calendar-first personal operating system. Notion's structure, Apple's manners.
 
@@ -44,7 +44,7 @@ Then open Settings -> Notifications -> Telegram, generate a code and send
 ### Optional — push notifications
 
 `reminders.ts` can only fire while a tab is open. Push is what reaches you
-when Humoyun is closed. Generate a VAPID pair (`npx web-push generate-vapid-keys`)
+when Qalamchi is closed. Generate a VAPID pair (`npx web-push generate-vapid-keys`)
 and set the public half for the app:
 
 ```

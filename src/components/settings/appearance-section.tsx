@@ -9,6 +9,7 @@ import { ACCENTS, TINTS, type Accent, type Tint } from "@/lib/types";
 import { Badge, Button, Checkbox, Progress, Segmented } from "@/components/ui/primitives";
 import { SwatchCheck } from "@/components/ui/form";
 import { FoldGroup, Group, Pane, Row } from "./ui";
+import { AppearanceExtras } from "./appearance-extras";
 
 type Theme = "light" | "dark" | "system";
 
@@ -277,6 +278,8 @@ export function AppearanceSection() {
           </div>
         </Row>
       </Group>
+
+      <AppearanceExtras />
 
       <FoldGroup
         title="Entity colours"

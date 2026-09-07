@@ -2,7 +2,7 @@
 // The fonts a note can be written in.
 //
 // Every stack ends in a family that is certainly installed, because a note is
-// worthless if it renders as a fallback nobody chose. The two "Humoyun" faces
+// worthless if it renders as a fallback nobody chose. The two "Qalamchi" faces
 // point at the variables the root layout already loads, so a note written in
 // them matches the rest of the app rather than looking pasted in.
 // =========================================================
@@ -17,8 +17,8 @@ export interface FontChoice {
 }
 
 export const FONTS: FontChoice[] = [
-  { label: "Humoyun Sans", group: "App", stack: 'var(--font-inter), -apple-system, "Segoe UI", system-ui, sans-serif' },
-  { label: "Humoyun Serif", group: "App", stack: 'var(--font-serif-display), "Iowan Old Style", Georgia, serif' },
+  { label: "Qalamchi Sans", group: "App", stack: 'var(--font-inter), -apple-system, "Segoe UI", system-ui, sans-serif' },
+  { label: "Qalamchi Serif", group: "App", stack: 'var(--font-instrument), "Iowan Old Style", Georgia, serif' },
 
   { label: "Georgia", group: "Document", stack: 'Georgia, "Iowan Old Style", "Times New Roman", serif' },
   { label: "Times New Roman", group: "Document", stack: '"Times New Roman", Times, serif' },
@@ -38,8 +38,8 @@ export const DEFAULT_FONT = FONTS[0];
 
 /** The readable family names each menu entry can come back as. */
 const PROBES: Record<string, string[]> = {
-  "Humoyun Sans": ["inter", "-apple-system", "segoe ui", "system-ui"],
-  "Humoyun Serif": ["instrument serif", "serif-display", "iowan old style"],
+  "Qalamchi Sans": ["inter", "-apple-system", "segoe ui", "system-ui"],
+  "Qalamchi Serif": ["instrument serif", "serif-display", "iowan old style"],
   Georgia: ["georgia"],
   "Times New Roman": ["times new roman", "times"],
   Garamond: ["eb garamond", "garamond"],

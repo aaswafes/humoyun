@@ -18,6 +18,7 @@ import { Kbd, Ring } from "@/components/ui/primitives";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 import { SidebarRecents } from "./sidebar-recents";
 import { supabase } from "@/lib/supabase/client";
+import { useT } from "@/lib/i18n";
 
 interface NavItem {
   href: string;
@@ -31,6 +32,7 @@ const GROUPS_KEY = "humoyun.sidebar.groups";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useT();
   // Read in an effect, not a useState initialiser — localStorage does not exist
   // during SSR and reading it inline produces a hydration mismatch.
   const [calendarOpen, setCalendarOpen] = React.useState(false);
@@ -71,41 +73,48 @@ export function Sidebar() {
     return map;
   }, [tasks]);
 
-  const groups: { label: string; items: NavItem[] }[] = [
+  // `id` is what the collapse state is keyed on and `label` is what is
+  // drawn. Keeping them apart matters: the label is translated, and a
+  // language change must not silently reset which groups are folded.
+  const groups: { id: string; label: string; items: NavItem[] }[] = [
     {
-      label: "Plan",
+      id: "plan",
+      label: t("nav.group.plan"),
       items: [
-        { href: "/", label: "Today", icon: Sun },
-        { href: "/calendar", label: "Calendar", icon: CalendarDays },
-        { href: "/inbox", label: "Inbox", icon: Inbox, badge: inboxCount },
-        { href: "/projects", label: "Projects", icon: Boxes },
-        { href: "/notes", label: "Notes", icon: NotebookPen },
+        { href: "/", label: t("nav.today"), icon: Sun },
+        { href: "/calendar", label: t("nav.calendar"), icon: CalendarDays },
+        { href: "/inbox", label: t("nav.inbox"), icon: Inbox, badge: inboxCount },
+        { href: "/projects", label: t("nav.projects"), icon: Boxes },
+        { href: "/notes", label: t("nav.notes"), icon: NotebookPen },
       ],
     },
     {
-      label: "Track",
+      id: "track",
+      label: t("nav.group.track"),
       items: [
-        { href: "/habits", label: "Habits", icon: Flame },
-        { href: "/salah", label: "Salah", icon: Moon },
-        { href: "/books", label: "Books", icon: BookOpen },
-        { href: "/watch", label: "Films & Anime", icon: Clapperboard },
-        { href: "/youtube", label: "YouTube", icon: MonitorPlay },
-        { href: "/focus", label: "Focus", icon: Timer },
+        { href: "/habits", label: t("nav.habits"), icon: Flame },
+        { href: "/salah", label: t("nav.salah"), icon: Moon },
+        { href: "/books", label: t("nav.books"), icon: BookOpen },
+        { href: "/watch", label: t("nav.watch"), icon: Clapperboard },
+        { href: "/youtube", label: t("nav.youtube"), icon: MonitorPlay },
+        { href: "/focus", label: t("nav.focus"), icon: Timer },
       ],
     },
     {
-      label: "Reflect",
+      id: "reflect",
+      label: t("nav.group.reflect"),
       items: [
-        { href: "/goals", label: "Goals", icon: Target },
-        { href: "/stats", label: "Stats", icon: BarChart3 },
-        { href: "/review", label: "Weekly Review", icon: ClipboardCheck },
+        { href: "/goals", label: t("nav.goals"), icon: Target },
+        { href: "/stats", label: t("nav.stats"), icon: BarChart3 },
+        { href: "/review", label: t("nav.review"), icon: ClipboardCheck },
       ],
     },
     {
-      label: "Build",
+      id: "build",
+      label: t("nav.group.build"),
       items: [
-        { href: "/templates", label: "Templates", icon: LayoutTemplate },
-        { href: "/settings", label: "Settings", icon: Settings },
+        { href: "/templates", label: t("nav.templates"), icon: LayoutTemplate },
+        { href: "/settings", label: t("nav.settings"), icon: Settings },
       ],
     },
   ];
@@ -114,7 +123,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex h-dvh w-[var(--sidebar-w)] shrink-0 flex-col bg-sunken hairline-r"
+      className="flex h-dvh-app w-[var(--sidebar-w)] shrink-0 flex-col bg-sunken hairline-r"
       aria-label="Primary"
     >
       {/* ---- account ---- */}
@@ -131,7 +140,7 @@ export function Sidebar() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13.5px] font-semibold leading-tight text-ink">
-                  {profile?.display_name ?? "Humoyun"}
+                  {profile?.display_name ?? "You"}
                 </p>
               </div>
               <ChevronDown className="size-3.5 shrink-0 text-ink-4" />
@@ -215,11 +224,11 @@ export function Sidebar() {
         <SidebarRecents />
 
         {groups.map((group, gi) => (
-          <div key={group.label} className={cn(gi > 0 && "mt-4")}>
+          <div key={group.id} className={cn(gi > 0 && "mt-4")}>
             <button
               type="button"
-              aria-expanded={!collapsed.has(group.label)}
-              onClick={() => toggleGroup(group.label)}
+              aria-expanded={!collapsed.has(group.id)}
+              onClick={() => toggleGroup(group.id)}
               className="group/gh flex w-full items-center gap-1 rounded-md px-2 pb-1 pt-0.5 text-left cursor-pointer"
             >
               <span className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-4 transition-colors group-hover/gh:text-ink-3">
@@ -229,15 +238,15 @@ export function Sidebar() {
                 className={cn(
                   "size-3 text-ink-4 opacity-0 transition-[transform,opacity] duration-200",
                   "group-hover/gh:opacity-100 focus-visible:opacity-100",
-                  !collapsed.has(group.label) && "rotate-90",
+                  !collapsed.has(group.id) && "rotate-90",
                 )}
               />
               {/* A collapsed group still has to say how much it is hiding. */}
-              {collapsed.has(group.label) && (
+              {collapsed.has(group.id) && (
                 <span className="ml-auto text-[10.5px] text-ink-4 tnum">{group.items.length}</span>
               )}
             </button>
-            <ul className={cn("space-y-px", collapsed.has(group.label) && "hidden")}>
+            <ul className={cn("space-y-px", collapsed.has(group.id) && "hidden")}>
               {group.items.map((item) => {
                 const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                 const Icon = item.icon;

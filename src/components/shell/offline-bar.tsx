@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { CloudOff } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 // =========================================================
 // The service worker registration, and the one piece of UI it needs.
@@ -10,7 +11,7 @@ import { CloudOff } from "lucide-react";
 // chunks turns "I edited a file and nothing changed" into a mystery, and
 // there is nothing to gain from it while `next dev` is running.
 //
-// The bar appears only while the browser says it is offline. Humoyun still
+// The bar appears only while the browser says it is offline. Qalamchi still
 // opens and still shows everything already loaded, but a write cannot reach
 // Supabase — so the bar says exactly that rather than letting a save fail
 // with a toast that reads like a bug.
@@ -18,6 +19,7 @@ import { CloudOff } from "lucide-react";
 
 export function OfflineBar() {
   const [offline, setOffline] = React.useState(false);
+  const { t } = useT();
 
   React.useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
@@ -51,7 +53,7 @@ export function OfflineBar() {
       className="flex shrink-0 items-center justify-center gap-2 bg-warn-soft px-3 py-1.5 text-[12px] text-warn"
     >
       <CloudOff className="size-3.5 shrink-0" aria-hidden />
-      <span>Offline — you can read everything already loaded, but changes will not save until you reconnect.</span>
+      <span>{t("misc.offline")}</span>
     </div>
   );
 }

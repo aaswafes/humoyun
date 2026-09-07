@@ -56,7 +56,7 @@ export function clearLocal() {
 
 export const SOLO_PROFILE: Profile = {
   id: SOLO_USER_ID,
-  display_name: "Humoyun",
+  display_name: "Qalamchi",
   avatar: null,
   city: "Tashkent",
   latitude: 41.2995,

@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
   if (start) {
     const code = start[1]?.toUpperCase();
     if (!code) {
-      await reply(chatId, "Open Humoyun → Settings → Notifications, then send me the code it shows.");
+      await reply(chatId, "Open Qalamchi → Settings → Notifications, then send me the code it shows.");
       return NextResponse.json({ ok: true });
     }
 

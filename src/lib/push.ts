@@ -9,7 +9,7 @@ import { supabase } from "./supabase/client";
 // comment, and a Fajr reminder that needs an open tab is not a reminder.
 // This is the other half: the browser holds a subscription, the server holds
 // the private half of the VAPID pair, and a notification arrives whether or
-// not Humoyun is on screen.
+// not Qalamchi is on screen.
 //
 // The subscription row is written under RLS as the signed-in user, exactly
 // like every other table. The endpoint is unique, so the same browser

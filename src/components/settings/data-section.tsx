@@ -322,7 +322,7 @@ export function DataSection() {
     if (!file) return;
     try {
       const parsed: unknown = JSON.parse(await file.text());
-      if (!isBackup(parsed)) throw new Error("That file is not a Humoyun backup — it has no `app: \"humoyun\"` marker.");
+      if (!isBackup(parsed)) throw new Error("That file is not a Qalamchi backup — it has no `app` marker.");
       const plan = buildPlan(parsed);
       if (!plan.length) throw new Error("The file parsed, but there is not a single row in it.");
       setMode("add");
@@ -460,7 +460,7 @@ export function DataSection() {
   return (
     <Pane
       title="Data"
-      description="Everything you put into Humoyun stays yours. Take it out one collection at a time, put it back, or start over."
+      description="Everything you put into Qalamchi stays yours. Take it out one collection at a time, put it back, or start over."
     >
       {total === 0 && (
         <Callout
@@ -489,7 +489,7 @@ export function DataSection() {
             ? `${total} rows across ${populated.length} collection${populated.length === 1 ? "" : "s"}, as JSON or CSV`
             : "Nothing to export yet"
         }
-        description="A Humoyun backup is plain JSON — every row, exactly as stored. Importing one rebuilds the workspace."
+        description="A Qalamchi backup is plain JSON — every row, exactly as stored. Importing one rebuilds the workspace."
       >
         <div className="mt-1 overflow-hidden rounded-lg border border-line">
           <div className="flex items-center gap-3 border-b border-line bg-sunken px-3 py-2">
@@ -556,7 +556,7 @@ export function DataSection() {
       >
         <Row
           label="Choose a backup"
-          hint="A .json file exported from Humoyun. You pick what happens to rows that are already here."
+          hint="A .json file exported from Qalamchi. You pick what happens to rows that are already here."
         >
           <>
             <input

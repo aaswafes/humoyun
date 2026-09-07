@@ -440,3 +440,72 @@ Work surface by surface. For each one ask, in order:
 - What is coloured that could be grey?
 
 Then check your work against the nine rules literally, one by one.
+
+
+---
+
+# Addendum — customisation and language
+
+## The one rule that is easy to break
+
+`@theme inline` **inlines values into utilities**. `--radius-lg: 13px` there
+compiles `rounded-lg` to `border-radius:13px` — a literal, which no runtime
+override can reach. So every customisable token goes through a second
+variable:
+
+```css
+:root      { --r-lg: 13px; --ui-font-sans: …; }
+@theme inline { --radius-lg: var(--r-lg); --font-sans: var(--ui-font-sans); }
+```
+
+`rounded-lg` then compiles to `var(--r-lg)`, which `lib/customize.ts` can
+re-point. **Adding a customisable token means adding a `--…` in `:root` and
+pointing `@theme` at it — never a literal.** Verify by grepping the built CSS
+for the utility; if it holds a number, it is not customisable.
+
+## Appearance
+
+`lib/customize.ts` owns the whole model. It lives in `profiles.prefs.ui`, a
+jsonb column that already existed, so a new knob never needs a migration.
+
+- `useStore().setAppearance(changes)` is the only way it changes. It paints
+  first, then saves. `setTheme` and `setAccent` are thin wrappers over it.
+- `applyAppearance()` writes CSS custom properties onto `<html>`. Nothing
+  re-renders to change a colour.
+- `theme` and `accent` still have real columns and are mirrored, so anything
+  reading the profile stays correct. A **custom hex accent lives in prefs
+  only** — the column's type cannot hold one.
+- The pre-paint script in `layout.tsx` mirrors this logic from a localStorage
+  copy. If you add a knob that affects first paint, add it there too, and keep
+  it inside its `try` — a broken boot script is a white page.
+- `zoom` on `<html>` is the interface-size control. Anything sized against the
+  viewport must divide it back out: use `h-dvh-app`, never `h-dvh`.
+
+Fonts are loaded by `next/font` in `layout.tsx` with `preload: false` on
+everything but the two defaults, so eleven alternatives cost a first-time
+visitor nothing. next/font is a compile-time transform — **every option must
+be a literal**, so the subset arrays are repeated rather than shared.
+
+## Language
+
+`lib/i18n.ts`. `const { t } = useT()` and `t("nav.today")`. English is the
+source of truth and every key exists there; a missing Uzbek string falls back
+to English rather than rendering a raw key.
+
+Uzbek is Latin script and needs `oʻ` / `gʻ` — U+02BB MODIFIER LETTER TURNED
+COMMA, not an apostrophe. That is why every face loads `latin-ext`.
+
+**Never key persistent state on a translated string.** The sidebar groups
+carry an `id` for their collapse state and a `label` for display, precisely
+so switching language does not silently reset what is folded.
+
+Coverage today is navigation, settings, the Inbox tabs, the matrix, note
+links and the offline bar. Other surfaces are still English and fall back
+cleanly; translate them as you touch them.
+
+## Storage keys stay `humoyun.*`
+
+The product is Qalamchi; the localStorage prefix is not. Renaming the keys
+would silently drop saved views, pinned items and every folded section for no
+user-visible gain. The backup file's `app: "humoyun"` marker stays for the
+same reason — old exports must keep importing.

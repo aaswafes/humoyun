@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { SOLO, SOLO_USER_ID } from "@/lib/local-db";
 import { useStore } from "@/lib/store";
+import { applyAppearance, cacheForBoot, readAppearance } from "@/lib/customize";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { addDays, todayISO } from "@/lib/date";
 import { Sidebar } from "./sidebar";
@@ -77,11 +78,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // ---- accent + theme follow the profile once it loads ----
   React.useEffect(() => {
     if (!profile) return;
-    document.documentElement.setAttribute("data-accent", profile.accent ?? "blue");
-    try { localStorage.setItem("humoyun.accent", profile.accent ?? "blue"); } catch { /* noop */ }
-    const theme = profile.theme ?? "system";
-    const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.classList.toggle("dark", dark);
+    const appearance = readAppearance(profile.prefs, {
+      theme: profile.theme, accent: profile.accent,
+    });
+    applyAppearance(appearance);
+    // Mirrored for the pre-paint script in layout.tsx, which cannot read
+    // Supabase — this is what stops the app flashing the wrong theme, font
+    // or size on the next load.
+    cacheForBoot(appearance);
+
+    // "System" has to keep meaning system. Without this the app would only
+    // notice the OS flipping to dark on the next reload.
+    if (appearance.theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => applyAppearance(appearance);
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
   }, [profile]);
 
   // ---- global keys ----
@@ -131,7 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="grid h-dvh place-items-center bg-canvas">
+      <div className="grid h-dvh-app place-items-center bg-canvas">
         <div className="flex flex-col items-center gap-3">
           <div className="grid size-10 place-items-center rounded-xl bg-ink text-canvas">
             <span className="display-serif text-[22px] leading-none">H</span>
@@ -143,7 +155,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-canvas">
+    <div className="flex h-dvh-app overflow-hidden bg-canvas">
       <Sidebar />
       {/* data-app-main is what a maximised Sheet measures itself against, so
           it stops at the sidebar instead of covering it. */}

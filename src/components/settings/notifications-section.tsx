@@ -75,7 +75,7 @@ export function NotificationsSection() {
     const next = await requestNotificationPermission();
     if (next === "granted") {
       set({ enabled: true });
-      toast({ title: "Reminders on", description: "They arrive while Humoyun is open in a tab.", tone: "success" });
+      toast({ title: "Reminders on", description: "They arrive while Qalamchi is open in a tab.", tone: "success" });
     } else if (next === "denied") {
       toast({
         title: "The browser said no",
@@ -169,7 +169,7 @@ export function NotificationsSection() {
   return (
     <Pane
       title="Notifications"
-      description="Reminders come from your browser and are worked out on this device — no server, no push service, nothing sent anywhere. They run in the tab you are in, so nothing arrives while Humoyun is closed."
+      description="Reminders come from your browser and are worked out on this device — no server, no push service, nothing sent anywhere. They run in the tab you are in, so nothing arrives while Qalamchi is closed."
     >
       {/* ---- permission ---- */}
       <div

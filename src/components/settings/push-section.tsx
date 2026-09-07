@@ -47,7 +47,7 @@ export function PushSection() {
   return (
     <Pane
       title="Push"
-      description="Reminders that arrive with Humoyun closed. Everything on the pane above only fires while a tab is open — this is what makes a prayer or a deadline reach you when it is not."
+      description="Reminders that arrive with Qalamchi closed. Everything on the pane above only fires while a tab is open — this is what makes a prayer or a deadline reach you when it is not."
     >
       {state === null ? (
         <div className="flex items-center gap-2 py-4 text-[13px] text-ink-3"><Spinner /> Checking…</div>
@@ -63,7 +63,7 @@ export function PushSection() {
         </Callout>
       ) : state === "denied" ? (
         <Callout tone="warn" title="Blocked by the browser">
-          Notifications are turned off for this site, so Humoyun cannot ask again. Allow them
+          Notifications are turned off for this site, so Qalamchi cannot ask again. Allow them
           from the padlock in the address bar, then reload.
         </Callout>
       ) : (

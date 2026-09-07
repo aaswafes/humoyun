@@ -221,7 +221,7 @@ export default function WatchPage() {
           <EmptyState
             icon={Clapperboard}
             title="Nothing to watch yet"
-            description="Add an anime or a series with its episode count and a pace — episodes a day — and Humoyun drops a watch block on every day until the finale. A film is simply one evening on the calendar."
+            description="Add an anime or a series with its episode count and a pace — episodes a day — and Qalamchi drops a watch block on every day until the finale. A film is simply one evening on the calendar."
             action={addButton}
             className="py-24"
           />

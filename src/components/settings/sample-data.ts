@@ -636,7 +636,7 @@ export function topUpSampleData(): number {
   // The sample's goals are found by name, since this workspace was seeded
   // before the projects registry existed to remember their ids.
   const byTitle = (title: string) => s.goals.find((g) => g.title === title)?.id;
-  ctx.goals.v1 = byTitle("Ship Humoyun v1") ?? "";
+  ctx.goals.v1 = byTitle("Ship Qalamchi v1") ?? "";
   ctx.goals.beta = byTitle("Public beta build out the door") ?? "";
   ctx.goals.juz = byTitle("Memorise Juz Amma") ?? "";
 
@@ -701,7 +701,7 @@ function seedGoals(ctx: Ctx) {
   ctx.rows++;
 
   const v1 = s.insert("goals", {
-    parent_id: northStar.id, title: "Ship Humoyun v1",
+    parent_id: northStar.id, title: "Ship Qalamchi v1",
     description: "Feature-complete, no dead ends, both themes checked.",
     horizon: "quarter", target: 100, current: 68, unit: "%", color: "blue",
     start_date: addDays(today, -52), end_date: addDays(today, 38), order_index: 3,
@@ -790,7 +790,7 @@ interface SampleProject {
 const PROJECTS: readonly SampleProject[] = [
   {
     key: "v1",
-    name: "Humoyun v1",
+    name: "Qalamchi v1",
     brief: "Every surface finished, both themes checked, nothing that dead-ends.",
     status: "active", color: "blue", icon: "rocket", goal: "v1",
     start: -52, due: 38,

@@ -9,6 +9,7 @@ import { buildLinkGraph, backlinksOf, outlinksOf } from "./link-graph";
 import { noteHeading, resolveSource, type SourceIndex } from "./note-model";
 import { Disclosure } from "./note-fields";
 import { NoteIcon } from "./note-icons";
+import { useT } from "@/lib/i18n";
 
 // =========================================================
 // What this note points at, and what points back at it.
@@ -73,6 +74,7 @@ export function NoteLinks({
   className?: string;
 }) {
   const notes = useStore((s) => s.notes);
+  const { t } = useT();
 
   const { back, outward } = React.useMemo(() => {
     const graph = buildLinkGraph(notes);
@@ -94,7 +96,7 @@ export function NoteLinks({
   return (
     <Disclosure
       storageKey="humoyun.notes.editor.links"
-      label="Links"
+      label={t("notes.links")}
       summary={summary}
       defaultOpen
       className={cn("hairline-t", className)}
@@ -102,14 +104,14 @@ export function NoteLinks({
     >
       <div className="flex flex-col gap-3">
         <LinkList
-          title="Linked from"
+          title={t("notes.linkedFrom")}
           notes={back}
           index={index}
           onOpen={onOpenNote}
           icon={<CornerUpLeft size={13} />}
         />
         <LinkList
-          title="Links to"
+          title={t("notes.linksTo")}
           notes={outward}
           index={index}
           onOpen={onOpenNote}

@@ -167,7 +167,7 @@ export function LoginCard() {
           <span className="display-serif text-[22px] leading-none">H</span>
         </div>
         <h1 className="display-serif text-[44px] leading-none tracking-[-0.01em] text-ink">
-          Humoyun
+          Qalamchi
         </h1>
         <p className="mt-3 max-w-[30ch] text-[13.5px] leading-relaxed text-ink-3">
           A calendar that knows what you are actually trying to do.

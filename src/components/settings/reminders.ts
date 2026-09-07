@@ -9,7 +9,7 @@
 //
 // Everything here is local: the browser's own Notification API, prayer times
 // calculated on the device, tasks already in memory. Nothing is sent anywhere
-// and there is no server pushing anything — reminders arrive while Humoyun is
+// and there is no server pushing anything — reminders arrive while Qalamchi is
 // open in a tab, which the Notifications pane says plainly.
 // =========================================================
 
@@ -264,7 +264,7 @@ function tick() {
       "plan",
       open ? `${open} things today` : "Nothing on today",
       open
-        ? `${timed} of them have a time. Open Humoyun to walk the day.`
+        ? `${timed} of them have a time. Open Qalamchi to walk the day.`
         : "An empty calendar. Put one thing on it that matters.",
     );
   }
@@ -326,7 +326,7 @@ export function remindersRunning(): boolean {
 export function sendTestNotification(): boolean {
   if (notificationPermission() !== "granted") return false;
   try {
-    const n = new Notification("Humoyun", {
+    const n = new Notification("Qalamchi", {
       body: "Reminders are working. This is what one looks like.",
       tag: `test-${Date.now()}`,
     });

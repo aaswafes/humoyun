@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CircleHelp, ListChecks, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useT } from "@/lib/i18n";
 import { useStore, inboxTasks, overdueTasks, somedayTasks } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import { PageHeader, PageBody } from "@/components/shell/page-header";
@@ -44,6 +45,7 @@ function TabLabel({
 }
 
 function InboxSurface() {
+  const { t } = useT();
   const tasks = useStore((s) => s.tasks);
   const {
     tab, setTab, filters, selecting, setSelecting, message, legendOpen, setLegendOpen,
@@ -88,8 +90,8 @@ function InboxSurface() {
   useTriageKeys({ onRequestDelete: requestDelete, onFocusSearch: focusSearch });
 
   const subtitle =
-    tab === "inbox" ? (inboxCount ? `${inboxCount} unscheduled` : "Nothing waiting")
-    : tab === "someday" ? (somedayCount ? `${somedayCount} on the maybe pile` : "Nothing held back")
+    tab === "inbox" ? (inboxCount ? t("inbox.unscheduled", { n: inboxCount }) : t("inbox.nothingWaiting"))
+    : tab === "someday" ? (somedayCount ? t("inbox.somedayCount", { n: somedayCount }) : t("inbox.nothingHeldBack"))
     : tab === "upcoming" ? "Next 14 days"
     : tab === "all"
       ? (shown === topLevel.length
@@ -133,15 +135,15 @@ function InboxSurface() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "inbox", label: <TabLabel text="Inbox" count={inboxCount} /> },
+            { value: "inbox", label: <TabLabel text={t("nav.inbox")} count={inboxCount} /> },
             {
               value: "upcoming",
-              label: <TabLabel text="Upcoming" count={overdueCount} tone="danger" />,
+              label: <TabLabel text={t("when.upcoming")} count={overdueCount} tone="danger" />,
               title: overdueCount ? `${overdueCount} overdue` : undefined,
             },
-            { value: "someday", label: <TabLabel text="Someday" count={somedayCount} /> },
-            { value: "all", label: "All" },
-            { value: "done", label: "Done" },
+            { value: "someday", label: <TabLabel text={t("when.someday")} count={somedayCount} /> },
+            { value: "all", label: t("when.all") },
+            { value: "done", label: t("action.done") },
           ]}
         />
       </PageHeader>

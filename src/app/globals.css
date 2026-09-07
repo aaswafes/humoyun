@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* =========================================================
-   Humoyun — design tokens
+   Qalamchi — design tokens
    Notion's structure, Apple's manners.
    Warm-neutral surfaces, hairline separation, one accent.
    ========================================================= */
@@ -54,6 +54,25 @@
 
   --sidebar-w: 264px;
   --topbar-h: 52px;
+
+  /* ---- customisation ----
+     Everything below is rewritten at runtime by lib/customize.ts. The rule
+     is that @theme must never see a literal it can inline: a utility built
+     from a literal cannot be re-pointed later, so every customisable token
+     goes through one of these. */
+  --ui-font-sans:  var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ui-font-serif: var(--font-instrument), "Iowan Old Style", Georgia, serif;
+  --ui-font-mono:  var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* what .display-serif actually renders in, and whether it leans */
+  --display-family: var(--ui-font-serif);
+  --display-style:  italic;
+
+  --r-xs: 4px; --r-sm: 6px; --r-md: 9px;
+  --r-lg: 13px; --r-xl: 18px; --r-2xl: 24px;
+
+  --ui-scale: 1;
+  --icon-stroke: 2;
 }
 
 .dark {
@@ -136,16 +155,16 @@
   --color-tint-soft:   var(--tint-soft);
   --color-tint-ink:    var(--tint-ink);
 
-  --font-sans:  var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-serif: var(--font-serif-display), "Iowan Old Style", Georgia, serif;
-  --font-mono:  ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --font-sans:  var(--ui-font-sans);
+  --font-serif: var(--ui-font-serif);
+  --font-mono:  var(--ui-font-mono);
 
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 9px;
-  --radius-lg: 13px;
-  --radius-xl: 18px;
-  --radius-2xl: 24px;
+  --radius-xs:  var(--r-xs);
+  --radius-sm:  var(--r-sm);
+  --radius-md:  var(--r-md);
+  --radius-lg:  var(--r-lg);
+  --radius-xl:  var(--r-xl);
+  --radius-2xl: var(--r-2xl);
 
   --ease-out-apple: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out-apple: cubic-bezier(0.65, 0, 0.35, 1);
@@ -156,12 +175,19 @@
    ========================================================= */
 * { border-color: var(--line); }
 
-html { -webkit-tap-highlight-color: transparent; }
+/* Whole-UI zoom. Every size in this app is in px by design, so there is no
+   rem ladder to scale — `zoom` is the honest way to make the interface
+   bigger or smaller without rewriting three hundred files. Anything sized
+   against the viewport has to divide it back out; see .h-dvh-app. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  zoom: var(--ui-scale, 1);
+}
 
 body {
   background: var(--canvas);
   color: var(--ink);
-  font-family: var(--font-sans);
+  font-family: var(--ui-font-sans);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -192,6 +218,10 @@ button:focus:not(:focus-visible) { outline: none; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
+/* Lucide sets stroke-width as a presentation attribute; the CSS property
+   beats it, so one rule re-weights every icon in the app. */
+svg[stroke-width] { stroke-width: var(--icon-stroke, 2); }
+
 input, textarea, select, button { font: inherit; color: inherit; }
 input::placeholder, textarea::placeholder { color: var(--ink-4); }
 
@@ -217,6 +247,10 @@ input::placeholder, textarea::placeholder { color: var(--ink-4); }
 @utility hairline-r { box-shadow: inset -1px 0 0 0 var(--line); }
 @utility hairline-l { box-shadow: inset 1px 0 0 0 var(--line); }
 
+/* 100dvh, corrected for the root zoom — without the division the shell
+   overflows the window by exactly the scale factor. */
+@utility h-dvh-app { height: calc(100dvh / var(--ui-scale, 1)); }
+
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
@@ -224,8 +258,8 @@ input::placeholder, textarea::placeholder { color: var(--ink-4); }
 
 /* Notion-ish serif display for big numerals & dates */
 @utility display-serif {
-  font-family: var(--font-serif);
-  font-style: italic;
+  font-family: var(--display-family);
+  font-style: var(--display-style);
   font-weight: 400;
   letter-spacing: -0.01em;
 }
@@ -282,24 +316,182 @@ input::placeholder, textarea::placeholder { color: var(--ink-4); }
    Entity color chips (Notion palette, tuned for both themes)
    Consumed as .tint-<name> — sets --tint / --tint-soft / --tint-ink
    ========================================================= */
-.tint-slate   { --tint:#787774; --tint-soft:rgba(120,119,116,.13); --tint-ink:#5b5a57 }
-.tint-red     { --tint:#e03e3e; --tint-soft:rgba(224,62,62,.13);   --tint-ink:#b02b2b }
-.tint-orange  { --tint:#d9730d; --tint-soft:rgba(217,115,13,.13);  --tint-ink:#a4570a }
-.tint-amber   { --tint:#dfab01; --tint-soft:rgba(223,171,1,.15);   --tint-ink:#8a6a02 }
-.tint-emerald { --tint:#0f7b6c; --tint-soft:rgba(15,123,108,.13);  --tint-ink:#0b5c50 }
-.tint-teal    { --tint:#0b7285; --tint-soft:rgba(11,114,133,.13);  --tint-ink:#08596a }
-.tint-blue    { --tint:#0b6bcb; --tint-soft:rgba(11,107,203,.12);  --tint-ink:#0a559f }
-.tint-violet  { --tint:#6940a5; --tint-soft:rgba(105,64,165,.13);  --tint-ink:#54338a }
-.tint-pink    { --tint:#ad1a72; --tint-soft:rgba(173,26,114,.12);  --tint-ink:#8d1660 }
-.tint-brown   { --tint:#8f6c4f; --tint-soft:rgba(143,108,79,.14);  --tint-ink:#6f5340 }
+.tint-slate   { --tint-base:#787774; --tint:#787774; --tint-soft:rgba(120,119,116,.13); --tint-ink:#5b5a57 }
+.tint-red     { --tint-base:#e03e3e; --tint:#e03e3e; --tint-soft:rgba(224,62,62,.13);   --tint-ink:#b02b2b }
+.tint-orange  { --tint-base:#d9730d; --tint:#d9730d; --tint-soft:rgba(217,115,13,.13);  --tint-ink:#a4570a }
+.tint-amber   { --tint-base:#dfab01; --tint:#dfab01; --tint-soft:rgba(223,171,1,.15);   --tint-ink:#8a6a02 }
+.tint-emerald { --tint-base:#0f7b6c; --tint:#0f7b6c; --tint-soft:rgba(15,123,108,.13);  --tint-ink:#0b5c50 }
+.tint-teal    { --tint-base:#0b7285; --tint:#0b7285; --tint-soft:rgba(11,114,133,.13);  --tint-ink:#08596a }
+.tint-blue    { --tint-base:#0b6bcb; --tint:#0b6bcb; --tint-soft:rgba(11,107,203,.12);  --tint-ink:#0a559f }
+.tint-violet  { --tint-base:#6940a5; --tint:#6940a5; --tint-soft:rgba(105,64,165,.13);  --tint-ink:#54338a }
+.tint-pink    { --tint-base:#ad1a72; --tint:#ad1a72; --tint-soft:rgba(173,26,114,.12);  --tint-ink:#8d1660 }
+.tint-brown   { --tint-base:#8f6c4f; --tint:#8f6c4f; --tint-soft:rgba(143,108,79,.14);  --tint-ink:#6f5340 }
 
-.dark .tint-slate   { --tint:#9b9a97; --tint-soft:rgba(155,154,151,.18); --tint-ink:#b8b7b4 }
-.dark .tint-red     { --tint:#ff7369; --tint-soft:rgba(255,115,105,.17); --tint-ink:#ff958d }
-.dark .tint-orange  { --tint:#ffa344; --tint-soft:rgba(255,163,68,.17);  --tint-ink:#ffbb75 }
-.dark .tint-amber   { --tint:#ffdc49; --tint-soft:rgba(255,220,73,.16);  --tint-ink:#ffe680 }
-.dark .tint-emerald { --tint:#4dab9a; --tint-soft:rgba(77,171,154,.17);  --tint-ink:#7cc7b9 }
-.dark .tint-teal    { --tint:#4bb3c8; --tint-soft:rgba(75,179,200,.17);  --tint-ink:#7fcbdb }
-.dark .tint-blue    { --tint:#529cca; --tint-soft:rgba(82,156,202,.17);  --tint-ink:#83bbdd }
-.dark .tint-violet  { --tint:#9a6dd7; --tint-soft:rgba(154,109,215,.17); --tint-ink:#b795e3 }
-.dark .tint-pink    { --tint:#e255a1; --tint-soft:rgba(226,85,161,.17);  --tint-ink:#ee8bc0 }
-.dark .tint-brown   { --tint:#c08b6d; --tint-soft:rgba(192,139,109,.18); --tint-ink:#d3a88f }
+.dark .tint-slate   { --tint-base:#9b9a97; --tint:#9b9a97; --tint-soft:rgba(155,154,151,.18); --tint-ink:#b8b7b4 }
+.dark .tint-red     { --tint-base:#ff7369; --tint:#ff7369; --tint-soft:rgba(255,115,105,.17); --tint-ink:#ff958d }
+.dark .tint-orange  { --tint-base:#ffa344; --tint:#ffa344; --tint-soft:rgba(255,163,68,.17);  --tint-ink:#ffbb75 }
+.dark .tint-amber   { --tint-base:#ffdc49; --tint:#ffdc49; --tint-soft:rgba(255,220,73,.16);  --tint-ink:#ffe680 }
+.dark .tint-emerald { --tint-base:#4dab9a; --tint:#4dab9a; --tint-soft:rgba(77,171,154,.17);  --tint-ink:#7cc7b9 }
+.dark .tint-teal    { --tint-base:#4bb3c8; --tint:#4bb3c8; --tint-soft:rgba(75,179,200,.17);  --tint-ink:#7fcbdb }
+.dark .tint-blue    { --tint-base:#529cca; --tint:#529cca; --tint-soft:rgba(82,156,202,.17);  --tint-ink:#83bbdd }
+.dark .tint-violet  { --tint-base:#9a6dd7; --tint:#9a6dd7; --tint-soft:rgba(154,109,215,.17); --tint-ink:#b795e3 }
+.dark .tint-pink    { --tint-base:#e255a1; --tint:#e255a1; --tint-soft:rgba(226,85,161,.17);  --tint-ink:#ee8bc0 }
+.dark .tint-brown   { --tint-base:#c08b6d; --tint:#c08b6d; --tint-soft:rgba(192,139,109,.18); --tint-ink:#d3a88f }
+
+
+/* =========================================================
+   Tint sets
+   Derived from each tint's own hue with relative colour syntax, so a new
+   set is three rules rather than forty hand-tuned hex values. A browser
+   without `oklch(from ...)` simply keeps the tuned Notion values.
+   ========================================================= */
+[data-tints="vivid"] [class*="tint-"] {
+  --tint:      oklch(from var(--tint-base) calc(l * 0.97) calc(c * 1.5) h);
+  --tint-soft: oklch(from var(--tint-base) l calc(c * 1.5) h / 0.16);
+  --tint-ink:  oklch(from var(--tint-base) calc(l * 0.82) calc(c * 1.4) h);
+}
+.dark [data-tints="vivid"] [class*="tint-"],
+[data-tints="vivid"].dark [class*="tint-"] {
+  --tint-ink: oklch(from var(--tint-base) calc(l * 1.15) calc(c * 1.3) h);
+}
+
+[data-tints="muted"] [class*="tint-"] {
+  --tint:      oklch(from var(--tint-base) l calc(c * 0.42) h);
+  --tint-soft: oklch(from var(--tint-base) l calc(c * 0.42) h / 0.13);
+  --tint-ink:  oklch(from var(--tint-base) calc(l * 0.85) calc(c * 0.4) h);
+}
+.dark [data-tints="muted"] [class*="tint-"],
+[data-tints="muted"].dark [class*="tint-"] {
+  --tint-ink: oklch(from var(--tint-base) calc(l * 1.12) calc(c * 0.4) h);
+}
+
+/* =========================================================
+   Surface palettes
+   Only the surfaces, ink and lines move. Accent and the semantic colours
+   are chosen separately, so no palette can quietly change what "danger"
+   looks like.
+   ========================================================= */
+
+/* ---- Warm paper ---- */
+[data-palette="warm"] {
+  --canvas:#fdfcf9; --sunken:#f5f2ea; --raised:#fffefb;
+  --overlay:rgba(253,252,249,.74); --scrim:rgba(45,38,25,.32);
+  --hover:rgba(60,50,30,.045); --active:rgba(60,50,30,.08);
+  --ink:#23201a; --ink-2:#6d6658; --ink-3:#9a9282; --ink-4:#c4bdac;
+  --line:rgba(60,50,30,.11); --line-strong:rgba(60,50,30,.19);
+}
+.dark[data-palette="warm"] {
+  --canvas:#1c1a16; --sunken:#171511; --raised:#24211b;
+  --overlay:rgba(28,26,22,.76); --scrim:rgba(0,0,0,.58);
+  --hover:rgba(255,246,224,.055); --active:rgba(255,246,224,.1);
+  --ink:#efeade; --ink-2:#a69d8b; --ink-3:#7b7364; --ink-4:#575046;
+  --line:rgba(255,240,210,.1); --line-strong:rgba(255,240,210,.19);
+}
+
+/* ---- Cool grey ---- */
+[data-palette="cool"] {
+  --canvas:#fcfcfd; --sunken:#f3f5f8; --raised:#ffffff;
+  --overlay:rgba(252,252,253,.74); --scrim:rgba(15,25,45,.32);
+  --hover:rgba(20,32,56,.04); --active:rgba(20,32,56,.075);
+  --ink:#161a20; --ink-2:#646c78; --ink-3:#959dab; --ink-4:#c0c6d0;
+  --line:rgba(20,32,56,.1); --line-strong:rgba(20,32,56,.18);
+}
+.dark[data-palette="cool"] {
+  --canvas:#16181c; --sunken:#121418; --raised:#1d2026;
+  --overlay:rgba(22,24,28,.76); --scrim:rgba(0,0,0,.58);
+  --hover:rgba(226,236,255,.055); --active:rgba(226,236,255,.1);
+  --ink:#e9ebf0; --ink-2:#98a1ae; --ink-3:#6e7684; --ink-4:#4d545f;
+  --line:rgba(200,220,255,.1); --line-strong:rgba(200,220,255,.19);
+}
+
+/* ---- High contrast ---- */
+[data-palette="contrast"] {
+  --canvas:#ffffff; --sunken:#f1f1f1; --raised:#ffffff;
+  --overlay:rgba(255,255,255,.86); --scrim:rgba(0,0,0,.45);
+  --hover:rgba(0,0,0,.07); --active:rgba(0,0,0,.13);
+  --ink:#000000; --ink-2:#2e2e2e; --ink-3:#4f4f4f; --ink-4:#6e6e6e;
+  --line:rgba(0,0,0,.3); --line-strong:rgba(0,0,0,.62);
+}
+.dark[data-palette="contrast"] {
+  --canvas:#000000; --sunken:#0b0b0b; --raised:#151515;
+  --overlay:rgba(0,0,0,.86); --scrim:rgba(0,0,0,.7);
+  --hover:rgba(255,255,255,.1); --active:rgba(255,255,255,.18);
+  --ink:#ffffff; --ink-2:#dedede; --ink-3:#b6b6b6; --ink-4:#8e8e8e;
+  --line:rgba(255,255,255,.32); --line-strong:rgba(255,255,255,.64);
+}
+
+/* ---- Midnight ---- */
+[data-palette="midnight"] {
+  --canvas:#f7f9fc; --sunken:#eef2f8; --raised:#ffffff;
+  --overlay:rgba(247,249,252,.74); --scrim:rgba(8,16,34,.36);
+  --hover:rgba(16,32,64,.04); --active:rgba(16,32,64,.08);
+  --ink:#101620; --ink-2:#586376; --ink-3:#8993a4; --ink-4:#b7bfcd;
+  --line:rgba(16,32,64,.11); --line-strong:rgba(16,32,64,.2);
+}
+.dark[data-palette="midnight"] {
+  --canvas:#0b1020; --sunken:#080c19; --raised:#131a2b;
+  --overlay:rgba(11,16,32,.78); --scrim:rgba(0,0,0,.62);
+  --hover:rgba(150,185,255,.06); --active:rgba(150,185,255,.11);
+  --ink:#e7ecf6; --ink-2:#929db5; --ink-3:#6a7489; --ink-4:#4a5367;
+  --line:rgba(150,180,255,.13); --line-strong:rgba(150,180,255,.24);
+}
+
+/* =========================================================
+   Motion
+   "Calm" keeps the cues and takes the theatre out; "none" is the same
+   answer the OS gives, offered to people whose OS is not set that way.
+   ========================================================= */
+[data-motion="calm"] * , [data-motion="calm"] *::before, [data-motion="calm"] *::after {
+  animation-duration: 110ms !important;
+  transition-duration: 110ms !important;
+}
+[data-motion="none"] *, [data-motion="none"] *::before, [data-motion="none"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+
+/* =========================================================
+   Range input
+   A real <input type="range">, so keyboard, screen reader and touch target
+   come free; only the paint is ours. The filled half of the track is a
+   gradient driven by --pct, which is why there is no extra element.
+   ========================================================= */
+.hm-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+}
+.hm-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right,
+    var(--accent) 0%, var(--accent) var(--pct),
+    var(--active) var(--pct), var(--active) 100%);
+}
+.hm-range::-moz-range-track { height: 4px; border-radius: 999px; background: var(--active); }
+.hm-range::-moz-range-progress { height: 4px; border-radius: 999px; background: var(--accent); }
+.hm-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px; height: 16px; margin-top: -6px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-sm);
+  transition: transform 120ms var(--ease-out-apple);
+}
+.hm-range::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+.hm-range:active::-webkit-slider-thumb { transform: scale(0.92); }
+.hm-range:focus-visible { outline: none; }
+.hm-range:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hm-range:focus-visible::-moz-range-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }

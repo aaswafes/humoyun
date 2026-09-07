@@ -664,7 +664,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
           >
             {weeks.length === 0 ? (
               <p className="text-[12.5px] leading-relaxed text-ink-3">
-                No blocks on the calendar yet. Pick a pace above and hit Schedule — Humoyun will lay
+                No blocks on the calendar yet. Pick a pace above and hit Schedule — Qalamchi will lay
                 them out day by day.
               </p>
             ) : (

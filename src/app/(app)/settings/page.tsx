@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarDays, Database, LogOut, MoonStar, Palette, User } from "lucide-react";
+import { Bell, CalendarDays, Database, Languages, LogOut, MoonStar, Palette, User } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useT } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/primitives";
@@ -17,16 +18,20 @@ import { TelegramSection } from "@/components/settings/telegram-section";
 import { PushSection } from "@/components/settings/push-section";
 import { DataSection } from "@/components/settings/data-section";
 import { TrashSection } from "@/components/settings/trash-section";
+import { LanguageSection } from "@/components/settings/language-section";
 import { ShortcutsCard } from "@/components/settings/shortcuts-card";
 import { startReminders } from "@/components/settings/reminders";
 
+// `id` is the stable thing — it is in the URL and in the tab's DOM id — so
+// the label is looked up at render rather than stored here.
 const TABS = [
-  { id: "profile", label: "Account", icon: User },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "salah", label: "Salah", icon: MoonStar },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "data", label: "Data", icon: Database },
+  { id: "profile", labelKey: "settings.profile", icon: User },
+  { id: "appearance", labelKey: "settings.appearance", icon: Palette },
+  { id: "language", labelKey: "settings.language", icon: Languages },
+  { id: "calendar", labelKey: "settings.calendar", icon: CalendarDays },
+  { id: "salah", labelKey: "settings.salah", icon: MoonStar },
+  { id: "notifications", labelKey: "settings.notifications", icon: Bell },
+  { id: "data", labelKey: "settings.data", icon: Database },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -69,6 +74,7 @@ function writeTab(next: TabId) {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { t } = useT();
   const email = useStore((s) => s.email);
   const tab = React.useSyncExternalStore(subscribeTab, tabSnapshot, tabServerSnapshot);
   const panelRef = React.useRef<HTMLDivElement>(null);
@@ -121,7 +127,8 @@ export default function SettingsPage() {
             aria-label="Settings sections"
             className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:sticky md:top-6 md:mx-0 md:block md:space-y-px md:self-start md:overflow-visible md:px-0 md:pb-0"
           >
-            {TABS.map(({ id, label, icon: Icon }, i) => {
+            {TABS.map(({ id, labelKey, icon: Icon }, i) => {
+              const label = t(labelKey);
               const active = tab === id;
               return (
                 <button
@@ -159,6 +166,7 @@ export default function SettingsPage() {
           >
             {tab === "profile" && <ProfileSection />}
             {tab === "appearance" && <AppearanceSection />}
+            {tab === "language" && <LanguageSection />}
             {tab === "calendar" && <CalendarSection />}
             {tab === "salah" && <SalahSection />}
             {tab === "notifications" && (

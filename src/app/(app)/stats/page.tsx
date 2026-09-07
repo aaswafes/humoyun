@@ -256,7 +256,7 @@ export default function StatsPage() {
   const exportCsv = React.useCallback(() => {
     const sections: CsvSection[] = [
       {
-        title: `Humoyun stats · ${label}${activeTags.length ? ` · filtered by ${activeTags.join(" + ")}` : ""}`,
+        title: `Qalamchi stats · ${label}${activeTags.length ? ` · filtered by ${activeTags.join(" + ")}` : ""}`,
         columns: ["Measure", "Value"],
         rows: [
           ["Days in window", days.length],

@@ -30,6 +30,10 @@ import { addDays, todayISO, toISO, startOfWeek, weekday } from "./date";
 import { horizonForDate } from "./timeframe";
 import { SOLO, SOLO_PROFILE, SOLO_USER_ID, loadLocal, saveLocal } from "./local-db";
 import { recordOpen } from "./recents";
+import {
+  ACCENT_PRESETS, applyAppearance, cacheForBoot, readAppearance,
+  type Appearance,
+} from "./customize";
 
 // =========================================================
 // Helpers
@@ -168,6 +172,9 @@ interface StoreState extends CollectionState {
   dismissToast: (id: string) => void;
   setAccent: (accent: Accent) => void;
   setTheme: (theme: "light" | "dark" | "system") => void;
+  /** The one way appearance changes. Everything else routes through it. */
+  setAppearance: (changes: Partial<Appearance>) => void;
+  appearance: () => Appearance;
   updateProfile: (changes: Partial<Profile>) => void;
 
   // ---- task semantics ----
@@ -880,17 +887,42 @@ export const useStore = create<StoreState>((set, get) => ({
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
-  setAccent(accent) {
-    document.documentElement.setAttribute("data-accent", accent);
-    get().updateProfile({ accent });
+  // Both predate the appearance system and are called from a dozen places,
+  // so they stay — as thin wrappers, not as a second path.
+  setAccent(accent) { get().setAppearance({ accent }); },
+  setTheme(theme) { get().setAppearance({ theme }); },
+
+  appearance() {
+    const p = get().profile;
+    return readAppearance(p?.prefs, { theme: p?.theme, accent: p?.accent });
   },
 
-  setTheme(theme) {
-    const root = document.documentElement;
-    const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    root.classList.toggle("dark", dark);
-    try { localStorage.setItem("humoyun.theme", theme); } catch { /* noop */ }
-    get().updateProfile({ theme });
+  setAppearance(changes) {
+    const profile = get().profile;
+    if (!profile) return;
+
+    const next = { ...get().appearance(), ...changes };
+    // Paint first. The document should never wait on a round trip to change
+    // a colour, and updateProfile already rolls back and toasts on failure.
+    applyAppearance(next);
+    cacheForBoot(next);
+
+    const prevUi = (profile.prefs?.ui ?? {}) as Record<string, unknown>;
+    const patch: Partial<Profile> = {
+      prefs: { ...(profile.prefs ?? {}), ui: { ...prevUi, ...changes } },
+    };
+
+    // `theme` and `accent` still have real columns; keep them in step so
+    // anything reading the profile directly is never stale. Only an accent
+    // the column's type can hold gets mirrored — a custom hex lives in
+    // prefs alone.
+    if (changes.theme) patch.theme = changes.theme;
+    if (typeof changes.accent === "string"
+      && (ACCENT_PRESETS as readonly string[]).includes(changes.accent)) {
+      patch.accent = changes.accent as Accent;
+    }
+
+    get().updateProfile(patch);
   },
 
   updateProfile(changes) {

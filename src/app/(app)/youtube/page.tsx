@@ -229,7 +229,7 @@ export default function YoutubePage() {
           <EmptyState
             icon={MonitorPlay}
             title="Nothing saved to watch yet"
-            description="Paste a YouTube link, give it a channel, and it waits here until you want it. A playlist takes a number of videos and a pace — videos a day — and Humoyun lays a watch block on every day until the last one."
+            description="Paste a YouTube link, give it a channel, and it waits here until you want it. A playlist takes a number of videos and a pace — videos a day — and Qalamchi lays a watch block on every day until the last one."
             action={addButton}
             className="py-24"
           />

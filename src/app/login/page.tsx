@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { LoginCard } from "./login-card";
 
 export const metadata: Metadata = {
-  title: "Sign in · Humoyun",
+  title: "Sign in · Qalamchi",
   description: "A calendar that knows what you are actually trying to do.",
 };
 

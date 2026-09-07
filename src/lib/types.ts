@@ -1,5 +1,5 @@
 // =========================================================
-// Humoyun — domain types. Mirrors the Supabase schema 1:1.
+// Qalamchi — domain types. Mirrors the Supabase schema 1:1.
 // Dates are 'yyyy-MM-dd' strings. Times are minutes from midnight.
 // =========================================================
 

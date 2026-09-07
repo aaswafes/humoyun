@@ -282,7 +282,7 @@ export default function BooksPage() {
           <EmptyState
             icon={Library}
             title="Your shelf is empty"
-            description="Add a book with its page count and a pace, and Humoyun drops a reading block on every day until the last page."
+            description="Add a book with its page count and a pace, and Qalamchi drops a reading block on every day until the last page."
             action={addButton}
             className="py-24"
           />
