@@ -13,6 +13,8 @@ import { NOTE_KINDS, NOTE_KIND_LABELS, type Note, type Tint } from "@/lib/types"
 import { IconButton, Kbd, SectionLabel } from "@/components/ui/primitives";
 import { MenuItem, MenuSeparator, Popover, TintPicker, useMounted } from "@/components/ui/overlays";
 import { Disclosure, NOTE_KIND_ICONS, TagEditor } from "./note-fields";
+import { NoteLinks } from "./note-links";
+import { NoteIcon, NoteIconPicker } from "./note-icons";
 import { useDeleteNote } from "./note-actions";
 import { useOpenSource } from "./note-source-chip";
 import { SourcePicker } from "./source-picker";
@@ -390,6 +392,40 @@ function NoteEditorBody({
       ) : (
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={cn(MEASURE, "pb-32 pt-10")}>
+          {/* Above the title, the way a page icon sits in Notion. Silent
+              until you hover it, so an un-iconed note looks exactly as it
+              did before this existed. */}
+          <div className="group/icon mb-2 -ml-1">
+            <Popover
+              className="w-[228px]"
+              trigger={
+                <button
+                  type="button"
+                  aria-label={note.icon ? "Change the icon" : "Add an icon"}
+                  className={cn(
+                    "flex h-9 items-center gap-1.5 rounded-md px-1 text-ink-3 cursor-pointer",
+                    "transition-colors duration-120 hover:bg-hover hover:text-ink",
+                  )}
+                >
+                  {note.icon ? (
+                    <NoteIcon name={note.icon} className="size-7" />
+                  ) : (
+                    <span className="text-[12.5px] opacity-0 transition-opacity duration-150 group-hover/icon:opacity-100 focus-visible:opacity-100">
+                      Add an icon
+                    </span>
+                  )}
+                </button>
+              }
+            >
+              {(close) => (
+                <NoteIconPicker
+                  value={note.icon}
+                  onChange={(icon) => { patch("notes", noteId, { icon }); close(); }}
+                />
+              )}
+            </Popover>
+          </div>
+
           <input
             aria-label="Title"
             placeholder="Untitled"
@@ -503,6 +539,33 @@ function NoteEditorBody({
               onChange={(tags) => patch("notes", noteId, { tags })}
             />
           </Disclosure>
+
+          <Disclosure
+            storageKey="humoyun.notes.editor.aliases"
+            label="Also known as"
+            summary={note.aliases?.length ? String(note.aliases.length) : ""}
+            className="mt-2 hairline-t"
+            bodyClassName="pb-2 pt-2"
+          >
+            {/* Reusing the tag chips deliberately: an alias list is the same
+                interaction, and a second bespoke control here would be one
+                more thing to learn for nothing gained. */}
+            <TagEditor
+              tags={note.aliases ?? []}
+              suggestions={[]}
+              onChange={(aliases) => patch("notes", noteId, { aliases })}
+            />
+            <p className="mt-2 px-1 text-[12px] text-ink-2">
+              Other names this note answers to. A link using any of them lands here.
+            </p>
+          </Disclosure>
+
+          <NoteLinks
+            noteId={noteId}
+            index={idx}
+            onOpenNote={onOpenNote}
+            className="mt-2"
+          />
         </div>
       </div>
       )}

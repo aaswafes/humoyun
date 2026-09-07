@@ -12,6 +12,7 @@ import type { CategoryIndex } from "./category-model";
 import { NoteActions, useDeleteNote } from "./note-actions";
 import { SourceChip } from "./note-source-chip";
 import { dayLabel, noteDay, noteHeading, noteRest, type SourceRef } from "./note-model";
+import { NoteIcon } from "./note-icons";
 
 const MAX_TAGS = 3;
 
@@ -114,10 +115,13 @@ export function NoteCard({
           "flex items-start gap-1.5 text-[13.5px] font-medium leading-snug text-ink",
           "pl-5 pr-14",
         )}>
-          {/* A plain note needs no badge saying it is a note. */}
-          {note.kind !== "note" && (
+          {/* A chosen icon outranks the kind badge — it is the more specific
+              thing to say, and showing both would be two glyphs about one note. */}
+          {note.icon ? (
+            <NoteIcon name={note.icon} className="mt-[3px] size-3.5 shrink-0 text-ink-3" />
+          ) : note.kind !== "note" ? (
             <Kind className="mt-[3px] size-3.5 shrink-0 text-ink-3" aria-hidden />
-          )}
+          ) : null}
           <span className="line-clamp-2 min-w-0">{heading}</span>
         </h3>
 

@@ -338,8 +338,18 @@ function readWiki(root: HTMLElement, notes: Note[], currentId?: string): WikiPro
   for (const note of notes) {
     if (note.id === currentId || note.is_template) continue;
     const label = note.title?.trim() || noteText(note).split("\n")[0]?.trim() || "Untitled";
-    if (q && !label.toLowerCase().includes(q)) continue;
-    matches.push({ id: note.id, label, hint: note.categories[0] ?? note.kind });
+    // A note answers to its title and to any alias, so "Ghazali" finds
+    // the note titled "Al-Ghazali". The alias that matched becomes the
+    // hint, so it is obvious why a note the query does not spell is here.
+    const alias = q
+      ? (note.aliases ?? []).find((a) => a.toLowerCase().includes(q))
+      : undefined;
+    if (q && !label.toLowerCase().includes(q) && !alias) continue;
+    matches.push({
+      id: note.id,
+      label,
+      hint: alias ?? note.categories[0] ?? note.kind,
+    });
     if (matches.length >= WIKI_LIMIT) break;
   }
   if (!matches.length) return null;
