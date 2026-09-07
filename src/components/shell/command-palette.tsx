@@ -6,13 +6,15 @@ import {
   Search, CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon,
   Target, Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings,
   Plus, CornerDownLeft, CheckSquare, Circle, ArrowRight, Play, SunMedium, MoonStar, Clapperboard,
-  MonitorPlay, NotebookPen, Boxes,
+  MonitorPlay, NotebookPen, Boxes, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
+import { MEDIA_KIND_LABELS } from "@/lib/types";
 import { friendlyDate, todayISO } from "@/lib/date";
 import { Modal } from "@/components/ui/overlays";
 import { Kbd } from "@/components/ui/primitives";
+import { notePlain } from "@/components/notes/note-model";
 
 interface Command {
   id: string;
@@ -34,6 +36,8 @@ export function CommandPalette() {
   const goals = useStore((s) => s.goals);
   const projects = useStore((s) => s.projects);
   const templates = useStore((s) => s.templates);
+  const notes = useStore((s) => s.notes);
+  const media = useStore((s) => s.media);
   const toggleTask = useStore((s) => s.toggleTask);
   const openInspector = useStore((s) => s.openInspector);
   const setSelectedDate = useStore((s) => s.setSelectedDate);
@@ -147,8 +151,42 @@ export function CommandPalette() {
       },
     }));
 
-    return [...actions, ...nav, ...taskResults, ...bookResults, ...habitResults, ...goalResults, ...projectResults, ...templateResults];
-  }, [tasks, books, habits, goals, projects, templates, go, close, openInspector, setSelectedDate, setTheme, startTimer, applyTemplate, toast]);
+    // Notes are the one place where the words worth finding are in the body
+    // rather than the title, so the body rides along as keywords. A locked
+    // note contributes nothing: its body is ciphertext, and indexing it would
+    // be both useless and a small betrayal of the lock.
+    const noteResults: Command[] = notes
+      .filter((n) => !n.is_template)
+      .map((n) => {
+        const plain = n.lock ? "" : notePlain(n);
+        const label = n.title?.trim() || plain.split("\n")[0]?.trim() || "Untitled note";
+        return {
+          id: `no-${n.id}`,
+          label,
+          hint: n.lock ? "Locked" : (n.categories[0] ?? n.kind),
+          group: "Notes",
+          icon: FileText,
+          keywords: n.lock ? "" : `${plain.slice(0, 600)} ${n.tags.join(" ")} ${(n.aliases ?? []).join(" ")}`,
+          run: () => go(`/notes#n-${n.id}`),
+        };
+      });
+
+    const mediaResults: Command[] = media.map((m) => ({
+      id: `md-${m.id}`,
+      label: m.title,
+      hint: m.creator ?? m.channel ?? MEDIA_KIND_LABELS[m.kind],
+      group: m.kind === "youtube" || m.kind === "playlist" ? "YouTube" : "Films & Anime",
+      icon: m.kind === "youtube" || m.kind === "playlist" ? MonitorPlay : Clapperboard,
+      keywords: [m.genre, m.topic, m.series, m.channel].filter(Boolean).join(" "),
+      run: () => go(m.kind === "youtube" || m.kind === "playlist" ? "/youtube" : "/watch"),
+    }));
+
+    return [
+      ...actions, ...nav, ...taskResults, ...bookResults, ...noteResults,
+      ...mediaResults, ...habitResults, ...goalResults, ...projectResults,
+      ...templateResults,
+    ];
+  }, [tasks, books, notes, media, habits, goals, projects, templates, go, close, openInspector, setSelectedDate, setTheme, startTimer, applyTemplate, toast]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();

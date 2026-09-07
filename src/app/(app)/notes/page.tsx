@@ -6,6 +6,7 @@ import {
   Sparkles, Sun,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { recordOpen } from "@/lib/recents";
 import { todayISO } from "@/lib/date";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import type { Note } from "@/lib/types";
@@ -67,12 +68,41 @@ export default function NotesPage() {
   const [view, setView] = useStickyChoice<View>("humoyun.notes.view", "cards", VIEWS);
   const [group, setGroup] = useStickyChoice<GroupBy>("humoyun.notes.group", "none", GROUPS);
   const [filters, setFilters] = React.useState<NoteFilters>(NO_FILTERS);
-  const [openId, setOpenId] = React.useState<string | null>(null);
+  const [openIdRaw, setOpenIdRaw] = React.useState<string | null>(null);
+  const openId = openIdRaw;
+  // One wrapper so every route into the editor — a card, the palette's hash,
+  // a [[link]] followed from another note — lands in Recent.
+  const setOpenId = React.useCallback((id: string | null) => {
+    if (id) recordOpen("note", id);
+    setOpenIdRaw(id);
+  }, []);
   const [focusBody, setFocusBody] = React.useState(false);
   const [templatesOpen, setTemplatesOpen] = React.useState(false);
   const [limit, setLimit] = React.useState(PAGE_SIZE);
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
   const searchRef = React.useRef<HTMLInputElement>(null);
+
+  // Open a note straight from a link: /notes#n-<id>. The command palette
+  // sends people here, and a hash needs no Suspense boundary the way
+  // useSearchParams would. The hash is cleared once it has been honoured so
+  // that reloading the page does not re-open a note you have since closed.
+  React.useEffect(() => {
+    function openFromHash() {
+      const m = /^#n-(.+)$/.exec(window.location.hash);
+      if (!m) return;
+      const id = m[1];
+      // Only for a note that is actually there — a stale link should do
+      // nothing rather than open an empty editor.
+      if (!useStore.getState().notes.some((n) => n.id === id)) return;
+      setOpenId(id);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    openFromHash();
+    // Already on this page, the router only changes the hash, so the mount
+    // effect never runs again — this is the other half of the same door.
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, [setOpenId]);
 
   // Templates are notes. Every view on this page starts by setting them aside.
   const notes = React.useMemo(() => readableNotes(allNotes), [allNotes]);
@@ -165,13 +195,13 @@ export default function NotesPage() {
   const open = React.useCallback((note: Note) => {
     setFocusBody(false);
     setOpenId(note.id);
-  }, []);
+  }, [setOpenId]);
 
   const writeOne = React.useCallback(() => {
     const note = insert("notes", {});
     setFocusBody(true);
     setOpenId(note.id);
-  }, [insert]);
+  }, [insert, setOpenId]);
 
   /**
    * One daily note per day. Opening today's is the same gesture whether or not
@@ -188,7 +218,7 @@ export default function NotesPage() {
     const note = insert("notes", { kind: "daily", date: today });
     setFocusBody(true);
     setOpenId(note.id);
-  }, [notes, insert]);
+  }, [notes, insert, setOpenId]);
 
   const changeFilters = React.useCallback((next: NoteFilters) => {
     setFilters(next);

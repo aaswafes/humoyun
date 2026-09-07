@@ -16,6 +16,7 @@ import { ACCENTS, type Accent } from "@/lib/types";
 import { Popover, MenuItem, MenuSeparator, MenuLabel } from "@/components/ui/overlays";
 import { Kbd, Ring } from "@/components/ui/primitives";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
+import { SidebarRecents } from "./sidebar-recents";
 import { supabase } from "@/lib/supabase/client";
 
 interface NavItem {
@@ -211,6 +212,8 @@ export function Sidebar() {
 
       {/* ---- nav ---- */}
       <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2">
+        <SidebarRecents />
+
         {groups.map((group, gi) => (
           <div key={group.label} className={cn(gi > 0 && "mt-4")}>
             <button
