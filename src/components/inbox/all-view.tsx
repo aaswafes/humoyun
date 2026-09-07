@@ -12,6 +12,7 @@ import {
   type Filters, type GroupKey, type SortKey,
 } from "./triage-context";
 import { TriageRow } from "./triage-dnd";
+import { MatrixView } from "./matrix-view";
 import { QuickSchedule } from "./quick-schedule";
 import { LabelHeader } from "./group-header";
 import { VirtualRows } from "./virtual-list";
@@ -118,7 +119,7 @@ const rowKey = (row: ListRow) => row.key;
 
 export function AllView() {
   const tasks = useStore((s) => s.tasks);
-  const { filters: f, resetFilters, cursorId } = useTriage();
+  const { filters: f, resetFilters, cursorId, layout } = useTriage();
   const today = todayISO();
 
   const filtered = React.useMemo(() => filterTasks(tasks, f), [tasks, f]);
@@ -190,6 +191,10 @@ export function AllView() {
       />
     );
   }
+
+  // The filters decided which tasks; the layout only decides how they are
+  // drawn, so the matrix reads the very same `filtered` list.
+  if (layout === "matrix") return <MatrixView tasks={filtered} order={order} />;
 
   return (
     <div role="group" aria-label={`${filtered.length} matching tasks`}>

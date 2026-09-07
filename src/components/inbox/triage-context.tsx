@@ -11,7 +11,14 @@ import type { TaskStatus } from "@/lib/types";
 // bulk bar and the keyboard layer can all act on the same "target".
 // =========================================================
 
-export type TriageTab = "inbox" | "upcoming" | "all" | "done";
+export type TriageTab = "inbox" | "someday" | "upcoming" | "all" | "done";
+/**
+ * How the All tab draws whatever the filters let through. Deliberately not
+ * part of `Filters`: filters decide WHICH tasks, layout decides how they are
+ * drawn, and keeping it out of that object means every saved view written
+ * before the matrix existed still loads unchanged.
+ */
+export type TriageLayout = "list" | "matrix";
 export type SortKey = "manual" | "date" | "priority" | "created" | "alpha";
 export type GroupKey = "none" | "date" | "priority" | "status" | "tag" | "kind";
 
@@ -80,6 +87,9 @@ export interface TriageApi {
   inboxSort: SortKey;
   setInboxSort: (s: SortKey) => void;
 
+  layout: TriageLayout;
+  setLayout: (l: TriageLayout) => void;
+
   /** One line of aggregate truth for the whole surface. The active view
    *  publishes whatever the page header does not already say — and nothing it
    *  does say twice. */
@@ -135,6 +145,7 @@ export function TriageProvider({ children }: { children: React.ReactNode }) {
   const [tab, setTabRaw] = React.useState<TriageTab>("inbox");
   const [filters, setFiltersRaw] = React.useState<Filters>(DEFAULT_FILTERS);
   const [inboxSort, setInboxSort] = React.useState<SortKey>("manual");
+  const [layout, setLayout] = React.useState<TriageLayout>("list");
   const [summary, setSummaryRaw] = React.useState("");
   const [selecting, setSelectingRaw] = React.useState(false);
   const [selected, setSelectedSet] = React.useState<ReadonlySet<string>>(() => new Set<string>());
@@ -251,6 +262,8 @@ export function TriageProvider({ children }: { children: React.ReactNode }) {
       resetFilters,
       inboxSort,
       setInboxSort,
+      layout,
+      setLayout,
       summary,
       publishSummary,
       selecting,
@@ -279,7 +292,7 @@ export function TriageProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       tab, setTab, filters, patchFilters, replaceFilters, resetFilters,
-      inboxSort, summary, publishSummary,
+      inboxSort, layout, summary, publishSummary,
       selecting, setSelecting, ids, selected, toggle, setSelectedIds, clear,
       rows, publishRows, cursorId, setCursor, editingId,
       targetIds, message, announce, dragIds, legendOpen, dropBox, setOnRowDrop,

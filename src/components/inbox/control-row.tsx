@@ -6,10 +6,10 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { addDays, formatDate, todayISO } from "@/lib/date";
 import { PRIORITY_LABELS, type Tint } from "@/lib/types";
-import { Button, IconButton, Input } from "@/components/ui/primitives";
+import { Button, IconButton, Input, Segmented } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover, ConfirmDialog } from "@/components/ui/overlays";
 import { Select } from "@/components/ui/form";
-import { useTriage, type SortKey } from "./triage-context";
+import { useTriage, type SortKey, type TriageLayout } from "./triage-context";
 import { ViewsMenu } from "./views-bar";
 import {
   GROUP_LABELS, GROUP_ORDER, INBOX_SORTS, INBOX_SORT_LABELS, SORT_LABELS, SORT_ORDER,
@@ -239,6 +239,21 @@ function ClearOlder() {
   );
 }
 
+function LayoutToggle() {
+  const { layout, setLayout } = useTriage();
+  return (
+    <Segmented<TriageLayout>
+      value={layout}
+      onChange={setLayout}
+      size="sm"
+      options={[
+        { value: "list", label: "List" },
+        { value: "matrix", label: "Matrix", title: "Urgent against important" },
+      ]}
+    />
+  );
+}
+
 export function ControlRow({
   searchRef,
 }: {
@@ -265,6 +280,7 @@ export function ControlRow({
       )}
 
       {tab === "all" && <FiltersMenu />}
+      {tab === "all" && <LayoutToggle />}
 
       {tab === "all" && dirty && (
         <Button variant="ghost" size="xs" onClick={resetFilters}>Clear</Button>

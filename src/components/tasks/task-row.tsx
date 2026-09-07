@@ -754,6 +754,35 @@ function TaskRowBase({
     });
   }
 
+  // Time actually spent, against what it was estimated at. Both columns have
+  // always existed and only the Stats page ever read them — which is the one
+  // place the number cannot change how you plan the next one.
+  if (task.actual_min > 0) {
+    const spent = formatDuration(task.actual_min);
+    const est = task.duration_min;
+    const delta = est != null && est > 0 ? task.actual_min - est : null;
+    // A couple of minutes either way is noise, not drift.
+    const tone = delta == null || Math.abs(delta) < 5
+      ? "text-ink-2"
+      : delta > 0 ? "text-warn" : "text-success";
+    metas.push({
+      key: "actual",
+      label: est != null && est > 0
+        ? `${spent} spent, ${formatDuration(est)} estimated`
+        : `${spent} spent`,
+      node: (
+        <span
+          className={cn(CHIP_STATIC, "tnum")}
+          title={est != null && est > 0 ? `Estimated ${formatDuration(est)}` : undefined}
+        >
+          <TimerIcon className="size-3 shrink-0" />
+          <span className={tone}>{spent}</span>
+          {est != null && est > 0 && <span>of {formatDuration(est)}</span>}
+        </span>
+      ),
+    });
+  }
+
   if (subtasks.length > 0) {
     metas.push({
       key: "subtasks",

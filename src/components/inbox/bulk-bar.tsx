@@ -1,10 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  CalendarClock, CheckCheck, ChevronDown, Copy, CornerDownRight, Flag, MoreHorizontal,
-  RotateCcw, Shapes, Tag as TagIcon, Trash2, X,
-} from "lucide-react";
+import { CalendarClock, CheckCheck, ChevronDown, CloudMoon, Copy, CornerDownRight, Flag, MoreHorizontal, RotateCcw, Shapes, Tag as TagIcon, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDate, friendlyDate, todayISO } from "@/lib/date";
@@ -193,6 +190,12 @@ export function BulkBar() {
                   {p.label}
                 </MenuItem>
               ))}
+              <MenuItem
+                icon={CloudMoon}
+                onClick={() => { actions.setSomeday(ids, true); close(); }}
+              >
+                Someday
+              </MenuItem>
               <MenuSeparator />
               <MenuLabel>Pick a date</MenuLabel>
               <div className="px-1 pb-1">

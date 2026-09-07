@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarPlus, Sofa, Sunrise, Sunset, X } from "lucide-react";
+import { CalendarPlus, CloudMoon, Sofa, Sunrise, Sunset, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { addDays, formatDate, friendlyDate, startOfWeek, todayISO, weekday } from "@/lib/date";
@@ -75,6 +75,7 @@ function PresetButton({
  */
 export function QuickSchedule({ task, className }: { task: Task; className?: string }) {
   const moveTask = useStore((s) => s.moveTask);
+  const patch = useStore((s) => s.patch);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
 
@@ -93,6 +94,18 @@ export function QuickSchedule({ task, className }: { task: Task; className?: str
       title: iso ? `Scheduled for ${friendlyDate(iso)}` : "Moved to Inbox",
       description: task.title || "Untitled",
       action: { label: "Undo", run: () => moveTask(task.id, previous) },
+    });
+  }
+
+  // Someday belongs in this menu rather than beside it: it answers the same
+  // question the dates answer — when — and its answer is "not deciding yet".
+  function setSomeday(someday: boolean) {
+    const before = { someday: !!task.someday, date: task.date };
+    patch("tasks", task.id, { someday, ...(someday ? { date: null } : {}) });
+    toast({
+      title: someday ? "Moved to Someday" : "Moved to Inbox",
+      description: task.title || "Untitled",
+      action: { label: "Undo", run: () => patch("tasks", task.id, before) },
     });
   }
 
@@ -126,6 +139,13 @@ export function QuickSchedule({ task, className }: { task: Task; className?: str
                 {p.label}
               </MenuItem>
             ))}
+            <MenuItem
+              icon={CloudMoon}
+              checked={!!task.someday}
+              onClick={() => { setSomeday(!task.someday); close(); }}
+            >
+              Someday
+            </MenuItem>
             <MenuSeparator />
             <MenuLabel>Pick a date</MenuLabel>
             <div className="px-1 pb-1">

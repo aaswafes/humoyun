@@ -3,7 +3,7 @@
 import * as React from "react";
 import { CircleHelp, ListChecks, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { useStore, inboxTasks, overdueTasks } from "@/lib/store";
+import { useStore, inboxTasks, overdueTasks, somedayTasks } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import { PageHeader, PageBody } from "@/components/shell/page-header";
 import { openQuickAdd } from "@/components/shell/quick-add";
@@ -18,6 +18,7 @@ import { DateRail } from "@/components/inbox/date-rail";
 import { LegendList } from "@/components/inbox/legend";
 import { ControlRow } from "@/components/inbox/control-row";
 import { InboxView } from "@/components/inbox/inbox-view";
+import { SomedayView } from "@/components/inbox/someday-view";
 import { UpcomingView } from "@/components/inbox/upcoming-view";
 import { AllView, filterTasks } from "@/components/inbox/all-view";
 import { DoneView } from "@/components/inbox/done-view";
@@ -55,6 +56,7 @@ function InboxSurface() {
   const today = todayISO();
   const inboxCount = React.useMemo(() => inboxTasks(tasks).length, [tasks]);
   const overdueCount = React.useMemo(() => overdueTasks(tasks, today).length, [tasks, today]);
+  const somedayCount = React.useMemo(() => somedayTasks(tasks).length, [tasks]);
   const topLevel = React.useMemo(() => tasks.filter((t) => !t.parent_id), [tasks]);
   const doneCount = React.useMemo(() => topLevel.filter((t) => t.status === "done").length, [topLevel]);
 
@@ -87,6 +89,7 @@ function InboxSurface() {
 
   const subtitle =
     tab === "inbox" ? (inboxCount ? `${inboxCount} unscheduled` : "Nothing waiting")
+    : tab === "someday" ? (somedayCount ? `${somedayCount} on the maybe pile` : "Nothing held back")
     : tab === "upcoming" ? "Next 14 days"
     : tab === "all"
       ? (shown === topLevel.length
@@ -94,7 +97,8 @@ function InboxSurface() {
           : `${shown} of ${topLevel.length}`)
       : `${doneCount} completed`;
 
-  const withRail = tab !== "done";
+  // Someday has no dates in it, so a date rail would have nothing to act on.
+  const withRail = tab !== "done" && tab !== "someday";
 
   return (
     <>
@@ -135,6 +139,7 @@ function InboxSurface() {
               label: <TabLabel text="Upcoming" count={overdueCount} tone="danger" />,
               title: overdueCount ? `${overdueCount} overdue` : undefined,
             },
+            { value: "someday", label: <TabLabel text="Someday" count={somedayCount} /> },
             { value: "all", label: "All" },
             { value: "done", label: "Done" },
           ]}
@@ -149,6 +154,7 @@ function InboxSurface() {
             <div className={cn(withRail && "lg:grid lg:grid-cols-[minmax(0,1fr)_256px] lg:gap-10")}>
               <div className="min-w-0">
                 {tab === "inbox" && <InboxView />}
+                {tab === "someday" && <SomedayView onSeeInbox={() => setTab("inbox")} />}
                 {tab === "upcoming" && <UpcomingView onSeeAll={() => setTab("all")} />}
                 {tab === "all" && <AllView />}
                 {tab === "done" && <DoneView onSeeUpcoming={() => setTab("upcoming")} />}
@@ -190,7 +196,7 @@ function InboxSurface() {
         onClose={() => setPendingDelete(null)}
         onConfirm={() => { if (pendingDelete) actions.deleteTasks(pendingDelete); }}
         title={`Delete ${pendingDelete?.length ?? 0} tasks?`}
-        description="They go permanently, along with anything nested underneath. One undo waits in the toast."
+        description="They go to the trash, along with anything nested underneath — restore them from Settings → Data, or undo straight away from the toast."
         confirmLabel="Delete"
       />
     </>

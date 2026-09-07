@@ -24,6 +24,7 @@ export interface TriageActions {
   unnest: (ids: string[]) => void;
   duplicate: (ids: string[]) => void;
   deleteTasks: (ids: string[]) => void;
+  setSomeday: (ids: string[], someday: boolean) => void;
 }
 
 export function useTriageActions(): TriageActions {
@@ -161,6 +162,23 @@ export function useTriageActions(): TriageActions {
         report(
           `Duplicated ${copies.length} ${noun(copies.length)}`,
           () => copies.forEach((c) => remove("tasks", c.id)),
+        );
+      },
+
+      setSomeday(ids, someday) {
+        const rows = rowsFor(ids).filter((t) => !!t.someday !== someday);
+        if (!rows.length) return;
+        // Moving to Someday clears the date: a thing with a day on it is not
+        // "maybe one day", and leaving the old date behind would make it
+        // reappear on the calendar the moment it came back.
+        const before = rows.map((t) => [t.id, t.someday, t.date] as const);
+        rows.forEach((t) => patch("tasks", t.id, {
+          someday,
+          ...(someday ? { date: null } : {}),
+        }));
+        report(
+          `${rows.length} ${noun(rows.length)} → ${someday ? "Someday" : "Inbox"}`,
+          () => before.forEach(([id, s, date]) => patch("tasks", id, { someday: s, date })),
         );
       },
 

@@ -18,6 +18,7 @@ import { HabitsCard } from "@/components/today/habits-card";
 import { ReadingCard } from "@/components/today/reading-card";
 import { FocusCard } from "@/components/today/focus-card";
 import { ComingUpCard } from "@/components/today/coming-up-card";
+import { Leftovers } from "@/components/today/leftovers";
 
 export default function TodayPage() {
   const router = useRouter();
@@ -72,6 +73,8 @@ export default function TodayPage() {
         <div className="mt-8 grid grid-cols-1 gap-x-10 gap-y-10 min-[1100px]:grid-cols-[minmax(0,1fr)_300px]">
           {/* ---- the day itself: the tasks are the page ---- */}
           <div className="min-w-0">
+            <Leftovers today={today} />
+
             {list.length > 0 && <PlanStrip date={today} minutesNow={minutesNow} />}
 
             <div className="mt-6">
