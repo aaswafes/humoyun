@@ -20,6 +20,42 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
+### Optional — Telegram capture
+
+Text the bot and it lands in the Inbox, through the same parser as quick add.
+Create a bot with @BotFather, then:
+
+```
+NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=   # the handle, no @
+TELEGRAM_BOT_TOKEN=                  # from BotFather
+TELEGRAM_WEBHOOK_SECRET=             # any long random string you choose
+SUPABASE_SERVICE_ROLE_KEY=           # server only, never NEXT_PUBLIC_
+```
+
+Point the bot at the route once, replacing both placeholders:
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/setWebhook"   -d "url=https://<your-domain>/api/telegram/webhook"   -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+```
+
+Then open Settings -> Notifications -> Telegram, generate a code and send
+`/start <code>` to the bot. The code is one-time and expires in 15 minutes.
+
+### Optional — push notifications
+
+`reminders.ts` can only fire while a tab is open. Push is what reaches you
+when Humoyun is closed. Generate a VAPID pair (`npx web-push generate-vapid-keys`)
+and set the public half for the app:
+
+```
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+```
+
+The sender lives in `supabase/functions/push-reminders/` — its own header
+documents the two deploy commands and the `cron.schedule` call. The service
+worker is registered only in a production build, so the switch in
+Settings -> Notifications -> Push does nothing under `next dev`.
+
 ## Shape of it
 
 ```

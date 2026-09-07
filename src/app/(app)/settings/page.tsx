@@ -13,7 +13,10 @@ import { AppearanceSection } from "@/components/settings/appearance-section";
 import { CalendarSection } from "@/components/settings/calendar-section";
 import { SalahSection } from "@/components/settings/salah-section";
 import { NotificationsSection } from "@/components/settings/notifications-section";
+import { TelegramSection } from "@/components/settings/telegram-section";
+import { PushSection } from "@/components/settings/push-section";
 import { DataSection } from "@/components/settings/data-section";
+import { TrashSection } from "@/components/settings/trash-section";
 import { ShortcutsCard } from "@/components/settings/shortcuts-card";
 import { startReminders } from "@/components/settings/reminders";
 
@@ -158,8 +161,19 @@ export default function SettingsPage() {
             {tab === "appearance" && <AppearanceSection />}
             {tab === "calendar" && <CalendarSection />}
             {tab === "salah" && <SalahSection />}
-            {tab === "notifications" && <NotificationsSection />}
-            {tab === "data" && <DataSection />}
+            {tab === "notifications" && (
+              <>
+                <NotificationsSection />
+                <PushSection />
+                <TelegramSection />
+              </>
+            )}
+            {tab === "data" && (
+              <>
+                <DataSection />
+                <TrashSection />
+              </>
+            )}
           </div>
         </div>
 
