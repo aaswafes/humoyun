@@ -29,6 +29,7 @@ import {
 import { addDays, todayISO, toISO, startOfWeek, weekday } from "./date";
 import { horizonForDate } from "./timeframe";
 import { SOLO, SOLO_PROFILE, SOLO_USER_ID, loadLocal, saveLocal } from "./local-db";
+import { recordOpen } from "./recents";
 
 // =========================================================
 // Helpers
@@ -150,6 +151,13 @@ interface StoreState extends CollectionState {
   remove: <K extends CollectionKey>(key: K, id: string) => void;
   removeWhere: <K extends CollectionKey>(key: K, pred: (row: Collections[K]) => boolean) => void;
 
+  // Trash. Deleted rows are not held in the store — they are fetched only
+  // when the Trash pane is opened, so nothing pays for them at rest.
+  loadTrash: () => Promise<TrashEntry[]>;
+  restoreItem: (key: CollectionKey, id: string) => Promise<boolean>;
+  purgeItem: (key: CollectionKey, id: string) => Promise<boolean>;
+  emptyTrash: () => Promise<number>;
+
   // ---- ui actions ----
   setSelectedDate: (iso: string) => void;
   setCalendarView: (v: CalendarView) => void;
@@ -256,6 +264,26 @@ const UPSERT_ON: Partial<Record<CollectionKey, string>> = {
   habitLogs: "habit_id,date",
 };
 
+/**
+ * Collections whose rows a person authored and could regret deleting. These
+ * soft-delete: the row stays, `deleted_at` is stamped, and hydrate stops
+ * asking for it. Everything absent from this set is a log or a derived
+ * record — a habit tick, a prayer, a focus session — where "delete" means
+ * the entry was wrong and keeping it around would be the bug.
+ */
+export const TRASHABLE = new Set<CollectionKey>([
+  "tasks", "notes", "books", "media", "goals",
+  "projects", "habits", "templates", "noteCategories",
+]);
+
+
+export interface TrashEntry {
+  key: CollectionKey;
+  id: string;
+  label: string;
+  deleted_at: string;
+}
+
 const emptyCollections = () =>
   Object.fromEntries(COLLECTION_KEYS.map((k) => [k, []])) as unknown as CollectionState;
 
@@ -285,6 +313,28 @@ function repair(key: CollectionKey, rows: unknown[]): unknown[] {
 }
 
 // Defaults applied on insert so callers can pass only what they care about.
+/** What a trashed row is called in the Trash list, per collection. */
+function trashLabel(key: CollectionKey, row: Record<string, unknown>): string {
+  const pick = (...fields: string[]) => {
+    for (const f of fields) {
+      const v = row[f];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return "";
+  };
+  if (key === "notes") {
+    const title = pick("title");
+    if (title) return title;
+    // A note need not have a title, so fall back to the first words of the
+    // body — with tags stripped, because an HTML note would otherwise read
+    // as markup.
+    const body = typeof row.body === "string" ? row.body.replace(/<[^>]*>/g, " ") : "";
+    const words = body.replace(/\s+/g, " ").trim().slice(0, 60);
+    return words || `Untitled ${singular(key)}`;
+  }
+  return pick("title", "name") || `Untitled ${singular(key)}`;
+}
+
 function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown> {
   const base = { id: uid(), user_id: userId, created_at: nowIso(), updated_at: nowIso() };
   switch (key) {
@@ -296,7 +346,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         order_index: 0, parent_id: null, book_id: null, habit_id: null, goal_id: null,
         project_id: null, template_id: null, page_from: null, page_to: null,
         media_id: null, episode_from: null, episode_to: null,
-        recurrence: null, series_id: null,
+        recurrence: null, series_id: null, someday: false, deleted_at: null,
       };
     case "books":
       return {
@@ -304,6 +354,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         cover_url: null, color: "amber",
         total_pages: 100, current_page: 0, pages_per_day: null, start_date: null,
         end_date: null, status: "reading", rating: null, notes: null, order_index: 0,
+        deleted_at: null,
       };
     case "media":
       return {
@@ -311,7 +362,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         series: null, color: "violet", cover_url: null, total_episodes: 1, current_episode: 0,
         episodes_per_day: null, runtime_min: null, start_date: null, end_date: null,
         status: "planned", rating: null, notes: null, order_index: 0,
-        url: null, channel: null,
+        url: null, channel: null, deleted_at: null,
       };
     case "notes":
       // 'plain' until something actually writes HTML into it. The rich editor
@@ -322,15 +373,15 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         task_id: null, goal_id: null, project_id: null, date: null, locator: null,
         tags: [], categories: [], color: null, pinned: false,
         format: "plain", is_template: false, layout: null,
-        collapsed: false, lock: null,
+        collapsed: false, lock: null, aliases: [], icon: null, deleted_at: null,
       };
     case "noteCategories":
-      return { ...base, name: "New category", icon: null, color: "slate", order_index: 0 };
+      return { ...base, name: "New category", icon: null, color: "slate", order_index: 0, deleted_at: null };
     case "habits":
       return {
         ...base, name: "New habit", icon: "check", color: "emerald", cadence: "daily",
         weekdays: [0, 1, 2, 3, 4, 5, 6], times_per_week: 3, target_count: 1,
-        unit: null, archived: false, order_index: 0,
+        unit: null, archived: false, order_index: 0, deleted_at: null,
       };
     case "habitLogs":
       return { id: base.id, user_id: userId, habit_id: "", date: todayISO(), count: 1, note: null, logged_at: nowIso() };
@@ -338,15 +389,16 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
       return {
         ...base, parent_id: null, title: "New goal", description: null, horizon: "month",
         start_date: null, end_date: null, target: null, current: 0, unit: null,
-        color: "blue", icon: null, status: "active", order_index: 0,
+        color: "blue", icon: null, status: "active", order_index: 0, deleted_at: null,
       };
     case "projects":
       return {
         ...base, name: "New project", description: null, status: "active", color: "blue",
         icon: null, start_date: null, due_date: null, goal_id: null, order_index: 0,
+        cover_url: null, deleted_at: null,
       };
     case "templates":
-      return { ...base, name: "New template", description: null, icon: "layout-template", color: "violet", scope: "day", items: [], use_count: 0, order_index: 0 };
+      return { ...base, name: "New template", description: null, icon: "layout-template", color: "violet", scope: "day", items: [], use_count: 0, order_index: 0, deleted_at: null };
     case "prayers":
       return { id: base.id, user_id: userId, date: todayISO(), name: "fajr", status: "none", logged_at: nowIso() };
     case "dayLogs":
@@ -545,7 +597,12 @@ export const useStore = create<StoreState>((set, get) => ({
     const tables = COLLECTION_KEYS.map((k) => [k, TABLE_OF[k]] as const);
     const [{ data: profile }, ...results] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      ...tables.map(([, table]) => supabase.from(table).select("*").limit(5000)),
+      // A trashed row is still in Postgres; it just stops existing as far as
+      // the app is concerned, which is what keeps every surface unchanged.
+      ...tables.map(([key, table]) => {
+        const q = supabase.from(table).select("*").limit(5000);
+        return TRASHABLE.has(key) ? q.is("deleted_at", null) : q;
+      }),
     ]);
 
     const next: Partial<CollectionState> = {};
@@ -600,11 +657,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (SOLO) { persistSolo(get()); return full; }
 
-    const conflict = UPSERT_ON[key];
-    enqueue(() => (conflict
-      ? supabase.from(TABLE_OF[key]).upsert(full as object, { onConflict: conflict })
-      : supabase.from(TABLE_OF[key]).insert(full as object)
-    )).then(({ error }) => {
+    // Upsert rather than insert: undoing a delete re-inserts a row whose id
+    // is still present in Postgres (soft-deleted), and this restores it —
+    // carrying `deleted_at: null` from the row — instead of colliding.
+    const conflict = UPSERT_ON[key] ?? "id";
+    enqueue(() => supabase.from(TABLE_OF[key]).upsert(full as object, { onConflict: conflict })
+    ).then(({ error }) => {
       if (error) {
         set((s) => ({
           [key]: (s[key] as { id: string }[]).filter((r) => r.id !== (full as { id: string }).id),
@@ -670,7 +728,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (SOLO) { persistSolo(get()); return; }
 
-    enqueue(() => supabase.from(TABLE_OF[key]).delete().eq("id", id)).then(({ error }) => {
+    enqueue(() => (TRASHABLE.has(key)
+      ? supabase.from(TABLE_OF[key]).update({ deleted_at: nowIso() }).eq("id", id)
+      : supabase.from(TABLE_OF[key]).delete().eq("id", id)
+    )).then(({ error }) => {
       if (error) {
         set((s) => ({ [key]: [...(s[key] as unknown[]), prev] } as unknown as Partial<StoreState>));
         get().toast({ title: "Couldn't delete", description: error.message, tone: "danger" });
@@ -685,6 +746,75 @@ export const useStore = create<StoreState>((set, get) => ({
       victims.length === 1 ? `Delete ${singular(key)}` : `Delete ${victims.length} ${singular(key)}s`,
       () => { victims.forEach((v) => get().remove(key, (v as { id: string }).id)); },
     );
+  },
+
+  async loadTrash() {
+    // Local preview mode has no server to keep a deleted row on, so there is
+    // nothing to show rather than something silently missing.
+    if (SOLO) return [];
+    const keys = COLLECTION_KEYS.filter((k) => TRASHABLE.has(k));
+    const results = await Promise.all(keys.map((k) =>
+      supabase.from(TABLE_OF[k]).select("*").not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false }).limit(200)
+    ));
+    const out: TrashEntry[] = [];
+    results.forEach((res, i) => {
+      const key = keys[i];
+      for (const row of (res.data ?? []) as Record<string, unknown>[]) {
+        out.push({
+          key,
+          id: String(row.id),
+          label: trashLabel(key, row),
+          deleted_at: String(row.deleted_at),
+        });
+      }
+    });
+    return out.sort((a, b) => b.deleted_at.localeCompare(a.deleted_at));
+  },
+
+  async restoreItem(key, id) {
+    if (SOLO) return false;
+    const { data, error } = await supabase.from(TABLE_OF[key])
+      .update({ deleted_at: null }).eq("id", id).select().maybeSingle();
+    if (error || !data) {
+      get().toast({ title: "Couldn't restore", description: error?.message, tone: "danger" });
+      return false;
+    }
+    // Put it back in the store directly; a full re-hydrate would throw away
+    // unsaved UI state everywhere else on the page.
+    set((st) => {
+      const list = st[key] as { id: string }[];
+      if (list.some((r) => r.id === id)) return {} as Partial<StoreState>;
+      return { [key]: [...list, data] } as unknown as Partial<StoreState>;
+    });
+    get().toast({ title: `Restored ${singular(key)}`, tone: "success" });
+    return true;
+  },
+
+  async purgeItem(key, id) {
+    if (SOLO) return false;
+    const { error } = await supabase.from(TABLE_OF[key]).delete().eq("id", id);
+    if (error) {
+      get().toast({ title: "Couldn't delete", description: error.message, tone: "danger" });
+      return false;
+    }
+    return true;
+  },
+
+  async emptyTrash() {
+    if (SOLO) return 0;
+    const keys = COLLECTION_KEYS.filter((k) => TRASHABLE.has(k));
+    let n = 0;
+    for (const key of keys) {
+      const { data, error } = await supabase.from(TABLE_OF[key])
+        .delete().not("deleted_at", "is", null).select("id");
+      if (error) {
+        get().toast({ title: "Couldn't empty the trash", description: error.message, tone: "danger" });
+        return n;
+      }
+      n += (data ?? []).length;
+    }
+    return n;
   },
 
   batchUndo(label, fn) {
@@ -736,7 +866,12 @@ export const useStore = create<StoreState>((set, get) => ({
   setCalendarView: (v) => set({ calendarView: v }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setCommandOpen: (open) => set({ commandOpen: open }),
-  openInspector: (taskId) => set({ inspectorTaskId: taskId }),
+  openInspector: (taskId) => {
+    // Every surface opens the inspector through here, so this is the one
+    // place "recently opened" can be recorded without touching all of them.
+    if (taskId) recordOpen("task", taskId);
+    set({ inspectorTaskId: taskId });
+  },
 
   toast(t) {
     const id = uid();
@@ -1233,7 +1368,16 @@ export function subtasksOf(tasks: Task[], parentId: string): Task[] {
 }
 
 export function inboxTasks(tasks: Task[]): Task[] {
-  return tasks.filter((t) => !t.date && !t.parent_id && t.status !== "done")
+  // Someday is deliberately not here. An inbox you cannot empty is an inbox
+  // you stop opening, and "maybe one day" is exactly what used to make it
+  // un-emptiable.
+  return tasks.filter((t) => !t.date && !t.parent_id && !t.someday && t.status !== "done")
+    .sort((a, b) => a.order_index - b.order_index);
+}
+
+/** Held back on purpose: no date, and not waiting to be triaged either. */
+export function somedayTasks(tasks: Task[]): Task[] {
+  return tasks.filter((t) => t.someday && !t.parent_id && t.status !== "done")
     .sort((a, b) => a.order_index - b.order_index);
 }
 

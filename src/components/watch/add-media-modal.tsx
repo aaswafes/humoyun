@@ -68,6 +68,7 @@ export function AddMediaModal({ open, onClose }: { open: boolean; onClose: () =>
   const preview: Media = {
     id: "preview",
     user_id: "",
+    deleted_at: null,
     title,
     creator: creator.trim() || null,
     url: null,

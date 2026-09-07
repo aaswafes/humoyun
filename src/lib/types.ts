@@ -93,6 +93,13 @@ export interface Task {
   episode_to: number | null;
   recurrence: Recurrence | null;
   series_id: string | null;
+  /**
+   * Held back deliberately, as opposed to `date: null` which only means
+   * "not triaged yet". Keeping the two apart is what stops the Inbox from
+   * silently becoming the place tasks go to be forgotten.
+   */
+  someday: boolean;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +126,7 @@ export interface Book {
   rating: number | null;
   notes: string | null;
   order_index: number;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -166,6 +174,7 @@ export interface Media {
   rating: number | null;
   notes: string | null;
   order_index: number;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -223,6 +232,7 @@ export interface NoteCategory {
   icon: string | null;
   color: Tint;
   order_index: number;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -301,6 +311,13 @@ export interface Note {
   is_template: boolean;
   /** its place on the canvas, or null when it has not been put there */
   layout: NoteLayout | null;
+  /**
+   * Other names this note answers to. `[[Ghazali]]` and `[[Al-Ghazali]]`
+   * resolve to one note without either spelling becoming the real title.
+   */
+  aliases: string[];
+  icon: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -321,6 +338,7 @@ export interface Habit {
   unit: string | null;
   archived: boolean;
   order_index: number;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -351,6 +369,7 @@ export interface Goal {
   icon: string | null;
   status: "active" | "done" | "paused" | "dropped";
   order_index: number;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -378,7 +397,9 @@ export interface Project {
   due_date: string | null;
   /** the goal this work serves */
   goal_id: string | null;
+  cover_url: string | null;
   order_index: number;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -409,6 +430,7 @@ export interface Template {
   items: TemplateItem[];
   use_count: number;
   order_index: number;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }

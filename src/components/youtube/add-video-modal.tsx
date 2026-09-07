@@ -57,6 +57,7 @@ export function AddVideoModal({ open, onClose }: { open: boolean; onClose: () =>
   const preview: Media = {
     id: "preview",
     user_id: "",
+    deleted_at: null,
     title,
     creator: null,
     url: normalizeUrl(url),
