@@ -65,45 +65,51 @@ create table if not exists public.community_members (
 create index if not exists community_members_user_idx on public.community_members (user_id);
 create index if not exists community_members_community_idx on public.community_members (community_id);
 
--- A joint goal is pooled: one target, everyone's contributions add into it.
--- It deliberately has no user_id — it belongs to the community, not a person.
-create table if not exists public.community_goals (
-  id           uuid primary key default gen_random_uuid(),
-  community_id uuid not null references public.communities(id) on delete cascade,
-  title        text not null default '',
-  description  text,
-  unit         text,
-  target       numeric not null default 1,
-  start_date   date,
-  due_date     date,
-  color        text not null default 'blue',
-  status       text not null default 'active' check (status in ('active', 'done', 'paused', 'dropped')),
-  created_by   uuid not null references auth.users(id) on delete cascade,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+-- A joint habit.
+--
+-- Same shape as a personal habit on purpose: cadence, weekdays, times_per_week
+-- and target_count are named exactly as `public.habits` names them, so the app
+-- hands one straight to lib/habits and reuses the single answer to "is this due
+-- today?" rather than growing a second one.
+--
+-- Unlike a plan or a salah record, a habit log here is not private life data
+-- pulled out of a private table — it is written into the community by the act
+-- of ticking it. So these two tables need no definer function: ordinary RLS,
+-- read by members, written by the person it belongs to.
+create table if not exists public.community_habits (
+  id             uuid primary key default gen_random_uuid(),
+  community_id   uuid not null references public.communities(id) on delete cascade,
+  name           text not null default '',
+  icon           text not null default 'check',
+  color          text not null default 'blue',
+  cadence        text not null default 'daily' check (cadence in ('daily', 'weekly', 'custom')),
+  weekdays       integer[] not null default '{}',
+  times_per_week integer not null default 3,
+  target_count   integer not null default 1,
+  unit           text,
+  archived       boolean not null default false,
+  created_by     uuid not null references auth.users(id) on delete cascade,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
 );
 
-create index if not exists community_goals_community_idx on public.community_goals (community_id);
+create index if not exists community_habits_community_idx on public.community_habits (community_id);
 
--- Added after the table shipped, so existing installs need it too. Nullable
--- and not backfilled: a goal set before this column existed has no honest
--- start date, and deriving one from created_at here would write a made-up
--- fact into the database. The timeline falls back to created_at when it draws,
--- which keeps that a rendering decision.
-alter table public.community_goals
-  add column if not exists start_date date;
-
-create table if not exists public.community_goal_contributions (
+-- One row per person per habit per day. The unique constraint is what makes a
+-- tick idempotent: a second device ticking the same day updates rather than
+-- adding a duplicate nobody can see.
+create table if not exists public.community_habit_logs (
   id         uuid primary key default gen_random_uuid(),
-  goal_id    uuid not null references public.community_goals(id) on delete cascade,
+  habit_id   uuid not null references public.community_habits(id) on delete cascade,
   user_id    uuid not null references auth.users(id) on delete cascade,
-  amount     numeric not null default 1,
+  date       date not null,
+  count      integer not null default 1,
   note       text,
-  date       date not null default current_date,
-  created_at timestamptz not null default now()
+  logged_at  timestamptz not null default now(),
+  unique (habit_id, user_id, date)
 );
 
-create index if not exists community_contrib_goal_idx on public.community_goal_contributions (goal_id);
+create index if not exists community_habit_logs_habit_idx on public.community_habit_logs (habit_id, date);
 
 -- A recommendation is something you chose to say out loud, so unlike a plan
 -- or a prayer it needs no switch: posting it is the consent.
@@ -169,8 +175,8 @@ grant execute on function public.is_member(uuid) to authenticated;
 
 alter table public.communities                  enable row level security;
 alter table public.community_members            enable row level security;
-alter table public.community_goals              enable row level security;
-alter table public.community_goal_contributions enable row level security;
+alter table public.community_habits            enable row level security;
+alter table public.community_habit_logs        enable row level security;
 alter table public.community_recs               enable row level security;
 alter table public.community_rec_saves          enable row level security;
 
@@ -213,38 +219,44 @@ create policy "you leave yourself" on public.community_members
 
 -- Joint goals and recs are community content: members read all of it, and
 -- write rows they author.
-drop policy if exists "members read goals" on public.community_goals;
-create policy "members read goals" on public.community_goals
+drop policy if exists "members read habits" on public.community_habits;
+create policy "members read habits" on public.community_habits
   for select using (public.is_member(community_id));
 
-drop policy if exists "members write goals" on public.community_goals;
-create policy "members write goals" on public.community_goals
+drop policy if exists "members add habits" on public.community_habits;
+create policy "members add habits" on public.community_habits
   for insert with check (public.is_member(community_id) and auth.uid() = created_by);
 
-drop policy if exists "members update goals" on public.community_goals;
-create policy "members update goals" on public.community_goals
+drop policy if exists "members edit habits" on public.community_habits;
+create policy "members edit habits" on public.community_habits
   for update using (public.is_member(community_id)) with check (public.is_member(community_id));
 
-drop policy if exists "authors delete goals" on public.community_goals;
-create policy "authors delete goals" on public.community_goals
+drop policy if exists "authors delete habits" on public.community_habits;
+create policy "authors delete habits" on public.community_habits
   for delete using (auth.uid() = created_by);
 
-drop policy if exists "members read contributions" on public.community_goal_contributions;
-create policy "members read contributions" on public.community_goal_contributions
+-- Everyone in the community sees everyone's ticks — that is the entire point
+-- of a joint habit — but only you can write yours.
+drop policy if exists "members read habit logs" on public.community_habit_logs;
+create policy "members read habit logs" on public.community_habit_logs
   for select using (exists (
-    select 1 from public.community_goals g
-    where g.id = goal_id and public.is_member(g.community_id)
+    select 1 from public.community_habits h
+    where h.id = habit_id and public.is_member(h.community_id)
   ));
 
-drop policy if exists "members add their contributions" on public.community_goal_contributions;
-create policy "members add their contributions" on public.community_goal_contributions
+drop policy if exists "you log for yourself" on public.community_habit_logs;
+create policy "you log for yourself" on public.community_habit_logs
   for insert with check (auth.uid() = user_id and exists (
-    select 1 from public.community_goals g
-    where g.id = goal_id and public.is_member(g.community_id)
+    select 1 from public.community_habits h
+    where h.id = habit_id and public.is_member(h.community_id)
   ));
 
-drop policy if exists "you remove your contributions" on public.community_goal_contributions;
-create policy "you remove your contributions" on public.community_goal_contributions
+drop policy if exists "you edit your own logs" on public.community_habit_logs;
+create policy "you edit your own logs" on public.community_habit_logs
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "you remove your own logs" on public.community_habit_logs;
+create policy "you remove your own logs" on public.community_habit_logs
   for delete using (auth.uid() = user_id);
 
 drop policy if exists "members read recs" on public.community_recs;
@@ -489,4 +501,19 @@ grant execute on function public.join_community(text) to authenticated;
 -- Drop it by hand, once, if you are sure:
 --
 --   drop table if exists public.templates;
+-- ---------------------------------------------------------
+
+
+-- ---------------------------------------------------------
+-- Joint goals, removed
+--
+-- Goals were replaced by joint habits. Their tables are deliberately NOT
+-- dropped here, for the same reason `templates` was not: a deploy that deletes
+-- what people wrote, without being asked, is not something this repo should be
+-- able to do.
+--
+-- Drop them by hand, once, if you are sure:
+--
+--   drop table if exists public.community_goal_contributions;
+--   drop table if exists public.community_goals;
 -- ---------------------------------------------------------

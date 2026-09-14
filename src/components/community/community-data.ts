@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import { SOLO } from "@/lib/local-db";
 import { useStore } from "@/lib/store";
 import type {
-  Community, CommunityGoal, Contribution, FeedMember, Membership, Rec, RecKind, RecSave, ShareKey,
+  Community, CommunityHabit, CommunityHabitLog, FeedMember, Membership, Rec, RecKind, RecSave, ShareKey,
 } from "./community-types";
 
 /**
@@ -79,21 +79,29 @@ export async function fetchFeed(communityId: string): Promise<FeedMember[]> {
   return (data ?? []) as FeedMember[];
 }
 
-export async function fetchGoals(communityId: string) {
-  const { data: goals, error } = await supabase
-    .from("community_goals").select("*").eq("community_id", communityId);
-  if (error) fail(error, "Could not load goals");
+export async function fetchHabits(communityId: string) {
+  const { data: habits, error } = await supabase
+    .from("community_habits").select("*").eq("community_id", communityId)
+    .order("created_at", { ascending: true });
+  if (error) fail(error, "Could not load habits");
 
-  const ids = (goals ?? []).map((g) => g.id as string);
-  if (ids.length === 0) return { goals: [] as CommunityGoal[], contributions: [] as Contribution[] };
+  const ids = (habits ?? []).map((h) => h.id as string);
+  if (ids.length === 0) return { habits: [] as CommunityHabit[], logs: [] as CommunityHabitLog[] };
 
-  const { data: contributions, error: cErr } = await supabase
-    .from("community_goal_contributions").select("*").in("goal_id", ids);
-  if (cErr) fail(cErr, "Could not load goal progress");
+  // Only the window the week strip and the streak actually draw. A community
+  // that has been running a year should not ship a year of ticks to render
+  // seven cells.
+  const since = new Date();
+  since.setDate(since.getDate() - 120);
+  const from = since.toISOString().slice(0, 10);
+
+  const { data: logs, error: lErr } = await supabase
+    .from("community_habit_logs").select("*").in("habit_id", ids).gte("date", from);
+  if (lErr) fail(lErr, "Could not load habit history");
 
   return {
-    goals: (goals ?? []) as CommunityGoal[],
-    contributions: (contributions ?? []) as Contribution[],
+    habits: (habits ?? []) as CommunityHabit[],
+    logs: (logs ?? []) as CommunityHabitLog[],
   };
 }
 
@@ -168,46 +176,61 @@ export async function deleteCommunity(id: string) {
   if (error) fail(error, "Could not delete");
 }
 
-export async function addGoal(
-  communityId: string, userId: string,
-  fields: {
-    title: string; unit: string | null; target: number;
-    start_date: string | null; due_date: string | null; color: string;
-  },
-): Promise<CommunityGoal> {
+export type HabitFields = {
+  name: string;
+  icon: string;
+  color: string;
+  cadence: "daily" | "weekly" | "custom";
+  weekdays: number[];
+  times_per_week: number;
+  target_count: number;
+  unit: string | null;
+};
+
+export async function addHabit(
+  communityId: string, userId: string, fields: HabitFields,
+): Promise<CommunityHabit> {
   const { data, error } = await supabase
-    .from("community_goals")
+    .from("community_habits")
     .insert({ community_id: communityId, created_by: userId, ...fields })
     .select().single();
-  if (error) fail(error, "Could not add the goal");
-  return data as CommunityGoal;
+  if (error) fail(error, "Could not add the habit");
+  return data as CommunityHabit;
 }
 
-export async function updateGoal(id: string, changes: Partial<CommunityGoal>) {
+export async function updateHabit(id: string, changes: Partial<CommunityHabit>) {
   const { error } = await supabase
-    .from("community_goals").update({ ...changes, updated_at: new Date().toISOString() }).eq("id", id);
-  if (error) fail(error, "Could not save the goal");
+    .from("community_habits").update({ ...changes, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) fail(error, "Could not save the habit");
 }
 
-export async function deleteGoal(id: string) {
-  const { error } = await supabase.from("community_goals").delete().eq("id", id);
-  if (error) fail(error, "Could not delete the goal");
+export async function deleteHabit(id: string) {
+  const { error } = await supabase.from("community_habits").delete().eq("id", id);
+  if (error) fail(error, "Could not delete the habit");
 }
 
-export async function addContribution(
-  goalId: string, userId: string, amount: number, note: string | null, date: string,
-): Promise<Contribution> {
-  const { data, error } = await supabase
-    .from("community_goal_contributions")
-    .insert({ goal_id: goalId, user_id: userId, amount, note, date })
-    .select().single();
-  if (error) fail(error, "Could not log that");
-  return data as Contribution;
-}
-
-export async function deleteContribution(id: string) {
-  const { error } = await supabase.from("community_goal_contributions").delete().eq("id", id);
-  if (error) fail(error, "Could not remove that");
+/**
+ * Tick or untick one day.
+ *
+ * `count: 0` deletes the row rather than storing a zero — an absent log and a
+ * log that says "none" would otherwise both mean "not done" and the week strip
+ * would have to know the difference. The upsert names the unique constraint so
+ * a second device ticking the same day updates instead of colliding.
+ */
+export async function setHabitLog(
+  habitId: string, userId: string, date: string, count: number,
+): Promise<void> {
+  if (count <= 0) {
+    const { error } = await supabase
+      .from("community_habit_logs").delete()
+      .eq("habit_id", habitId).eq("user_id", userId).eq("date", date);
+    if (error) fail(error, "Could not update that");
+    return;
+  }
+  const { error } = await supabase
+    .from("community_habit_logs")
+    .upsert({ habit_id: habitId, user_id: userId, date, count }, { onConflict: "habit_id,user_id,date" });
+  if (error) fail(error, "Could not update that");
 }
 
 export async function addRec(

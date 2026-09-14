@@ -36,30 +36,42 @@ export type ShareKey = "share_plan" | "share_salah" | "share_shelf";
 
 export const SHARE_KEYS: ShareKey[] = ["share_plan", "share_salah", "share_shelf"];
 
-export interface CommunityGoal {
+/**
+ * A joint habit.
+ *
+ * The scheduling fields are named exactly as `Habit` names them, so
+ * `asHabit()` can hand one straight to `@/lib/habits` — the single place that
+ * answers "is this due today?". Never read `weekdays` here directly either.
+ */
+export interface CommunityHabit {
   id: string;
   community_id: string;
-  title: string;
-  description: string | null;
-  unit: string | null;
-  target: number;
-  start_date: string | null;
-  due_date: string | null;
+  name: string;
+  icon: string;
   color: Tint;
-  status: "active" | "done" | "paused" | "dropped";
+  cadence: "daily" | "weekly" | "custom";
+  /** Weekday indices (0 = Sunday). Meaningful for the "weekly" cadence. */
+  weekdays: number[];
+  /** Days per week for the "custom" cadence. */
+  times_per_week: number;
+  /** Completions needed within a single day. */
+  target_count: number;
+  unit: string | null;
+  archived: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface Contribution {
+/** One person's tick, on one habit, on one day. */
+export interface CommunityHabitLog {
   id: string;
-  goal_id: string;
+  habit_id: string;
   user_id: string;
-  amount: number;
-  note: string | null;
   date: string;
-  created_at: string;
+  count: number;
+  note: string | null;
+  logged_at: string;
 }
 
 export type RecKind = "book" | "film" | "anime" | "series" | "youtube" | "other";

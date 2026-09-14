@@ -10,14 +10,14 @@ import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { Button, EmptyState, IconButton, Segmented, Skeleton } from "@/components/ui/primitives";
 import { MemberRow } from "@/components/community/member-today";
 import type { FeedMember } from "@/components/community/community-types";
-import { GoalsSection } from "@/components/community/goals-section";
+import { HabitsSection } from "@/components/community/habits-section";
 import { RecsSection } from "@/components/community/recs-section";
 import { MembersSection } from "@/components/community/members-section";
 import {
-  fetchFeed, fetchGoals, fetchMyCommunities, fetchRecs, useLoad, useUserId,
+  fetchFeed, fetchHabits, fetchMyCommunities, fetchRecs, useLoad, useUserId,
 } from "@/components/community/community-data";
 
-type View = "today" | "goals" | "recs" | "members";
+type View = "today" | "habits" | "recs" | "members";
 
 export default function CommunityDetailPage() {
   const params = useParams<{ id: string }>();
@@ -31,8 +31,8 @@ export default function CommunityDetailPage() {
   const loadFeed = React.useCallback(() => fetchFeed(id), [id]);
   const feed = useLoad(loadFeed);
 
-  const loadGoals = React.useCallback(() => fetchGoals(id), [id]);
-  const goals = useLoad(loadGoals);
+  const loadHabits = React.useCallback(() => fetchHabits(id), [id]);
+  const habits = useLoad(loadHabits);
 
   const loadRecs = React.useCallback(() => fetchRecs(id), [id]);
   const recs = useLoad(loadRecs);
@@ -42,8 +42,8 @@ export default function CommunityDetailPage() {
   const members = React.useMemo(() => feed.data ?? [], [feed.data]);
 
   const reloadAll = React.useCallback(() => {
-    mine.reload(); feed.reload(); goals.reload(); recs.reload();
-  }, [mine, feed, goals, recs]);
+    mine.reload(); feed.reload(); habits.reload(); recs.reload();
+  }, [mine, feed, habits, recs]);
 
   if (SOLO) {
     return (
@@ -108,7 +108,7 @@ export default function CommunityDetailPage() {
           onChange={setView}
           options={[
             { value: "today", label: "Today" },
-            { value: "goals", label: "Goals" },
+            { value: "habits", label: "Habits" },
             { value: "recs", label: "Recs" },
             { value: "members", label: "Members" },
           ]}
@@ -127,14 +127,14 @@ export default function CommunityDetailPage() {
           />
         )}
 
-        {view === "goals" && (
-          <GoalsSection
+        {view === "habits" && (
+          <HabitsSection
             communityId={id}
-            goals={goals.data?.goals ?? []}
-            contributions={goals.data?.contributions ?? []}
+            habits={habits.data?.habits ?? []}
+            logs={habits.data?.logs ?? []}
             members={members}
-            loading={goals.loading}
-            onChanged={goals.reload}
+            loading={habits.loading}
+            onChanged={habits.reload}
           />
         )}
 
