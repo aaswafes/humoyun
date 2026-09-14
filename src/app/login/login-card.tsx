@@ -4,20 +4,27 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle2,
-  Sparkles, KeyRound, ChevronLeft,
+  Sparkles, KeyRound, ChevronLeft, User,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Button, Input, Spinner } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
+import { credentialToEmail, emailForUsername, usernameError } from "@/lib/username";
 import { cn } from "@/lib/cn";
 
+// A new account is a username and a password. Nothing is mailed, nothing has
+// to be confirmed, and you are signed in the moment it exists — see
+// `@/lib/username` for how a username is stored.
+//
+// The two email modes below stay for the accounts made before this, which are
+// the only ones with an inbox a link could ever reach.
 type Mode = "signin" | "signup" | "magic" | "reset";
 
 const TITLES: Record<Mode, { title: string; sub: string }> = {
   signin: { title: "Welcome back", sub: "Pick up where the day left off." },
-  signup: { title: "Make it yours", sub: "One account, every device." },
+  signup: { title: "Make it yours", sub: "Pick a username, pick a password. That is the whole form." },
   magic: { title: "No password needed", sub: "We'll email you a link that signs you straight in." },
-  reset: { title: "Reset your password", sub: "We'll email you a link to set a new one." },
+  reset: { title: "Reset your password", sub: "For accounts made with an email address." },
 };
 
 function GoogleMark() {
@@ -37,12 +44,14 @@ export function LoginCard() {
   const next = params.get("next") || "/";
 
   const [mode, setMode] = React.useState<Mode>("signin");
-  const [email, setEmail] = React.useState("");
+  // A username in signin/signup, an email address in the two link modes.
+  const [identity, setIdentity] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
   const [capsOn, setCapsOn] = React.useState(false);
   const [loading, setLoading] = React.useState<null | "email" | "google">(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [nameError, setNameError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
   const [needsConfirm, setNeedsConfirm] = React.useState(false);
   const [googleEnabled, setGoogleEnabled] = React.useState(false);
@@ -68,13 +77,14 @@ export function LoginCard() {
   function switchMode(m: Mode) {
     setMode(m);
     setError(null);
+    setNameError(null);
     setNotice(null);
     setNeedsConfirm(false);
   }
 
   async function resendConfirmation() {
     setLoading("email");
-    const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+    const { error } = await supabase.auth.resend({ type: "signup", email: credentialToEmail(identity) });
     setLoading(null);
     if (error) setError(error.message);
     else {
@@ -93,66 +103,98 @@ export function LoginCard() {
     if (error) { setError(error.message); setLoading(null); }
   }
 
+  function land() {
+    router.push(next);
+    router.refresh();
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading("email");
     setError(null);
+    setNameError(null);
     setNotice(null);
     setNeedsConfirm(false);
 
-    const address = email.trim();
+    const typed = identity.trim();
 
     if (mode === "magic") {
       const { error } = await supabase.auth.signInWithOtp({
-        email: address,
+        email: typed,
         options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
       });
       setLoading(null);
       if (error) setError(error.message);
-      else setNotice(`Link sent to ${address}. It signs you in for 60 minutes.`);
+      else setNotice(`Link sent to ${typed}. It signs you in for 60 minutes.`);
       return;
     }
 
     if (mode === "reset") {
-      const { error } = await supabase.auth.resetPasswordForEmail(address, {
+      const { error } = await supabase.auth.resetPasswordForEmail(typed, {
         redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
       });
       setLoading(null);
       if (error) setError(error.message);
-      else setNotice(`Reset link sent to ${address}.`);
+      else setNotice(`Reset link sent to ${typed}.`);
       return;
     }
 
-    const { data, error } =
-      mode === "signin"
-        ? await supabase.auth.signInWithPassword({ email: address, password })
-        : await supabase.auth.signUp({
-          email: address,
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
-        });
+    if (mode === "signup") {
+      const problem = usernameError(typed);
+      if (problem) { setLoading(null); setNameError(problem); return; }
+
+      // The account is made on the server with the service-role key, because
+      // the browser's own signUp can only ever make an unconfirmed one.
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: typed, password }),
+      }).catch(() => null);
+
+      const payload = res ? await res.json().catch(() => ({})) : {};
+      if (!res || !res.ok) {
+        setLoading(null);
+        setError((payload as { error?: string }).error ?? "Could not reach the server. Try again.");
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailForUsername(typed),
+        password,
+      });
+      setLoading(null);
+      if (error) {
+        // The account exists now, so hand them the form that uses it rather
+        // than leaving them staring at a sign-up that looks like it failed.
+        switchMode("signin");
+        setNotice("Account created. Sign in with it.");
+        return;
+      }
+      land();
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: credentialToEmail(typed),
+      password,
+    });
 
     if (error) {
       setLoading(null);
+      const message = error.message.toLowerCase();
       // The one failure with a real fix attached, so give it a button.
-      if (error.message.toLowerCase().includes("not confirmed")) {
+      if (message.includes("not confirmed")) {
         setNeedsConfirm(true);
-        setError("This address hasn't been confirmed yet.");
+        setError("This account hasn't been confirmed yet.");
+      } else if (message.includes("invalid login credentials")) {
+        setError("That username and password don't match.");
       } else {
         setError(error.message);
       }
       return;
     }
 
-    if (mode === "signup" && !data.session) {
-      setLoading(null);
-      switchMode("signin");
-      setNotice("Account created. Confirm it from the email we just sent, then sign in.");
-      return;
-    }
-
-    router.push(next);
-    router.refresh();
+    land();
   }
 
   const copy = TITLES[mode];
@@ -175,7 +217,7 @@ export function LoginCard() {
       </div>
 
       <div className="surface p-6 shadow-lg">
-        {mode === "signin" || mode === "signup" ? (
+        {passwordMode ? (
           <div className="mb-5 flex rounded-lg bg-hover p-0.5">
             {([["signin", "Sign in"], ["signup", "Create account"]] as const).map(([m, label]) => (
               <button
@@ -217,9 +259,10 @@ export function LoginCard() {
               onClick={signInWithGoogle}
               disabled={busy}
               className={cn(
-                "flex h-9 w-full items-center justify-center gap-2 rounded-md border border-line bg-raised",
-                "text-[13.5px] font-medium text-ink cursor-pointer transition-colors",
-                "hover:bg-hover active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40",
+                "flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-line bg-raised",
+                "text-[13px] font-medium text-ink cursor-pointer",
+                "transition-[background-color,border-color] duration-150 hover:bg-hover hover:border-line-strong",
+                "disabled:cursor-not-allowed disabled:opacity-60",
               )}
             >
               {loading === "google" ? <Spinner className="size-4" /> : <GoogleMark />}
@@ -234,19 +277,30 @@ export function LoginCard() {
         )}
 
         <form onSubmit={submit} className="space-y-3.5">
-          <Field label="Email">
+          <Field
+            label={passwordMode ? "Username" : "Email"}
+            error={nameError}
+            description={mode === "signup" ? "3–24 characters. This is what you sign in with." : undefined}
+          >
             {(wiring) => (
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
+                {passwordMode ? (
+                  <User className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
+                ) : (
+                  <Mail className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
+                )}
                 <Input
                   {...wiring}
-                  type="email"
-                  autoComplete="email"
+                  type={passwordMode ? "text" : "email"}
+                  autoComplete={passwordMode ? "username" : "email"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   autoFocus
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  value={identity}
+                  onChange={(e) => { setIdentity(e.target.value); setNameError(null); }}
+                  placeholder={passwordMode ? "yourname" : "you@example.com"}
                   className="h-9 pl-8"
                 />
               </div>
@@ -342,7 +396,7 @@ export function LoginCard() {
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-[12.5px] text-ink-3 hover:text-ink cursor-pointer transition-colors"
           >
             <KeyRound className="size-3.5" />
-            Sign in without a password
+            Signed up with an email? Use a link instead
           </button>
         )}
       </div>

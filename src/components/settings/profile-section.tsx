@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase/client";
 import { diffDays, formatDate, toISO, todayISO } from "@/lib/date";
 import { Button, Input, Progress } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
+import { accountLabel, isUsernameAccount } from "@/lib/username";
 import { Callout, FoldGroup, Group, Pane, Row, StaticField } from "./ui";
 
 const AVATAR_PRESETS = ["H", "🌙", "📓", "🕌", "☕", "🏔", "✍️", "🌿"];
@@ -49,12 +50,13 @@ function PasswordForm({ email }: { email: string | null }) {
   const [serverError, setServerError] = React.useState<string | null>(null);
 
   const strength = measure(password);
+  // The name half of the address, which for a username account is the username.
   const local = (email ?? "").split("@")[0].toLowerCase();
 
   const passwordError =
     !touched || !password ? null
       : password.length < MIN_LENGTH ? `Use at least ${MIN_LENGTH} characters.`
-        : local.length > 2 && password.toLowerCase().includes(local) ? "Do not put your email address in your password."
+        : local.length > 2 && password.toLowerCase().includes(local) ? "Do not put your own name in your password."
           : null;
 
   const confirmError = touched && confirm && confirm !== password ? "The two passwords do not match." : null;
@@ -207,7 +209,7 @@ export function ProfileSection() {
           <p className="truncate text-[14px] font-semibold leading-tight text-ink">
             {nameDraft.trim() || "Unnamed"}
           </p>
-          <p className="mt-0.5 truncate text-[12.5px] text-ink-3">{email ?? "Not signed in"}</p>
+          <p className="mt-0.5 truncate text-[12.5px] text-ink-3">{accountLabel(email) ?? "Not signed in"}</p>
         </div>
         <span
           className={cn(
@@ -233,8 +235,13 @@ export function ProfileSection() {
           />
         </Row>
 
-        <Row label="Email" hint="This is your sign-in address and cannot be changed here.">
-          <StaticField icon={Lock}>{email ?? "—"}</StaticField>
+        <Row
+          label={isUsernameAccount(email) ? "Username" : "Email"}
+          hint={isUsernameAccount(email)
+            ? "This is what you sign in with and cannot be changed here."
+            : "This is your sign-in address and cannot be changed here."}
+        >
+          <StaticField icon={Lock}>{accountLabel(email) ?? "—"}</StaticField>
         </Row>
 
         <Row

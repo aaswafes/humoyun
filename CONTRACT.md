@@ -110,6 +110,20 @@ Selectors exported from the same module:
 `tasksOn(tasks,date)`, `subtasksOf`, `inboxTasks`, `overdueTasks`, `completionOn`,
 `habitStreak`, `prayerStreak`, `focusMinutesOn`, `orderBetween(before,after)`, `uid()`.
 
+### `@/lib/username`
+
+An account is a **username and a password**. No email, no confirmation step.
+`emailForUsername` stores the name as an address inside `users.qalamchi.app`,
+which is an identifier and not an inbox; `credentialToEmail` passes anything
+containing `@` through untouched, because accounts made before this have real
+addresses. **Never print `user.email` on a screen** — `accountLabel(email)`
+gives the username for a username account and the address for an older one, and
+`isUsernameAccount(email)` says which word to put on the label.
+
+Creating the account is `/api/auth/signup`, server-side with the service-role
+key, because the browser's `supabase.auth.signUp` can only ever make an
+unconfirmed user and that confirmation mail is what kept not arriving.
+
 ### `@/lib/date`
 
 `todayISO toISO fromISO addDays addMonths diffDays isToday isPast weekday startOfWeek

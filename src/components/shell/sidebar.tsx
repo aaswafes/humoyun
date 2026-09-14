@@ -10,6 +10,7 @@ import {
   Plus, ChevronDown, ChevronRight, LogOut, Monitor, SunMedium, MoonStar, Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { accountLabel } from "@/lib/username";
 import { useStore, completionOn, inboxTasks, overdueTasks } from "@/lib/store";
 import { todayISO, monthName, dayNumber } from "@/lib/date";
 import { ACCENTS, type Accent } from "@/lib/types";
@@ -149,7 +150,7 @@ export function Sidebar() {
           {(close) => (
             <>
               <div className="px-2 pb-1.5 pt-1">
-                <p className="truncate text-[12px] text-ink-3">{email}</p>
+                <p className="truncate text-[12px] text-ink-3">{accountLabel(email)}</p>
               </div>
               <MenuSeparator />
               <MenuLabel>Appearance</MenuLabel>

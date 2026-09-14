@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { useT } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase/client";
+import { accountLabel } from "@/lib/username";
 import { Button } from "@/components/ui/primitives";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { ProfileSection } from "@/components/settings/profile-section";
@@ -111,7 +112,7 @@ export default function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        subtitle={email ?? undefined}
+        subtitle={accountLabel(email) ?? undefined}
         actions={
           <Button variant="ghost" size="sm" onClick={signOut}>
             <LogOut className="size-3.5" />

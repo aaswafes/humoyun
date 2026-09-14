@@ -18,7 +18,23 @@ Environment (`.env.local`):
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=           # server only, never NEXT_PUBLIC_
 ```
+
+### Accounts
+
+An account is a username and a password. There is no email step and nothing to
+confirm — `/api/auth/signup` creates the user with the service-role key and
+`email_confirm: true`, then the browser signs in with it immediately.
+
+A username is stored as an address inside `users.qalamchi.app`, a domain that
+exists only as an identifier; nothing is ever sent to it. Accounts made before
+this still have real addresses and still sign in — the field takes either.
+
+**`SUPABASE_SERVICE_ROLE_KEY` is therefore required, not optional.** Without it
+`/api/auth/signup` answers 503 and nobody can create an account. Supabase ->
+Settings -> API -> `service_role`, then set it in `.env.local` *and* in the
+Vercel project (env changes need a redeploy to take effect).
 
 ### Optional — Telegram capture
 
