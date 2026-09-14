@@ -10,11 +10,12 @@ import {
   type Timeframe,
 } from "@/lib/timeframe";
 import { TINTS, type Tint } from "@/lib/types";
-import { Button, EmptyState, Input, Progress, Skeleton } from "@/components/ui/primitives";
+import { Button, EmptyState, Input, Progress, Segmented, Skeleton } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
 import { ConfirmDialog, MenuItem, MenuSeparator, Modal, Popover, TintPicker } from "@/components/ui/overlays";
 import type { CommunityGoal, Contribution, FeedMember } from "./community-types";
 import { addContribution, addGoal, deleteGoal, updateGoal, useUserId } from "./community-data";
+import { GoalsTimeline } from "./goals-timeline";
 
 /** Sum of everyone's contributions. One number, stated once. */
 function poolOf(contributions: Contribution[], goalId: string) {
@@ -38,6 +39,7 @@ export function GoalsSection({
   onChanged: () => void;
 }) {
   const toast = useStore((s) => s.toast);
+  const [view, setView] = React.useState<"board" | "timeline">("board");
   const [adding, setAdding] = React.useState<Timeframe | "any" | null>(null);
   const [editing, setEditing] = React.useState<CommunityGoal | null>(null);
   const [logging, setLogging] = React.useState<CommunityGoal | null>(null);
@@ -72,10 +74,19 @@ export function GoalsSection({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[12.5px] text-ink-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="flex-1 text-[12.5px] text-ink-3">
           One target, everyone&rsquo;s progress added together.
         </p>
+        <Segmented
+          value={view}
+          onChange={setView}
+          size="sm"
+          options={[
+            { value: "board" as const, label: "Board", title: "Filed by when it is due" },
+            { value: "timeline" as const, label: "Timeline", title: "Every dated goal as a bar" },
+          ]}
+        />
         <Button size="sm" variant="primary" onClick={() => setAdding("any")}>
           <Plus className="size-3.5" />
           New goal
@@ -88,6 +99,13 @@ export function GoalsSection({
           title="No joint goals yet"
           description="Set something the whole community is working towards — books read this month, days prayed on time, applications sent."
           action={<Button variant="primary" onClick={() => setAdding("any")}><Plus className="size-3.5" />New goal</Button>}
+        />
+      ) : view === "timeline" ? (
+        <GoalsTimeline
+          goals={active}
+          contributions={contributions}
+          onEdit={setEditing}
+          onLog={setLogging}
         />
       ) : (
         <div className="flex gap-5 overflow-x-auto pb-4">
