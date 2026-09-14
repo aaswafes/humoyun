@@ -62,7 +62,7 @@ Settings -> Notifications -> Push does nothing under `next dev`.
 src/
   app/
     (app)/            the signed-in shell: today, calendar, projects, books,
-                      habits, salah, focus, goals, stats, review, templates,
+                      habits, salah, focus, goals, stats, review, community,
                       settings
     login/            email + password
   components/

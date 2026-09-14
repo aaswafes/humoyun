@@ -72,7 +72,7 @@ actions confirm via `ConfirmDialog`. Empty states always offer the action that f
 
 ```ts
 const { tasks, books, habits, habitLogs, goals, projects, boards, nodes, edges,
-        templates, prayers, dayLogs, focusSessions, reviews, tags,
+        prayers, dayLogs, focusSessions, reviews, tags,
         profile, ready, selectedDate, calendarView, hour12 } = useStore();
 ```
 
@@ -88,7 +88,7 @@ removeWhere(collectionKey, predicate)
 ```
 
 Collection keys: `tasks books habits habitLogs goals projects boards nodes edges
-templates prayers dayLogs focusSessions reviews tags`.
+prayers dayLogs focusSessions reviews tags`.
 
 Semantic actions already written — call these instead of hand-rolling:
 
@@ -100,7 +100,6 @@ setPrayer(date, name, status) cyclePrayer(date, name)
 setDayLog(date, changes) setReview(weekStart, changes)
 scheduleBook(bookId, { startDate, pagesPerDay, endDate, skipWeekdays, replace })
 unscheduleBook(bookId, from?) logReading(bookId, page)
-applyTemplate(templateId, date) saveDayAsTemplate(date, name)
 startTimer({taskId,label,mode,targetMinutes}) pauseTimer() resumeTimer() stopTimer(save)
 setSelectedDate(iso) setCalendarView(v) openInspector(taskId|null)
 toast({title, description?, tone?: 'default'|'success'|'danger', action?})
@@ -509,3 +508,50 @@ The product is Qalamchi; the localStorage prefix is not. Renaming the keys
 would silently drop saved views, pinned items and every folded section for no
 user-visible gain. The backup file's `app: "humoyun"` marker stays for the
 same reason — old exports must keep importing.
+
+
+---
+
+# Community — the one door
+
+This is the only surface in the app where one account reads another's data,
+and the rule that makes it safe is short:
+
+**Never add a policy to an existing table.** `tasks`, `prayers`, `books`,
+`profiles` and the rest each carry exactly one policy — `auth.uid() = user_id`
+— and nothing in Community changed that. A second permissive policy on `tasks`
+is five conditions on the table holding a person's whole life, and one wrong
+`or` leaks all of it, silently, forever.
+
+Everything that crosses an account boundary goes through **one security-definer
+function**, `community_feed`, in `docs/sql/community.sql`. Its select list *is*
+the privacy policy: display name, avatar, today's top-level task titles and
+done state, today's five prayer statuses. Adding a field there is a privacy
+decision, not a refactor.
+
+Two rules for anything added to that file:
+
+1. A definer function bypasses RLS, so its **first statement is the membership
+   check**. That check is the lock, not a validation.
+2. `set search_path` on every definer function, or a caller can point `tasks`
+   at a table of their own.
+
+**Sharing is three booleans per membership, all `false`.** `share_plan`,
+`share_salah`, `share_shelf`, on `community_members` — per community, so a
+study group seeing your plan never implies your family sees your salah. Only
+the member owning the row may write it; the owner cannot flip anyone's switch.
+
+**"Today" is each member's own today**, derived server-side from their profile
+timezone. The function deliberately takes no date parameter: a client that can
+name the date can ask for any date, and "today only" stops being true.
+
+**Community data does not live in the store.** `hydrate` pulls rows where
+`user_id = you` and the CRUD stamps `user_id` on write; community rows fail
+both halves. `src/components/community/community-data.ts` owns its own reads,
+refreshed on mount and on window focus — and a refresh never returns the
+surface to its loading state, because replacing a roster you are reading with
+skeletons is a flicker, not information.
+
+`null` plan and `[]` plan are different things and the UI must keep saying so:
+null is "not sharing", empty is "shared, nothing planned". Collapsing them
+accuses people of doing nothing.
