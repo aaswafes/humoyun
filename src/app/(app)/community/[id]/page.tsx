@@ -78,7 +78,8 @@ export default function CommunityDetailPage() {
     );
   }
 
-  const sharingCount = members.filter((m) => m.plan !== null).length;
+  const planCount = members.filter((m) => m.plan !== null).length;
+  const salahCount = members.filter((m) => m.salah !== null).length;
 
   return (
     <>
@@ -120,7 +121,8 @@ export default function CommunityDetailPage() {
             loading={feed.loading}
             error={feed.error}
             members={members}
-            sharingCount={sharingCount}
+            planCount={planCount}
+            salahCount={salahCount}
             onRetry={feed.reload}
           />
         )}
@@ -161,12 +163,13 @@ export default function CommunityDetailPage() {
 }
 
 function TodayView({
-  loading, error, members, sharingCount, onRetry,
+  loading, error, members, planCount, salahCount, onRetry,
 }: {
   loading: boolean;
   error: string | null;
   members: FeedMember[];
-  sharingCount: number;
+  planCount: number;
+  salahCount: number;
   onRetry: () => void;
 }) {
   if (loading) {
@@ -199,10 +202,15 @@ function TodayView({
       {/* The one hero on this screen. */}
       <div className="pb-2">
         <p className="display-serif text-[32px] leading-none text-ink tnum">{formatDate(todayISO())}</p>
+        {/* Says what is on this screen, so the salah track is findable rather
+            than something you have to notice. */}
         <p className="mt-1.5 text-[12.5px] text-ink-3">
-          {sharingCount === 0
-            ? "Nobody is sharing a plan yet"
-            : `${sharingCount} of ${members.length} sharing a plan`}
+          {planCount === 0 && salahCount === 0
+            ? "Nobody is sharing anything yet — switches are in Members"
+            : [
+                planCount > 0 ? `${planCount} sharing a plan` : null,
+                salahCount > 0 ? `${salahCount} sharing salah` : null,
+              ].filter(Boolean).join(" · ")}
         </p>
       </div>
 

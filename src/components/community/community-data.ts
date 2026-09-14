@@ -180,6 +180,12 @@ export async function addGoal(
   return data as CommunityGoal;
 }
 
+export async function updateGoal(id: string, changes: Partial<CommunityGoal>) {
+  const { error } = await supabase
+    .from("community_goals").update({ ...changes, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) fail(error, "Could not save the goal");
+}
+
 export async function deleteGoal(id: string) {
   const { error } = await supabase.from("community_goals").delete().eq("id", id);
   if (error) fail(error, "Could not delete the goal");

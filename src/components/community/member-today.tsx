@@ -27,17 +27,25 @@ export function Avatar({ member, size = 28 }: { member: FeedMember; size?: numbe
 }
 
 /**
- * Status is never carried by colour alone here: a prayed dot is filled, a
- * jamaah dot is filled with a ring, and the text alternative spells all five
- * out for anyone who cannot see either.
+ * Soft background, strong text — never a white letter on a status colour.
+ *
+ * `--success`/`--warn`/`--danger` are dark in the light theme and LIGHT in the
+ * dark one, so white-on-colour is legible in exactly one of them. Pairing each
+ * soft fill with its own strong ink is the same trick `bg-accent-soft
+ * text-accent` uses everywhere else, and it is correct in both themes by
+ * construction rather than by being checked.
+ *
+ * Colour never carries the state alone: the prayer's initial is always drawn,
+ * the count is stated, and the tooltip and the text alternative name every
+ * status in words.
  */
 const PRAYER_TONE: Record<PrayerStatus, string> = {
-  none: "bg-hover",
-  prayed: "bg-[var(--success)]",
-  jamaah: "bg-[var(--success)] ring-2 ring-[var(--success-soft)]",
-  late: "bg-[var(--warn)]",
-  qadha: "bg-[var(--warn)] opacity-70",
-  missed: "bg-[var(--danger)]",
+  none:   "bg-hover text-ink-4",
+  prayed: "bg-[var(--success-soft)] text-success",
+  jamaah: "bg-[var(--success-soft)] text-success ring-1 ring-[var(--success)]",
+  late:   "bg-[var(--warn-soft)] text-warn",
+  qadha:  "bg-[var(--warn-soft)] text-warn",
+  missed: "bg-[var(--danger-soft)] text-danger",
 };
 
 const PRAYER_WORD: Record<PrayerStatus, string> = {
@@ -49,27 +57,52 @@ const PRAYER_WORD: Record<PrayerStatus, string> = {
   missed: "missed",
 };
 
-export function SalahDots({ salah }: { salah: FeedMember["salah"] }) {
+/**
+ * The salah track, named.
+ *
+ * This was five 7px dots and nothing else, and the first thing its owner asked
+ * on seeing it was "where are the salah tracks?" — which is the whole review.
+ * Each prayer now carries its initial, the count is stated, and the tooltip and
+ * the text alternative still spell out every status in full. A track nobody can
+ * find is not a track.
+ */
+export function SalahStrip({ salah, compact }: { salah: FeedMember["salah"]; compact?: boolean }) {
   const describedBy = React.useId();
   if (!salah) return null;
 
   const byName = new Map(salah.map((p) => [p.name, p.status]));
+  const done = PRAYER_NAMES.filter((n) => {
+    const st = byName.get(n);
+    return st && st !== "none" && st !== "missed";
+  }).length;
+
   const summary = PRAYER_NAMES
     .map((n) => `${PRAYER_LABELS[n]} ${PRAYER_WORD[byName.get(n) ?? "none"]}`)
     .join(", ");
 
   return (
-    <div className="flex items-center gap-1" aria-describedby={describedBy}>
-      {PRAYER_NAMES.map((name) => {
-        const status = byName.get(name) ?? "none";
-        return (
-          <span
-            key={name}
-            title={`${PRAYER_LABELS[name]} — ${PRAYER_WORD[status]}`}
-            className={cn("size-[7px] rounded-full", PRAYER_TONE[status])}
-          />
-        );
-      })}
+    <div className="flex items-center gap-2" aria-describedby={describedBy}>
+      <div className="flex items-center gap-1">
+        {PRAYER_NAMES.map((name) => {
+          const status = byName.get(name) ?? "none";
+          return (
+            <span
+              key={name}
+              title={`${PRAYER_LABELS[name]} — ${PRAYER_WORD[status]}`}
+              className={cn(
+                "grid h-[19px] min-w-[19px] place-items-center rounded-full px-1",
+                "text-[10.5px] font-semibold leading-none",
+                PRAYER_TONE[status],
+              )}
+            >
+              {PRAYER_LABELS[name].charAt(0)}
+            </span>
+          );
+        })}
+      </div>
+      {!compact && (
+        <span className="text-[11.5px] text-ink-3 tnum">{done}/5</span>
+      )}
       <VisuallyHidden id={describedBy}>{summary}</VisuallyHidden>
     </div>
   );
@@ -101,7 +134,7 @@ export function MemberRow({ member }: { member: FeedMember }) {
             <span className="text-[10.5px] uppercase tracking-[0.06em] text-ink-4">Owner</span>
           )}
           <div className="flex-1" />
-          <SalahDots salah={member.salah} />
+          <SalahStrip salah={member.salah} />
         </div>
 
         {plan === null ? (
