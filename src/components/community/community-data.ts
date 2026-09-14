@@ -170,7 +170,10 @@ export async function deleteCommunity(id: string) {
 
 export async function addGoal(
   communityId: string, userId: string,
-  fields: { title: string; unit: string | null; target: number; due_date: string | null; color: string },
+  fields: {
+    title: string; unit: string | null; target: number;
+    start_date: string | null; due_date: string | null; color: string;
+  },
 ): Promise<CommunityGoal> {
   const { data, error } = await supabase
     .from("community_goals")

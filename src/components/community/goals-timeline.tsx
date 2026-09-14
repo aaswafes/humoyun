@@ -118,9 +118,13 @@ export function GoalsTimeline({
   }, [contributions]);
 
   /**
-   * A joint goal has one date, not two — so the bar runs from the day it was
-   * set to the day it is due. That is the honest span: how long the community
-   * has had to do the thing, which is exactly what a timeline is for.
+   * The bar runs from the goal's start date to its deadline.
+   *
+   * A goal with no start date falls back to the day it was set, which is the
+   * only honest answer available and is deliberately a rendering choice rather
+   * than a value written into the row — goals created before the column
+   * existed have no real start, and inventing one in the database would be a
+   * made-up fact that outlives this view.
    */
   const { bars, undated } = React.useMemo(() => {
     const rows: Bar[] = [];
@@ -129,8 +133,9 @@ export function GoalsTimeline({
     for (const goal of goals) {
       if (!goal.due_date) { loose.push(goal); continue; }
 
-      const created = (goal.created_at || "").slice(0, 10) || goal.due_date;
-      const start = created < goal.due_date ? created : goal.due_date;
+      const fallback = (goal.created_at || "").slice(0, 10) || goal.due_date;
+      const chosen = goal.start_date ?? fallback;
+      const start = chosen < goal.due_date ? chosen : goal.due_date;
       const end = goal.due_date;
 
       if (end < range.start || start > range.end) continue;
@@ -258,7 +263,9 @@ export function GoalsTimeline({
                 const overdue = (bar.goal.due_date ?? "") < today && bar.pool < target;
                 const summary = [
                   `${bar.pool} of ${target}${bar.goal.unit ? ` ${bar.goal.unit}` : ""}`,
-                  `due ${formatDate(bar.goal.due_date as string, { weekday: false })}`,
+                  bar.goal.start_date
+                    ? `${formatDate(bar.goal.start_date, { weekday: false })} – ${formatDate(bar.goal.due_date as string, { weekday: false })}`
+                    : `due ${formatDate(bar.goal.due_date as string, { weekday: false })}`,
                   pct(bar.progress),
                 ].join(" · ");
 

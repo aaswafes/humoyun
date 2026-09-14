@@ -74,6 +74,7 @@ create table if not exists public.community_goals (
   description  text,
   unit         text,
   target       numeric not null default 1,
+  start_date   date,
   due_date     date,
   color        text not null default 'blue',
   status       text not null default 'active' check (status in ('active', 'done', 'paused', 'dropped')),
@@ -83,6 +84,14 @@ create table if not exists public.community_goals (
 );
 
 create index if not exists community_goals_community_idx on public.community_goals (community_id);
+
+-- Added after the table shipped, so existing installs need it too. Nullable
+-- and not backfilled: a goal set before this column existed has no honest
+-- start date, and deriving one from created_at here would write a made-up
+-- fact into the database. The timeline falls back to created_at when it draws,
+-- which keeps that a rendering decision.
+alter table public.community_goals
+  add column if not exists start_date date;
 
 create table if not exists public.community_goal_contributions (
   id         uuid primary key default gen_random_uuid(),

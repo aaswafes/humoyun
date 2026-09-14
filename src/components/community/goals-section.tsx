@@ -24,6 +24,15 @@ function poolOf(contributions: Contribution[], goalId: string) {
     .reduce((sum, c) => sum + Number(c.amount), 0);
 }
 
+/** "12 Mar – 30 Sep", "by 30 Sep", "from 12 Mar" — whichever dates exist. */
+function goalRange(goal: CommunityGoal): string {
+  const d = (iso: string) => formatDate(iso, { weekday: false });
+  if (goal.start_date && goal.due_date) return `${d(goal.start_date)} – ${d(goal.due_date)}`;
+  if (goal.due_date) return `by ${d(goal.due_date)}`;
+  if (goal.start_date) return `from ${d(goal.start_date)}`;
+  return "";
+}
+
 function pct(fraction: number): string {
   return `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
 }
@@ -318,7 +327,7 @@ function GoalCard({
 
       <p className="mt-1.5 pl-[18px] text-[11px] text-ink-4 tnum">
         {pool} of {target}{goal.unit ? ` ${goal.unit}` : ""}
-        {goal.due_date ? ` · by ${formatDate(goal.due_date, { weekday: false })}` : ""}
+        {goalRange(goal) ? ` · ${goalRange(goal)}` : ""}
       </p>
 
       {/* Who actually moved it — the one thing a joint goal has that a personal
@@ -362,6 +371,7 @@ function GoalDialog({
   const [title, setTitle] = React.useState(goal?.title ?? "");
   const [target, setTarget] = React.useState(goal ? String(Number(goal.target)) : "30");
   const [unit, setUnit] = React.useState(goal?.unit ?? "");
+  const [start, setStart] = React.useState(goal?.start_date ?? "");
   const [due, setDue] = React.useState(goal?.due_date ?? (frame ? defaultDueFor(frame) : ""));
   const [color, setColor] = React.useState<Tint>(
     () => goal?.color ?? TINTS[Math.floor(Math.random() * TINTS.length)],
@@ -369,7 +379,11 @@ function GoalDialog({
   const [busy, setBusy] = React.useState(false);
 
   const targetNum = Number(target);
-  const valid = title.trim().length > 0 && Number.isFinite(targetNum) && targetNum > 0;
+  // A span that ends before it begins is the one combination the two fields
+  // can make that means nothing, so it is caught here rather than drawn as a
+  // backwards bar.
+  const backwards = Boolean(start && due && start > due);
+  const valid = title.trim().length > 0 && Number.isFinite(targetNum) && targetNum > 0 && !backwards;
 
   async function submit() {
     if (!valid || !userId || busy) return;
@@ -379,6 +393,7 @@ function GoalDialog({
         title: title.trim(),
         unit: unit.trim() || null,
         target: targetNum,
+        start_date: start || null,
         due_date: due || null,
         color,
       };
@@ -422,9 +437,28 @@ function GoalDialog({
           </Field>
         </div>
 
-        <Field label="Deadline" description="This is what files it under a shelf. No date means Someday.">
-          {(props) => <Input {...props} type="date" value={due} onChange={(e) => setDue(e.target.value)} />}
-        </Field>
+        <div className="flex gap-3">
+          <Field label="Starts" description="Optional" className="flex-1">
+            {(props) => (
+              <Input {...props} type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+            )}
+          </Field>
+          <Field
+            label="Deadline"
+            className="flex-1"
+            error={backwards ? "Ends before it starts" : null}
+            description={backwards ? undefined : "No date means Someday"}
+          >
+            {(props) => (
+              <Input {...props} type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+            )}
+          </Field>
+        </div>
+
+        <p className="-mt-1 text-[11.5px] leading-relaxed text-ink-4">
+          The deadline is what files it under a shelf. The start date is where its
+          bar begins on the timeline.
+        </p>
 
         <Field label="Colour">
           {() => <TintPicker value={color} onChange={(t) => t && setColor(t)} />}

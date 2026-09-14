@@ -43,6 +43,7 @@ export interface CommunityGoal {
   description: string | null;
   unit: string | null;
   target: number;
+  start_date: string | null;
   due_date: string | null;
   color: Tint;
   status: "active" | "done" | "paused" | "dropped";
