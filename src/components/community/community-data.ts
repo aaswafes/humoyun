@@ -29,9 +29,30 @@ export function makeInviteCode(): string {
   return out;
 }
 
+/**
+ * Turn whatever Supabase threw into a sentence a person can read.
+ *
+ * A PostgrestError is a plain object, not an `Error`, so an `instanceof` check
+ * misses it and `String(...)` on it yields the literal text "[object Object]".
+ * That is what every failure on this surface showed until the message was read
+ * off the object properly — an error handler that hides the error is worse
+ * than none, because it also hides the bug underneath it.
+ */
 function fail(error: unknown, fallback: string): never {
-  const message = error instanceof Error ? error.message : String(error ?? fallback);
-  throw new Error(message || fallback);
+  throw new Error(messageOf(error) || fallback);
+}
+
+function messageOf(error: unknown): string {
+  if (!error) return "";
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object") {
+    const e = error as { message?: unknown; details?: unknown; hint?: unknown };
+    for (const part of [e.message, e.details, e.hint]) {
+      if (typeof part === "string" && part.trim()) return part;
+    }
+  }
+  return "";
 }
 
 // ---------------------------------------------------------------------------
@@ -96,32 +117,25 @@ export async function fetchRecs(communityId: string) {
 // Writes
 // ---------------------------------------------------------------------------
 
+/**
+ * Creating one goes through a definer function, and has to.
+ *
+ * `communities` is readable by members only, so at the instant the row exists
+ * its own creator cannot see it — PostgREST asks for the new row back, the
+ * SELECT policy is applied to the RETURNING clause, and the whole INSERT rolls
+ * back. Doing both writes server-side fixes the ordering and makes them atomic,
+ * so a community never exists with nobody in it.
+ */
 export async function createCommunity(
-  userId: string,
   fields: { name: string; description?: string | null; color?: string },
 ): Promise<Community> {
-  const { data, error } = await supabase
-    .from("communities")
-    .insert({
-      name: fields.name,
-      description: fields.description ?? null,
-      color: fields.color ?? "blue",
-      invite_code: makeInviteCode(),
-      created_by: userId,
-    })
-    .select().single();
+  const { data, error } = await supabase.rpc("create_community", {
+    p_name: fields.name,
+    p_description: fields.description ?? null,
+    p_color: fields.color ?? "blue",
+    p_invite_code: makeInviteCode(),
+  });
   if (error) fail(error, "Could not create the community");
-
-  // The creator is not a member until this lands, and `communities` is only
-  // readable by members — so a failure here would make the row invisible to
-  // the person who just made it.
-  const { error: mErr } = await supabase
-    .from("community_members")
-    .insert({ community_id: data.id, user_id: userId, role: "owner" });
-  if (mErr) {
-    await supabase.from("communities").delete().eq("id", data.id);
-    fail(mErr, "Could not create the community");
-  }
   return data as Community;
 }
 

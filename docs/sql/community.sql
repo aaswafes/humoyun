@@ -379,6 +379,57 @@ grant execute on function public.community_feed(uuid) to authenticated;
 
 
 -- ---------------------------------------------------------
+-- create_community — the other half of the door
+--
+-- Creating one from the client could not work, and the reason is worth writing
+-- down. `communities` is readable by members only, so at the instant the row is
+-- inserted its own creator cannot see it. PostgREST asks for the new row back,
+-- Postgres applies the SELECT policy to the RETURNING clause, denies it, and
+-- rolls the whole INSERT back. The failure reads as a permissions problem and
+-- is really an ordering one.
+--
+-- Doing both writes here fixes the ordering and makes them atomic as well:
+-- there is no longer a moment where a community exists with nobody in it.
+-- ---------------------------------------------------------
+create or replace function public.create_community(
+  p_name        text,
+  p_description text,
+  p_color       text,
+  p_invite_code text
+)
+returns public.communities
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_row public.communities;
+begin
+  if auth.uid() is null then
+    raise exception 'not signed in';
+  end if;
+
+  if coalesce(btrim(p_name), '') = '' then
+    raise exception 'a community needs a name';
+  end if;
+
+  insert into public.communities (name, description, color, invite_code, created_by)
+  values (btrim(p_name), nullif(btrim(coalesce(p_description, '')), ''),
+          coalesce(p_color, 'blue'), upper(btrim(p_invite_code)), auth.uid())
+  returning * into v_row;
+
+  insert into public.community_members (community_id, user_id, role, share_plan, share_salah, share_shelf)
+  values (v_row.id, auth.uid(), 'owner', false, false, false);
+
+  return v_row;
+end;
+$$;
+
+revoke execute on function public.create_community(text, text, text, text) from public, anon;
+grant execute on function public.create_community(text, text, text, text) to authenticated;
+
+
+-- ---------------------------------------------------------
 -- join_community — the only way in
 --
 -- A code is useless without this: `communities` is readable by members only,

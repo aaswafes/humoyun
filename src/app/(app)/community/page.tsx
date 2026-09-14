@@ -142,7 +142,7 @@ function CreateDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
     if (!valid || !userId || busy) return;
     setBusy(true);
     try {
-      const made = await createCommunity(userId, {
+      const made = await createCommunity({
         name: name.trim(),
         description: description.trim() || null,
         color,
