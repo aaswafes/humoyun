@@ -555,3 +555,18 @@ skeletons is a flicker, not information.
 `null` plan and `[]` plan are different things and the UI must keep saying so:
 null is "not sharing", empty is "shared, nothing planned". Collapsing them
 accuses people of doing nothing.
+
+**`.insert().select()` is a trap wherever the SELECT policy depends on a row you
+have not written yet.** Creating a community from the client could not work:
+`communities` is readable by members only, so at the instant the row exists its
+creator is not yet a member, Postgres applies the SELECT policy to the RETURNING
+clause, denies it, and rolls the whole INSERT back. It reads as a permissions
+bug and is an ordering one. `create_community` does both writes server-side,
+which also makes them atomic. Anything else added here that creates a row plus
+the membership that makes it visible belongs in the same shape.
+
+**Read Supabase errors off the object.** A `PostgrestError` is a plain object,
+not an `Error`. `err instanceof Error` is false and `String(err)` gives the
+literal "[object Object]", which is what this surface showed for every failure
+until `messageOf()` in `community-data.ts` existed. Never surface a raw caught
+value as a toast.
