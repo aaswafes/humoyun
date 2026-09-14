@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   X, Calendar, Clock, Flag, Hash, Palette, Trash2, Play, Plus, Repeat,
   Target, ListTree, Timer as TimerIcon, CheckSquare, Inbox, Shapes,
-  History, Copy, LayoutTemplate, MoreHorizontal, Ban, Link2, ChevronUp,
+  History, Copy, MoreHorizontal, Ban, Link2, ChevronUp,
   ChevronDown, ChevronRight, CornerDownRight, Sparkles, Milestone, CalendarClock,
   Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal, Boxes,
 } from "lucide-react";
@@ -344,51 +344,6 @@ export function TaskInspector() {
     toast({ title: "Now a task" });
   }
 
-  function saveAsTemplate() {
-    const name = current.title.trim() || "Untitled block";
-    insert("templates", {
-      name,
-      description: current.notes,
-      scope: "block",
-      color: current.color ?? "violet",
-      items: [
-        {
-          title: current.title,
-          kind: current.kind,
-          day_offset: 0,
-          start_min: current.start_min,
-          end_min: current.end_min,
-          duration_min: current.duration_min,
-          priority: current.priority,
-          color: current.color,
-          icon: current.icon,
-          tags: current.tags,
-          notes: current.notes,
-          checklist: current.checklist,
-        },
-        ...subtasks.map((s) => ({
-          title: s.title,
-          kind: s.kind,
-          day_offset: 0,
-          start_min: s.start_min,
-          end_min: s.end_min,
-          duration_min: s.duration_min,
-          priority: s.priority,
-          color: s.color,
-          icon: s.icon,
-          tags: s.tags,
-          notes: s.notes,
-          checklist: s.checklist,
-        })),
-      ],
-    });
-    toast({
-      title: "Saved as a template",
-      description: `“${name}” · ${1 + subtasks.length} items`,
-      tone: "success",
-    });
-  }
-
   function duplicateWithSubtasks() {
     const copy = duplicateTask(current.id);
     if (!copy) return;
@@ -549,9 +504,6 @@ export function TaskInspector() {
                 <MenuSeparator />
                 <MenuItem icon={Copy} onClick={() => { duplicateWithSubtasks(); closeMenu(); }}>
                   Duplicate with subtasks
-                </MenuItem>
-                <MenuItem icon={LayoutTemplate} onClick={() => { saveAsTemplate(); closeMenu(); }}>
-                  Make this a template
                 </MenuItem>
                 <MenuSeparator />
                 <MenuLabel>Status</MenuLabel>

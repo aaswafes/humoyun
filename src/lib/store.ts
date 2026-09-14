@@ -23,7 +23,6 @@ import {
   type Review,
   type Tag,
   type Task,
-  type Template,
   type Tint,
 } from "./types";
 import { addDays, todayISO, toISO, startOfWeek, weekday } from "./date";
@@ -220,10 +219,6 @@ interface StoreState extends CollectionState {
   logWatch: (mediaId: string, episode: number) => void;
   logReading: (bookId: string, page: number) => void;
 
-  // ---- templates ----
-  applyTemplate: (templateId: string, date: string) => number;
-  saveDayAsTemplate: (date: string, name: string) => Template | null;
-
   // ---- timer ----
   startTimer: (opts?: { taskId?: string | null; label?: string; mode?: "stopwatch" | "pomodoro"; targetMinutes?: number }) => void;
   pauseTimer: () => void;
@@ -234,7 +229,7 @@ interface StoreState extends CollectionState {
 
 const COLLECTION_KEYS: CollectionKey[] = [
   "tasks", "books", "media", "notes", "noteCategories", "habits", "habitLogs", "goals",
-  "projects", "templates", "prayers", "dayLogs",
+  "projects", "prayers", "dayLogs",
   "focusSessions", "reviews", "tags",
 ];
 
@@ -251,7 +246,7 @@ const COLLECTION_KEYS: CollectionKey[] = [
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
   tasks: true, books: true, media: true, notes: true, noteCategories: true, habits: true,
-  goals: true, projects: true, templates: true, dayLogs: true, reviews: true,
+  goals: true, projects: true, dayLogs: true, reviews: true,
   habitLogs: false, prayers: false, focusSessions: false, tags: false,
 };
 
@@ -280,7 +275,7 @@ const UPSERT_ON: Partial<Record<CollectionKey, string>> = {
  */
 export const TRASHABLE = new Set<CollectionKey>([
   "tasks", "notes", "books", "media", "goals",
-  "projects", "habits", "templates", "noteCategories",
+  "projects", "habits", "noteCategories",
 ]);
 
 
@@ -404,8 +399,6 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         icon: null, start_date: null, due_date: null, goal_id: null, order_index: 0,
         cover_url: null, deleted_at: null,
       };
-    case "templates":
-      return { ...base, name: "New template", description: null, icon: "layout-template", color: "violet", scope: "day", items: [], use_count: 0, order_index: 0, deleted_at: null };
     case "prayers":
       return { id: base.id, user_id: userId, date: todayISO(), name: "fajr", status: "none", logged_at: nowIso() };
     case "dayLogs":
@@ -457,7 +450,7 @@ function restoreTimer(): TimerState {
 // Undo
 //
 // Every mutation records how to reverse itself. Actions that touch many rows —
-// scheduling a book, applying a template, clearing a plan — wrap themselves in
+// scheduling a book, clearing a plan — wrap themselves in
 // a batch so one ⌘Z takes back the whole thing rather than one task of twenty.
 //
 // Undoing replays inverses through the same insert/patch/remove the UI uses, so
@@ -481,7 +474,7 @@ const SINGULAR: Partial<Record<CollectionKey, string>> = {
   tasks: "task", books: "book", media: "title", notes: "note", habits: "habit",
   noteCategories: "category",
   habitLogs: "habit log", goals: "goal", projects: "project",
-  templates: "template", prayers: "prayer", dayLogs: "day",
+  prayers: "prayer", dayLogs: "day",
   focusSessions: "session", reviews: "review", tags: "tag",
 };
 
@@ -1265,54 +1258,6 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   // -------------------------------------------------------
-  // Templates
-  // -------------------------------------------------------
-  applyTemplate(templateId, date) {
-    const template = get().templates.find((t) => t.id === templateId);
-    if (!template) return 0;
-    return get().batchUndo(`Apply ${template.name}`, () => {
-    let count = 0;
-    template.items.forEach((item, i) => {
-      const target = addDays(date, item.day_offset ?? 0);
-      get().addTask({
-        title: item.title,
-        kind: item.kind ?? "task",
-        date: target,
-        start_min: item.start_min ?? null,
-        end_min: item.end_min ?? null,
-        all_day: item.start_min == null,
-        duration_min: item.duration_min ?? null,
-        priority: item.priority ?? 0,
-        color: item.color ?? template.color,
-        icon: item.icon ?? null,
-        tags: item.tags ?? [],
-        notes: item.notes ?? null,
-        checklist: item.checklist ?? [],
-        template_id: template.id,
-        order_index: i,
-      });
-      count++;
-    });
-    get().patch("templates", templateId, { use_count: template.use_count + 1 });
-    return count;
-    });
-  },
-
-  saveDayAsTemplate(date, name) {
-    const items = get().tasks
-      .filter((t) => t.date === date && !t.parent_id)
-      .sort((a, b) => a.order_index - b.order_index)
-      .map((t) => ({
-        title: t.title, kind: t.kind, day_offset: 0,
-        start_min: t.start_min, end_min: t.end_min, duration_min: t.duration_min,
-        priority: t.priority, color: t.color, icon: t.icon, tags: t.tags,
-        notes: t.notes, checklist: t.checklist,
-      }));
-    if (!items.length) return null;
-    return get().insert("templates", { name, scope: "day", items });
-  },
-
-  // -------------------------------------------------------
   // Focus timer
   // -------------------------------------------------------
   startTimer(opts = {}) {
@@ -1468,5 +1413,5 @@ export function focusMinutesOn(sessions: FocusSession[], date: string): number {
 
 export type {
   Task, Book, Media, Note, Habit, HabitLog, Goal,
-  Template, Prayer, DayLog, FocusSession, Review, Tag, Profile, Tint,
+  Prayer, DayLog, FocusSession, Review, Tag, Profile, Tint,
 };

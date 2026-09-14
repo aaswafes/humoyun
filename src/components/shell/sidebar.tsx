@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon, Target,
-  Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings, Search, Clapperboard,
-  MonitorPlay, NotebookPen, Boxes,
+  Timer, BarChart3, ClipboardCheck, Settings, Search, Clapperboard,
+  MonitorPlay, NotebookPen, Boxes, Users,
   Plus, ChevronDown, ChevronRight, LogOut, Monitor, SunMedium, MoonStar, Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -110,11 +110,10 @@ export function Sidebar() {
       ],
     },
     {
-      id: "build",
-      label: t("nav.group.build"),
+      id: "community",
+      label: t("nav.group.community"),
       items: [
-        { href: "/templates", label: t("nav.templates"), icon: LayoutTemplate },
-        { href: "/settings", label: t("nav.settings"), icon: Settings },
+        { href: "/community", label: t("nav.community"), icon: Users },
       ],
     },
   ];

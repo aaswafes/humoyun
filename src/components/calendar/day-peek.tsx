@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import {
-  ArrowUpRight, BookOpen, Check, ChevronsRight, Clock, LayoutTemplate, X,
+  ArrowUpRight, BookOpen, Check, ChevronsRight, Clock, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -15,12 +15,12 @@ import { buildLogIndex, habitScheduledOn, habitStreakOn, isHabitComplete } from 
 import { prayerTimesFor } from "@/lib/prayer";
 import { PRAYER_LABELS, PRAYER_NAMES, type Task } from "@/lib/types";
 import { IconButton, Progress, SectionLabel } from "@/components/ui/primitives";
-import { MenuItem, Popover, useMounted } from "@/components/ui/overlays";
+import { useMounted } from "@/components/ui/overlays";
 import { MiniEmpty } from "@/components/ui/form";
 import { TaskList } from "@/components/tasks/task-list";
 import { PRAYER_STATE, StateMark } from "@/components/salah/prayer-state";
 import { Fold, useStickyFlag } from "./view-prefs";
-import { applyTemplateOnDay, isTimed, spanOf } from "./calendar-utils";
+import { isTimed, spanOf } from "./calendar-utils";
 
 const WIDTH = 344;
 
@@ -347,7 +347,6 @@ function ReadingBlocks({ tasks }: { tasks: Task[] }) {
 // =========================================================
 export function DayPeek({ date, onClose }: { date: string; onClose: () => void }) {
   const tasks = useStore((s) => s.tasks);
-  const templates = useStore((s) => s.templates);
   const hour12 = useStore((s) => s.hour12);
   const setCalendarView = useStore((s) => s.setCalendarView);
   const setSelectedDate = useStore((s) => s.setSelectedDate);
@@ -572,7 +571,7 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
 
           {!dayTasks.length && (
             <MiniEmpty className="mt-1">
-              Type above to add the first thing, or apply a template from the bar below.
+              Type above to add the first thing.
             </MiniEmpty>
           )}
 
@@ -598,44 +597,6 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
 
         {/* ---- quick actions ---- */}
         <footer className="flex items-center gap-1 border-t border-line px-2 py-1.5">
-          <Popover
-            align="start"
-            className="w-[236px]"
-            trigger={
-              <button
-                type="button"
-                className={cn(
-                  "flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium text-ink-2",
-                  "transition-colors duration-150 hover:bg-hover hover:text-ink active:scale-[0.975]",
-                )}
-              >
-                <LayoutTemplate className="size-3.5" aria-hidden />
-                Template
-              </button>
-            }
-          >
-            {(close) => (
-              templates.length ? (
-                <>
-                  {templates.map((template) => (
-                    <MenuItem
-                      key={template.id}
-                      icon={LayoutTemplate}
-                      onClick={() => { applyTemplateOnDay(template.id, date); close(); }}
-                    >
-                      {template.name}
-                      <span className="ml-1 text-[11px] text-ink-4 tnum">
-                        {template.items.length}
-                      </span>
-                    </MenuItem>
-                  ))}
-                </>
-              ) : (
-                <MiniEmpty>Build a template on the Templates page and it lands here.</MiniEmpty>
-              )
-            )}
-          </Popover>
-
           {unfinished.length > 0 && (
             <button
               type="button"

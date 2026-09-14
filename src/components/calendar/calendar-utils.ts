@@ -2,7 +2,7 @@
 
 import { addDays, formatDate, formatDuration, friendlyDate, weekNumber } from "@/lib/date";
 import { useStore } from "@/lib/store";
-import type { Book, Media, Profile, Task, Template } from "@/lib/types";
+import type { Book, Media, Profile, Task } from "@/lib/types";
 
 // =========================================================
 // Geometry — one hour is 48px everywhere the timeline appears.
@@ -253,13 +253,12 @@ export function layoutTimed(tasks: Task[]): Placed[] {
 export type DragPayload =
   | { type: "book"; id: string }
   | { type: "media"; id: string }
-  | { type: "template"; id: string }
   | { type: "task"; taskId: string };
 
 export function readPayload(data: Record<string, unknown> | null | undefined): DragPayload | null {
   if (!data) return null;
   const { type } = data;
-  if (type === "book" || type === "media" || type === "template") {
+  if (type === "book" || type === "media") {
     return typeof data.id === "string" ? { type, id: data.id } : null;
   }
   if (type === "task") {
@@ -352,30 +351,6 @@ export function mediaPreview(item: Media, startDate: string): DropPreview {
     headline: `${perDay} ep/day → ${days} ${days === 1 ? "day" : "days"}`,
     detail: `finishes ${finishes}`,
     line: `${perDay} ep/day → ${days} ${days === 1 ? "day" : "days"}, finishes ${finishes}`,
-  };
-}
-
-export function templatePreview(template: Template, date: string): DropPreview {
-  const count = template.items.length;
-  if (!count) {
-    return {
-      dates: [date],
-      headline: "No items yet",
-      detail: "Add items on the Templates page",
-      line: "Empty — add items on the Templates page",
-    };
-  }
-  const offsets = template.items.map((i) => i.day_offset ?? 0);
-  const min = Math.min(0, ...offsets);
-  const max = Math.max(0, ...offsets);
-  const span = max - min + 1;
-  const headline = `${count} ${count === 1 ? "item" : "items"}${span > 1 ? ` → ${span} days` : ""}`;
-  const detail = `from ${formatDate(date, { weekday: false })}`;
-  return {
-    dates: Array.from({ length: Math.min(span, PREVIEW_CAP) }, (_, i) => addDays(date, min + i)),
-    headline,
-    detail,
-    line: `${headline}, ${detail}`,
   };
 }
 
@@ -513,39 +488,6 @@ export function scheduleMediaOnDay(mediaId: string, date: string) {
         (replaced ? `, replacing ${replaced} older ${replaced === 1 ? "block" : "blocks"}.` : "."),
     tone: "success",
     action: { label: "Undo", run: undo },
-  });
-}
-
-export function applyTemplateOnDay(templateId: string, date: string) {
-  const store = useStore.getState();
-  const template = store.templates.find((t) => t.id === templateId);
-  if (!template) return;
-
-  // applyTemplate returns a count, not ids — diff the collection to know what to undo.
-  const before = new Set(store.tasks.map((t) => t.id));
-  const count = store.applyTemplate(templateId, date);
-  if (!count) {
-    store.toast({
-      title: `${template.name} is empty`,
-      description: "Add items to it before applying it to a day.",
-    });
-    return;
-  }
-  const added = useStore.getState().tasks.filter((t) => !before.has(t.id)).map((t) => t.id);
-  const uses = template.use_count;
-
-  store.toast({
-    title: `${template.name} applied`,
-    description: `${count} ${count === 1 ? "task" : "tasks"} added from ${formatDate(date)}.`,
-    tone: "success",
-    action: {
-      label: "Undo",
-      run: () => {
-        const s = useStore.getState();
-        added.forEach((id) => s.remove("tasks", id));
-        s.patch("templates", templateId, { use_count: uses });
-      },
-    },
   });
 }
 

@@ -30,7 +30,6 @@ const LABELS: Record<CollectionKey, string> = {
   habitLogs: "Habit logs",
   goals: "Goals",
   projects: "Projects",
-  templates: "Templates",
   prayers: "Prayers",
   dayLogs: "Day logs",
   focusSessions: "Focus sessions",
@@ -88,7 +87,6 @@ const VALIDATORS: Record<CollectionKey, (r: AnyRow) => string | null> = {
       : !oneOf(r.status, ["idea", "active", "paused", "done", "dropped"]) ? "unknown status"
         : !dateish(r.due_date) ? "due_date is not yyyy-mm-dd"
           : null,
-  templates: (r) => (!str(r.name) ? "no name" : r.items != null && !Array.isArray(r.items) ? "items is not a list" : null),
   prayers: (r) =>
     !ISO_DATE.test(String(r.date)) ? "date is not yyyy-mm-dd"
       : !oneOf(r.name, PRAYER_NAMES) ? "unknown prayer"
@@ -475,7 +473,7 @@ export function DataSection() {
           }
         >
           Ninety-one days of a believable life — tasks, four books on reading plans, six habits with two
-          months of history, prayers, focus sessions, goals, notes and a set of templates. It is
+          months of history, prayers, focus sessions, goals and notes. It is
           real data: edit it, or delete all of it in one click.
         </Callout>
       )}
@@ -615,7 +613,7 @@ export function DataSection() {
       >
         <Row
           label="Delete all my data"
-          hint="Removes every task, book, habit, prayer, goal, node and template. Your sign-in and preferences stay. There is no undo — export first."
+          hint="Removes every task, book, habit, prayer, goal and node. Your sign-in and preferences stay. There is no undo — export first."
         >
           <Button size="sm" variant="danger" disabled={total === 0} onClick={() => setWipeOpen(true)}>
             <Trash2 className="size-3.5" />

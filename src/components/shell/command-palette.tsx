@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon,
-  Target, Timer, BarChart3, ClipboardCheck, LayoutTemplate, Settings,
+  Target, Timer, BarChart3, ClipboardCheck, Settings, Users,
   Plus, CornerDownLeft, CheckSquare, Circle, ArrowRight, Play, SunMedium, MoonStar, Clapperboard,
   MonitorPlay, NotebookPen, Boxes, FileText,
 } from "lucide-react";
@@ -35,7 +35,6 @@ export function CommandPalette() {
   const habits = useStore((s) => s.habits);
   const goals = useStore((s) => s.goals);
   const projects = useStore((s) => s.projects);
-  const templates = useStore((s) => s.templates);
   const notes = useStore((s) => s.notes);
   const media = useStore((s) => s.media);
   const toggleTask = useStore((s) => s.toggleTask);
@@ -43,8 +42,6 @@ export function CommandPalette() {
   const setSelectedDate = useStore((s) => s.setSelectedDate);
   const setTheme = useStore((s) => s.setTheme);
   const startTimer = useStore((s) => s.startTimer);
-  const applyTemplate = useStore((s) => s.applyTemplate);
-  const toast = useStore((s) => s.toast);
 
   const [query, setQuery] = React.useState("");
   const [cursor, setCursor] = React.useState(0);
@@ -74,7 +71,7 @@ export function CommandPalette() {
       { id: "n-focus", label: "Focus", group: "Go to", icon: Timer, run: () => go("/focus") },
       { id: "n-stats", label: "Stats", group: "Go to", icon: BarChart3, run: () => go("/stats") },
       { id: "n-review", label: "Weekly Review", group: "Go to", icon: ClipboardCheck, run: () => go("/review") },
-      { id: "n-templates", label: "Templates", group: "Go to", icon: LayoutTemplate, run: () => go("/templates") },
+      { id: "n-community", label: "Community", group: "Go to", icon: Users, run: () => go("/community") },
       { id: "n-settings", label: "Settings", group: "Go to", icon: Settings, run: () => go("/settings") },
     ];
 
@@ -138,19 +135,6 @@ export function CommandPalette() {
       run: () => go("/projects"),
     }));
 
-    const templateResults: Command[] = templates.map((t) => ({
-      id: `tp-${t.id}`,
-      label: `Apply “${t.name}” to today`,
-      hint: `${t.items.length} items`,
-      group: "Templates",
-      icon: LayoutTemplate,
-      run: () => {
-        const n = applyTemplate(t.id, todayISO());
-        toast({ title: `Applied ${t.name}`, description: `${n} items added to today.`, tone: "success" });
-        close();
-      },
-    }));
-
     // Notes are the one place where the words worth finding are in the body
     // rather than the title, so the body rides along as keywords. A locked
     // note contributes nothing: its body is ciphertext, and indexing it would
@@ -184,9 +168,8 @@ export function CommandPalette() {
     return [
       ...actions, ...nav, ...taskResults, ...bookResults, ...noteResults,
       ...mediaResults, ...habitResults, ...goalResults, ...projectResults,
-      ...templateResults,
     ];
-  }, [tasks, books, notes, media, habits, goals, projects, templates, go, close, openInspector, setSelectedDate, setTheme, startTimer, applyTemplate, toast]);
+  }, [tasks, books, notes, media, habits, goals, projects, go, close, openInspector, setSelectedDate, setTheme, startTimer]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();

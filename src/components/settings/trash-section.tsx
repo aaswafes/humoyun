@@ -26,7 +26,6 @@ const TYPE_LABEL: Record<string, string> = {
   goals: "Goal",
   projects: "Project",
   habits: "Habit",
-  templates: "Template",
   noteCategories: "Note category",
 };
 

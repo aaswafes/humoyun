@@ -86,6 +86,11 @@ export interface Task {
   habit_id: string | null;
   goal_id: string | null;
   project_id: string | null;
+  /**
+   * Dead since Templates was removed, and kept deliberately: the column still
+   * exists on rows written before then, and dropping a column to tidy a type
+   * would delete history nobody asked to lose. Nothing reads it.
+   */
   template_id: string | null;
   page_from: number | null;
   page_to: number | null;
@@ -404,37 +409,6 @@ export interface Project {
   updated_at: string;
 }
 
-export interface TemplateItem {
-  title: string;
-  kind?: TaskKind;
-  day_offset?: number;      // 0 = the day it is applied to
-  start_min?: number | null;
-  end_min?: number | null;
-  duration_min?: number | null;
-  priority?: number;
-  color?: Tint | null;
-  icon?: string | null;
-  tags?: string[];
-  notes?: string | null;
-  checklist?: ChecklistItem[];
-}
-
-export interface Template {
-  id: string;
-  user_id: string;
-  name: string;
-  description: string | null;
-  icon: string;
-  color: Tint;
-  scope: "day" | "week" | "block";
-  items: TemplateItem[];
-  use_count: number;
-  order_index: number;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Prayer {
   id: string;
   user_id: string;
@@ -512,7 +486,6 @@ export interface Collections {
   habitLogs: HabitLog;
   goals: Goal;
   projects: Project;
-  templates: Template;
   prayers: Prayer;
   dayLogs: DayLog;
   focusSessions: FocusSession;
@@ -532,7 +505,6 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   habitLogs: "habit_logs",
   goals: "goals",
   projects: "projects",
-  templates: "templates",
   prayers: "prayers",
   dayLogs: "day_logs",
   focusSessions: "focus_sessions",

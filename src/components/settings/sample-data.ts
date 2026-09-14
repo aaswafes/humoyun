@@ -23,7 +23,6 @@ import {
   type Task,
   type TaskKind,
   type TaskStatus,
-  type TemplateItem,
   type Tint,
 } from "@/lib/types";
 
@@ -332,49 +331,6 @@ const HABITS: HabitSeed[] = [
 
 
 // ---------------------------------------------------------
-// Templates
-// ---------------------------------------------------------
-const MORNING: TemplateItem[] = [
-  { title: "Fajr, then Qur'an", kind: "block", start_min: H(5, 20), end_min: H(6), color: "teal", tags: ["ritual", "deen"] },
-  { title: "Walk, no phone", kind: "task", start_min: H(7), end_min: H(7, 30), color: "emerald", tags: ["health"] },
-  { title: "Deep work — hardest thing first", kind: "block", start_min: H(8), end_min: H(10), priority: 3, color: "blue", tags: ["deep"] },
-  { title: "Tea, stand up, look out a window", kind: "task", start_min: H(10), end_min: H(10, 15) },
-  { title: "Deep work — second block", kind: "block", start_min: H(10, 15), end_min: H(12), priority: 2, color: "blue", tags: ["deep"] },
-];
-
-const RESET: TemplateItem[] = [
-  { title: "Inbox to zero", kind: "task", duration_min: 20, color: "violet", tags: ["admin"] },
-  { title: "Jumu'ah", kind: "event", start_min: H(13), end_min: H(14), color: "teal", tags: ["deen"] },
-  { title: "Read the week back", kind: "task", start_min: H(16), end_min: H(16, 30), color: "amber", tags: ["review"] },
-  { title: "Weekly review", kind: "block", start_min: H(16, 30), end_min: H(17, 30), priority: 2, color: "violet", tags: ["review"] },
-  { title: "Plan Monday", kind: "task", start_min: H(17, 30), end_min: H(18) },
-  { title: "Call family", kind: "task", start_min: H(20), end_min: H(20, 30), color: "pink", tags: ["family"] },
-];
-
-const TRAVEL: TemplateItem[] = [
-  { title: "Pack — list on the fridge", kind: "task", duration_min: 30, color: "orange", tags: ["travel"], checklist: [] },
-  { title: "Leave for the airport", kind: "event", start_min: H(5), end_min: H(6), color: "orange", priority: 3, tags: ["travel"] },
-  { title: "Flight", kind: "event", start_min: H(7), end_min: H(11), color: "orange", tags: ["travel"] },
-  { title: "Offline work — no wifi, no excuses", kind: "block", start_min: H(7, 30), end_min: H(10), color: "blue", tags: ["deep"] },
-  { title: "Check in, then walk the neighbourhood", kind: "task", start_min: H(13), end_min: H(14, 30), color: "brown" },
-  { title: "Call home", kind: "task", start_min: H(21), end_min: H(21, 20), color: "pink", tags: ["family"] },
-];
-
-const RECOVERY: TemplateItem[] = [
-  { title: "Sleep in — no alarm", kind: "task", color: "slate" },
-  { title: "Long walk", kind: "task", start_min: H(10), end_min: H(11, 30), color: "emerald", tags: ["health"] },
-  { title: "Cook properly", kind: "task", start_min: H(13), end_min: H(14, 30), color: "brown" },
-  { title: "Read on the balcony", kind: "task", start_min: H(16), end_min: H(17, 30), color: "amber", tags: ["reading"] },
-  { title: "No screens after Maghrib", kind: "block", start_min: H(18, 30), end_min: H(22), color: "slate", tags: ["ritual"] },
-];
-
-const STUDY_BLOCK: TemplateItem[] = [
-  { title: "Arabic — thirty words", kind: "task", start_min: H(20), end_min: H(20, 30), color: "teal", tags: ["study"] },
-  { title: "One paper, properly", kind: "block", start_min: H(20, 30), end_min: H(21, 30), color: "violet", tags: ["study"] },
-  { title: "Write down what I did not understand", kind: "task", start_min: H(21, 30), end_min: H(21, 45), color: "violet", tags: ["study"] },
-];
-
-// ---------------------------------------------------------
 // Tags
 // ---------------------------------------------------------
 const TAGS: { name: string; color: Tint }[] = [
@@ -601,7 +557,6 @@ export function loadSampleData(): number {
   seedFocus(ctx);
   seedDayLogs(ctx);
   seedReviews(ctx);
-  seedTemplates(ctx);
 
   s.updateProfile({
     prefs: { ...(s.profile?.prefs ?? {}), [SEED_PREF_KEY]: SAMPLE_VERSION },
@@ -1506,17 +1461,3 @@ function seedReviews(ctx: Ctx) {
   ctx.rows++;
 }
 
-function seedTemplates(ctx: Ctx) {
-  const s = store();
-  const templates = [
-    { name: "Deep work morning", description: "The block that actually ships things.", icon: "sunrise", color: "blue" as Tint, scope: "day" as const, items: MORNING, use_count: 9 },
-    { name: "Friday reset", description: "Close the week properly so Monday starts clean.", icon: "layout-template", color: "violet" as Tint, scope: "day" as const, items: RESET, use_count: 14 },
-    { name: "Travel day", description: "Airports, offline work, and one call home.", icon: "plane", color: "orange" as Tint, scope: "day" as const, items: TRAVEL, use_count: 3 },
-    { name: "Recovery Sunday", description: "Deliberately empty. Walk, cook, read, no screens.", icon: "sun", color: "emerald" as Tint, scope: "day" as const, items: RECOVERY, use_count: 6 },
-    { name: "Study evening", description: "Ninety minutes, three steps, no phone.", icon: "graduation-cap", color: "violet" as Tint, scope: "block" as const, items: STUDY_BLOCK, use_count: 11 },
-  ];
-  templates.forEach((t, i) => {
-    s.insert("templates", { ...t, order_index: i });
-    ctx.rows++;
-  });
-}

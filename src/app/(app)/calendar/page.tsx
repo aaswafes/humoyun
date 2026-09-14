@@ -34,8 +34,8 @@ import { RightRail } from "@/components/calendar/right-rail";
 import { ChipBody, DENSITIES, type ChipDensity } from "@/components/calendar/task-chip";
 import { useStickyChoice, useStickyFlag } from "@/components/calendar/view-prefs";
 import {
-  applyTemplateOnDay, bookPreview, mediaPreview, readDropDate, readPayload,
-  scheduleBookOnDay, scheduleMediaOnDay, templatePreview,
+  bookPreview, mediaPreview, readDropDate, readPayload,
+  scheduleBookOnDay, scheduleMediaOnDay,
   type DragPayload, type DropPreview,
 } from "@/components/calendar/calendar-utils";
 
@@ -91,7 +91,6 @@ export default function CalendarPage() {
   const tasks = useStore((s) => s.tasks);
   const books = useStore((s) => s.books);
   const media = useStore((s) => s.media);
-  const templates = useStore((s) => s.templates);
   const moveTask = useStore((s) => s.moveTask);
   const inspectorOpen = useStore((s) => s.inspectorTaskId !== null);
 
@@ -114,7 +113,7 @@ export default function CalendarPage() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    // Without this, every drag on this surface — task chips, books and templates
+    // Without this, every drag on this surface — task chips, books and titles
     // from the rail — is mouse-only, and the drag handles still take a tab stop.
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
@@ -234,21 +233,14 @@ export default function CalendarPage() {
       const item = media.find((m) => m.id === active.id);
       return item ? mediaPreview(item, overDate) : null;
     }
-    if (active.type === "template") {
-      const template = templates.find((t) => t.id === active.id);
-      return template ? templatePreview(template, overDate) : null;
-    }
     return null;
-  }, [active, overDate, books, media, templates]);
+  }, [active, overDate, books, media]);
 
   const activeTask = active?.type === "task"
     ? tasks.find((t) => t.id === active.taskId) ?? null
     : null;
   const activeBook = active?.type === "book" ? books.find((b) => b.id === active.id) ?? null : null;
   const activeMedia = active?.type === "media" ? media.find((m) => m.id === active.id) ?? null : null;
-  const activeTemplate = active?.type === "template"
-    ? templates.find((t) => t.id === active.id) ?? null
-    : null;
 
   function onDragStart(event: DragStartEvent) {
     setActive(readPayload(event.active.data.current));
@@ -268,7 +260,6 @@ export default function CalendarPage() {
 
     if (payload.type === "book") { scheduleBookOnDay(payload.id, date); return; }
     if (payload.type === "media") { scheduleMediaOnDay(payload.id, date); return; }
-    if (payload.type === "template") { applyTemplateOnDay(payload.id, date); return; }
 
     const task = tasks.find((t) => t.id === payload.taskId);
     if (task && task.date !== date) moveTask(payload.taskId, date);
@@ -336,7 +327,7 @@ export default function CalendarPage() {
                   checked={railOpen}
                   onClick={() => setRailOpen(!railOpen)}
                 >
-                  Books &amp; templates
+                  Books &amp; shelves
                 </MenuItem>
               )}
 
@@ -433,10 +424,10 @@ export default function CalendarPage() {
                 <ChipBody task={activeTask} hour12={hour12} floating />
               </div>
             )}
-            {(activeBook || activeMedia || activeTemplate) && (
+            {(activeBook || activeMedia) && (
               <div className="w-[248px] cursor-grabbing rounded-lg border border-line bg-raised p-2.5 shadow-lg">
                 <p className="truncate text-[12.5px] font-medium text-ink">
-                  {activeBook?.title ?? activeMedia?.title ?? activeTemplate?.name}
+                  {activeBook?.title ?? activeMedia?.title}
                 </p>
                 {preview ? (
                   <>

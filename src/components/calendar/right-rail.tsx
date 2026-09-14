@@ -4,25 +4,25 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
 import {
-  BookOpen, CalendarPlus, Clapperboard, Clock, Flag, Inbox, LayoutTemplate, Maximize2,
+  BookOpen, CalendarPlus, Clapperboard, Clock, Flag, Inbox, Maximize2,
   PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
-  addDays, dayName, formatDate, formatDuration, formatTime, friendlyDate,
+  addDays, formatDate, formatDuration, formatTime, friendlyDate,
 } from "@/lib/date";
 import { inboxTasks, useStore } from "@/lib/store";
-import { MEDIA_KIND_LABELS, type Book, type Media, type Task, type Template } from "@/lib/types";
+import { MEDIA_KIND_LABELS, type Book, type Media, type Task } from "@/lib/types";
 import { Button, IconButton, Progress } from "@/components/ui/primitives";
 import { MiniEmpty } from "@/components/ui/form";
 import { openQuickAdd } from "@/components/shell/quick-add";
 import { MediaCover } from "@/components/watch/media-cover";
 import { Fold, useStickyFlag } from "./view-prefs";
 import {
-  applyTemplateOnDay, mediaPreview, moveTaskToDay, scheduleBookOnDay, scheduleMediaOnDay,
+  mediaPreview, moveTaskToDay, scheduleBookOnDay, scheduleMediaOnDay,
 } from "./calendar-utils";
 
-type Section = "books" | "watch" | "templates" | "unscheduled";
+type Section = "books" | "watch" | "unscheduled";
 
 const STATUS_LABEL: Record<string, string> = {
   reading: "Reading",
@@ -33,7 +33,6 @@ const STATUS_LABEL: Record<string, string> = {
 const OPEN_KEY: Record<Section, string> = {
   books: "humoyun.calendar.rail.books",
   watch: "humoyun.calendar.rail.watch",
-  templates: "humoyun.calendar.rail.templates",
   unscheduled: "humoyun.calendar.rail.unscheduled",
 };
 
@@ -325,101 +324,6 @@ function WatchPane({ date }: { date: string }) {
 }
 
 // ---------------------------------------------------------
-// Templates
-// ---------------------------------------------------------
-function TemplateCard({ template, date }: { template: Template; date: string }) {
-  const count = template.items.length;
-  const timed = template.items.filter((i) => i.start_min != null).length;
-  const offsets = template.items.map((i) => i.day_offset ?? 0);
-  const span = count ? Math.max(0, ...offsets) - Math.min(0, ...offsets) + 1 : 0;
-
-  return (
-    <RailCard
-      dragId={`template:${template.id}`}
-      payload={{ type: "template", id: template.id }}
-      actionLabel={`Apply ${template.name} to ${friendlyDate(date)}`}
-      onAction={() => applyTemplateOnDay(template.id, date)}
-      cover={
-        <CoverBlock tint={template.color}>
-          <LayoutTemplate className="size-4 text-[var(--tint-ink)]" />
-        </CoverBlock>
-      }
-      title={template.name}
-      subtitle={template.description}
-      footer={
-        <p className="mt-1 text-[11px] leading-snug text-ink-4 tnum">
-          {count} {count === 1 ? "item" : "items"}
-          {timed > 0 && <><span className="mx-1">·</span>{timed} timed</>}
-          {template.use_count > 0 && <><span className="mx-1">·</span>used {template.use_count}×</>}
-        </p>
-      }
-      preview={
-        count === 0
-          ? "Empty — add items on the Templates page"
-          : `${count} ${count === 1 ? "task" : "tasks"} on ${formatDate(date, { weekday: false })}` +
-            (span > 1 ? ` over ${span} days` : "")
-      }
-    />
-  );
-}
-
-function useSaveDayAsTemplate(date: string) {
-  const saveDayAsTemplate = useStore((s) => s.saveDayAsTemplate);
-  const remove = useStore((s) => s.remove);
-  const toast = useStore((s) => s.toast);
-
-  return React.useCallback(() => {
-    const made = saveDayAsTemplate(date, `${dayName(date)} routine`);
-    if (!made) {
-      toast({
-        title: "That day is empty",
-        description: `Put a few tasks on ${friendlyDate(date)} first, then save it as a template.`,
-      });
-      return;
-    }
-    toast({
-      title: `Saved “${made.name}”`,
-      description: `${made.items.length} items.`,
-      tone: "success",
-      action: { label: "Undo", run: () => remove("templates", made.id) },
-    });
-  }, [date, saveDayAsTemplate, remove, toast]);
-}
-
-function TemplatesPane({ date }: { date: string }) {
-  const templates = useStore((s) => s.templates);
-  const saveToday = useSaveDayAsTemplate(date);
-
-  const sorted = React.useMemo(
-    () => uniqueById(templates).sort((a, b) => a.order_index - b.order_index || b.use_count - a.use_count),
-    [templates],
-  );
-
-  if (!sorted.length) {
-    return (
-      <MiniEmpty action={<Button size="sm" onClick={saveToday}>Save this day</Button>}>
-        A template is a day you can re-apply — a study block, a travel day, a
-        Friday routine.
-      </MiniEmpty>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-0.5 pb-1">
-      {sorted.map((template) => <TemplateCard key={template.id} template={template} date={date} />)}
-      <button
-        type="button"
-        onClick={saveToday}
-        title={`Turn ${friendlyDate(date)} into a reusable template`}
-        className="mt-1 h-7 cursor-pointer rounded-md px-1.5 text-left text-[12px] text-ink-4 transition-colors hover:bg-hover hover:text-ink-2"
-      >
-        + Save this day as a template
-      </button>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------
 // Unscheduled — the inbox, one drag away from a date
 // ---------------------------------------------------------
 function UnscheduledCard({ task, date }: { task: Task; date: string }) {
@@ -506,42 +410,37 @@ export function RightRail({
 }) {
   const books = useStore((s) => s.books);
   const media = useStore((s) => s.media);
-  const templates = useStore((s) => s.templates);
   const tasks = useStore((s) => s.tasks);
 
   const [booksOpen, setBooksOpen] = useStickyFlag(OPEN_KEY.books, true);
   const [watchOpen, setWatchOpen] = useStickyFlag(OPEN_KEY.watch, false);
-  const [templatesOpen, setTemplatesOpen] = useStickyFlag(OPEN_KEY.templates, false);
   const [inboxOpen, setInboxOpen] = useStickyFlag(OPEN_KEY.unscheduled, false);
 
   const counts = React.useMemo(() => ({
     books: uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned")).length,
     watch: uniqueById(media.filter((m) => m.status === "watching" || m.status === "planned")).length,
-    templates: uniqueById(templates).length,
     unscheduled: inboxTasks(tasks).length,
-  }), [books, media, templates, tasks]);
+  }), [books, media, tasks]);
 
   const setSectionOpen: Record<Section, (next: boolean) => void> = {
     books: setBooksOpen,
     watch: setWatchOpen,
-    templates: setTemplatesOpen,
     unscheduled: setInboxOpen,
   };
 
   const EDGE: { key: Section; icon: React.ComponentType<{ className?: string }>; noun: (n: number) => string }[] = [
     { key: "books", icon: BookOpen, noun: (n) => `${n} ${n === 1 ? "book" : "books"} on the shelf` },
     { key: "watch", icon: Clapperboard, noun: (n) => `${n} ${n === 1 ? "title" : "titles"} on the watchlist` },
-    { key: "templates", icon: LayoutTemplate, noun: (n) => `${n} ${n === 1 ? "template" : "templates"} saved` },
     { key: "unscheduled", icon: Inbox, noun: (n) => `${n} ${n === 1 ? "task" : "tasks"} without a date` },
   ];
 
   if (!open) {
     return (
       <aside
-        aria-label="Books, films, templates and unscheduled"
+        aria-label="Books, films and unscheduled"
         className="flex w-11 shrink-0 flex-col items-center gap-1 border-l border-line pl-1 pt-0.5"
       >
-        <IconButton label="Show books, films and templates" size="md" onClick={() => onOpenChange(true)}>
+        <IconButton label="Show books, films and unscheduled" size="md" onClick={() => onOpenChange(true)}>
           <PanelRightOpen />
         </IconButton>
 
@@ -595,15 +494,6 @@ export function RightRail({
           onOpenChange={setWatchOpen}
         >
           <WatchPane date={date} />
-        </Fold>
-
-        <Fold
-          label="Templates"
-          summary={`${counts.templates} saved`}
-          open={templatesOpen}
-          onOpenChange={setTemplatesOpen}
-        >
-          <TemplatesPane date={date} />
         </Fold>
 
         <Fold
