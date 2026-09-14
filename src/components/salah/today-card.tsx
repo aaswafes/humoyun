@@ -5,7 +5,8 @@ import { Check, ChevronDown, MoonStar, Sun, Sunrise } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { dayName, dayNumber, formatTime, monthName } from "@/lib/date";
-import { PRAYER_LABELS, PRAYER_NAMES, type PrayerName, type PrayerStatus } from "@/lib/types";
+import { prayerLabel } from "@/lib/prayer";
+import { PRAYER_NAMES, type PrayerName, type PrayerStatus } from "@/lib/types";
 import { IconButton, Progress } from "@/components/ui/primitives";
 import { HANDLED_STATUSES, PRAYER_STATE, StateMark } from "./prayer-state";
 import { Countdown, WindowCountdown, useWindowUrgent } from "./countdown";
@@ -125,7 +126,7 @@ export function TodayCard({
         {/* The one hero on the surface: how much of the open window is left. */}
         <div className="shrink-0 text-right">
           <p className="text-[11.5px] text-ink-3">
-            {open ? `Left in ${PRAYER_LABELS[open.name]}` : `${PRAYER_LABELS[next.name]} in`}
+            {open ? `Left in ${prayerLabel(open.name, date)}` : `${prayerLabel(next.name, date)} in`}
           </p>
           <p className="display-serif mt-1 text-[44px] leading-none text-ink">
             {open ? <WindowCountdown end={open.window.end} /> : <Countdown at={next.at % 1440} />}
@@ -249,7 +250,7 @@ export function TodayCard({
                 <button
                   type="button"
                   onClick={() => cyclePrayer(date, row.name)}
-                  aria-label={`${PRAYER_LABELS[row.name]} at ${formatTime(row.min, hour12)}, ${state.label}. Activate to cycle the status.`}
+                  aria-label={`${prayerLabel(row.name, date)} at ${formatTime(row.min, hour12)}, ${state.label}. Activate to cycle the status.`}
                   className={cn(
                     "flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left",
                     "transition-[background-color,transform] duration-200 ease-[var(--ease-out-apple)] active:scale-[0.985]",
@@ -260,7 +261,7 @@ export function TodayCard({
 
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
-                      <span className="text-[13.5px] font-medium text-ink">{PRAYER_LABELS[row.name]}</span>
+                      <span className="text-[13.5px] font-medium text-ink">{prayerLabel(row.name, date)}</span>
                       {isNow && (
                         <span className="rounded-full bg-accent-soft px-1.5 text-[10.5px] font-semibold uppercase leading-[15px] tracking-[0.06em] text-accent">
                           Now
@@ -291,7 +292,7 @@ export function TodayCard({
 
                 <IconButton
                   size="md"
-                  label={`${PRAYER_LABELS[row.name]} details`}
+                  label={`${prayerLabel(row.name, date)} details`}
                   aria-expanded={isOpen}
                   aria-controls={panelId}
                   onClick={() => setExpanded(isOpen ? null : row.name)}

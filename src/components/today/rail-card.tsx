@@ -102,11 +102,13 @@ export function RailLink({ href, children }: { href: string; children: React.Rea
 
 /** Row button used by every rail entry whose whole surface is one action. */
 export function RailRow({
-  onClick, ariaLabel, ariaPressed, children, className,
+  onClick, ariaLabel, ariaPressed, title, children, className,
 }: {
   onClick: () => void;
   ariaLabel: string;
   ariaPressed?: boolean;
+  /** Hover text. The row stays readable without it — never hide state here alone. */
+  title?: string;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -114,6 +116,7 @@ export function RailRow({
     <button
       type="button"
       onClick={onClick}
+      title={title}
       aria-label={ariaLabel}
       aria-pressed={ariaPressed}
       className={cn(

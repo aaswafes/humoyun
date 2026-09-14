@@ -1,6 +1,6 @@
 import { Coordinates, CalculationMethod, PrayerTimes, Madhab, SunnahTimes } from "adhan";
-import type { PrayerName } from "./types";
-import { fromISO } from "./date";
+import { PRAYER_LABELS, type PrayerName } from "./types";
+import { fromISO, weekday } from "./date";
 
 export interface PrayerConfig {
   latitude: number;
@@ -124,3 +124,22 @@ export function currentPrayer(times: DayPrayerTimes, minutesNow: number): {
 }
 
 export const PRAYER_TIME_KEYS: PrayerName[] = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+
+/**
+ * Jumu'ah replaces Dhuhr, and only Dhuhr. It is the Friday congregation in
+ * Dhuhr's window — not a sixth prayer, and never a rename of Asr or any other.
+ */
+export function isJumuah(iso: string, name: PrayerName): boolean {
+  return name === "dhuhr" && weekday(iso) === 5;
+}
+
+/**
+ * The name a prayer goes by on one particular day.
+ *
+ * Only for surfaces showing a single dated day. Anything that sums across days
+ * — stats tables, settings, the pattern grid — keeps using PRAYER_LABELS: a
+ * column that is Dhuhr six days in seven is not a Jumu'ah column.
+ */
+export function prayerLabel(name: PrayerName, iso: string): string {
+  return isJumuah(iso, name) ? "Jumu'ah" : PRAYER_LABELS[name];
+}
