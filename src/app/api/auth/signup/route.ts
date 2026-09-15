@@ -80,6 +80,18 @@ export async function POST(request: NextRequest) {
     if (message.includes("already") || message.includes("exists")) {
       return fail("That username is taken. Try another.", 409);
     }
+
+    // A rejected key is a wrong or missing SUPABASE_SERVICE_ROLE_KEY on this
+    // deployment. Supabase phrases that as "Invalid API key", which reads on
+    // the form like the person typed something wrong — they did not, and no
+    // amount of retrying will help. Name it for what it is and log it, so the
+    // next time this happens it is one line in the function logs.
+    if (message.includes("api key") || message.includes("jwt") || message.includes("unauthorized")) {
+      console.error("[signup] service-role key rejected by Supabase:", error.message);
+      return fail("Sign-up is misconfigured on this server. This is not your fault.", 503);
+    }
+
+    console.error("[signup] createUser failed:", error.message);
     return fail(error.message, 500);
   }
 
