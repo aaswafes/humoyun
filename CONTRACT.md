@@ -584,3 +584,43 @@ not an `Error`. `err instanceof Error` is false and `String(err)` gives the
 literal "[object Object]", which is what this surface showed for every failure
 until `messageOf()` in `community-data.ts` existed. Never surface a raw caught
 value as a toast.
+
+---
+
+# Zikr — the fourth tab on Salah
+
+`src/components/salah/zikr-*` owns it. Times used to sit here; it is now folded
+inside Rhythm (`rhythm-view.tsx`), because a month of times, the Hijri date and
+the qibla are reference — looked up a few times a year, in the way every other
+day. Nothing was removed.
+
+**A count lives in `day_logs.data.zikr`,** `{ [zikrId]: number }`, one row per
+day, next to the sunnah ticks already in `data.salah`. There is no `zikr` table
+and there must not be one: the day's record stays in one row, no migration was
+needed, and every lifetime number is a sum over rows the store already holds.
+`zikrCountsOf` / `withZikrCounts` in `zikr-data.ts` are the only readers and
+writers — `withZikrCounts` merges, so it can never drop the salah block sharing
+that column.
+
+**No running total is stored anywhere.** `buildZikrStats` derives all of it. A
+total kept twice can disagree with itself, and correcting yesterday's number
+would leave the stored one wrong forever.
+
+**Taps are buffered.** A tasbih is thirty-three taps in a minute; `useZikrToday`
+accumulates them and lands one patch 700ms after the hand stops, and flushes on
+unmount, on a hidden tab and on the day rolling over. Anything that writes an
+absolute value settles the buffer first — a delta cannot be applied to a row
+that has already moved.
+
+**Preferences are `profile.prefs.zikr`** — set-size overrides and the user's own
+zikr. Per-day data never goes there; it would grow without limit in a jsonb
+column meant for knobs.
+
+**The companion reads the clock, not a list.** `momentFor(times, nowMin)` names
+the moment — after the fard for thirty-five minutes, then morning, evening or
+night — and a prayer just finished always wins over the window it sits inside.
+Every id it names must exist in `ZIKR_LIBRARY`.
+
+**Virtues carry their narration.** Each library entry's one line names where it
+comes from (`Bukhari 6405 · Muslim 2691`) so it can be checked rather than taken
+on trust. Add nothing here without one.

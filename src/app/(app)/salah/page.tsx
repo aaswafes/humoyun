@@ -8,26 +8,22 @@ import { addDays, toISO } from "@/lib/date";
 import { prayerTimesFor } from "@/lib/prayer";
 import { useStore } from "@/lib/store";
 import { HeaderStatus } from "@/components/salah/countdown";
-import { HijriCard } from "@/components/salah/hijri-card";
-import { LocationLine } from "@/components/salah/location-line";
 import { MonthGrid } from "@/components/salah/month-grid";
-import { PatternView } from "@/components/salah/pattern-view";
-import { PrayerInsights } from "@/components/salah/insights";
-import { QiblaCompass } from "@/components/salah/qibla-compass";
 import { QuranTracker } from "@/components/salah/quran-tracker";
-import { TimesCalendar } from "@/components/salah/times-calendar";
+import { RhythmView } from "@/components/salah/rhythm-view";
 import { TodayCard } from "@/components/salah/today-card";
+import { ZikrView } from "@/components/salah/zikr-view";
 import { UpcomingReadings } from "@/components/salah/upcoming-readings";
 import { useSalahPrefs } from "@/components/salah/prefs";
 import { nextPrayer, openWindow, type TimesTriple } from "@/components/salah/windows";
 
-type View = "today" | "rhythm" | "quran" | "times";
+type View = "today" | "rhythm" | "quran" | "zikr";
 
 const VIEWS: { value: View; label: string; title: string }[] = [
   { value: "today", label: "Today", title: "The five, their windows and what follows them" },
-  { value: "rhythm", label: "Rhythm", title: "Jamaah, alone and qadha over a week or a month" },
+  { value: "rhythm", label: "Rhythm", title: "Jamaah, alone and qadha — with the month of times, the Hijri date and the qibla" },
   { value: "quran", label: "Quran", title: "Khatm progress, juz by juz, and the reading plan" },
-  { value: "times", label: "Times", title: "A month of times, the Hijri date and the qibla" },
+  { value: "zikr", label: "Zikr", title: "The counter, what this hour asks for, and a lifetime of counts" },
 ];
 
 const RAIL = "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
@@ -99,31 +95,20 @@ export default function SalahPage() {
             <MonthGrid today={today} />
           </div>
         ) : view === "rhythm" ? (
-          <div className="flex flex-col gap-6">
-            <PatternView today={today} />
-            <PrayerInsights today={today} t={times} />
-          </div>
+          <RhythmView
+            today={today}
+            t={times}
+            nowMin={nowMin}
+            hijriOffset={prefs.hijriOffset}
+            onHijriOffset={(hijriOffset) => setPrefs({ hijriOffset })}
+          />
         ) : view === "quran" ? (
           <div className={RAIL}>
             <QuranTracker today={today} planning={planning} onPlanning={setPlanning} />
             <UpcomingReadings today={today} onPlan={() => setPlanning(true)} />
           </div>
         ) : (
-          <div className={RAIL}>
-            <TimesCalendar today={today} hijriOffset={prefs.hijriOffset} />
-            <div className="flex flex-col gap-6">
-              <HijriCard
-                date={today}
-                afterMaghrib={nowMin >= times.today.maghrib}
-                offset={prefs.hijriOffset}
-                onOffset={(hijriOffset) => setPrefs({ hijriOffset })}
-              />
-              <QiblaCompass />
-              <div className="surface p-4">
-                <LocationLine />
-              </div>
-            </div>
-          </div>
+          <ZikrView today={today} t={times} nowMin={nowMin} />
         )}
       </PageBody>
     </>
