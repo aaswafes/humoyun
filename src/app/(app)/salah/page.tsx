@@ -108,7 +108,7 @@ export default function SalahPage() {
             <UpcomingReadings today={today} onPlan={() => setPlanning(true)} />
           </div>
         ) : (
-          <ZikrView today={today} t={times} nowMin={nowMin} />
+          <ZikrView today={today} />
         )}
       </PageBody>
     </>

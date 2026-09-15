@@ -2,182 +2,153 @@
 
 import * as React from "react";
 import { useStore } from "@/lib/store";
-import { Fold, useFold, useRemembered } from "./fold";
-import { groupNumber, type ZikrDef } from "./zikr-data";
-import { buzz, useZikrCatalog, useZikrPrefs, useZikrToday } from "./zikr-prefs";
+import { Fold, useFold } from "./fold";
+import { ZikrBoard, ZikrToday } from "./zikr-board";
+import { groupNumber, setDeltas, setTotal, type ZikrItem, type ZikrSet } from "./zikr-data";
+import { ZikrManage, type Editing } from "./zikr-manage";
+import { buzz, useZikrLog, useZikrPrefs } from "./zikr-prefs";
+import { ZikrLifetime, ZikrReport } from "./zikr-report";
 import { buildZikrStats } from "./zikr-stats";
-import { momentFor } from "./zikr-moment";
-import { ZikrCounter } from "./zikr-counter";
-import { ZikrCompanion, ZikrLifetime } from "./zikr-companion";
-import { ZikrLibrary } from "./zikr-library";
-import { RecentStrip, ZikrReport } from "./zikr-report";
-import type { TimesTriple } from "./windows";
 
 const RAIL = "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
 
 /**
  * Zikr.
  *
- * The counter is the surface; everything else answers a question the counter
- * raises. What am I meant to be saying — the companion, from the clock. What
- * has this come to — the record, folded but open, because it is half the
- * reason the tab exists. What else is there — the library, folded away.
+ * The counting happens on a tasbih; this keeps the record. One press puts the
+ * whole thirty-three down, a set puts several down at once, and everything
+ * else on the surface answers what that has come to — this week, this month,
+ * this year, and in all.
  */
-export function ZikrView({ today, t, nowMin }: { today: string; t: TimesTriple; nowMin: number }) {
+export function ZikrView({ today }: { today: string }) {
   const dayLogs = useStore((s) => s.dayLogs);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
+  const toast = useStore((s) => s.toast);
 
   const [prefs, setPrefs] = useZikrPrefs();
-  const { all, byId } = useZikrCatalog();
-  const { counts, add, setCount } = useZikrToday(today);
-
-  const ids = React.useMemo(() => all.map((z) => z.id), [all]);
-  const [activeId, setActiveId] = useRemembered("zikr.active", "subhanallah", ids);
-
-  const stats = React.useMemo(() => buildZikrStats(dayLogs, today), [dayLogs, today]);
-  const moment = React.useMemo(() => momentFor(t, nowMin), [t, nowMin]);
+  const { counts, add } = useZikrLog(today);
+  const [editing, setEditing] = React.useState<Editing>({ kind: null });
 
   const [recordOpen, setRecordOpen] = useFold("zikr.record", true);
-  const [libraryOpen, setLibraryOpen] = useFold("zikr.library", false);
+  const [manageOpen, setManageOpen] = useFold("zikr.manage", false);
 
-  const active: ZikrDef = byId[activeId] ?? all[0];
-  const targetOf = React.useCallback(
-    (def: ZikrDef) => prefs.goals[def.id] ?? def.target,
-    [prefs.goals],
-  );
-
-  const targets = React.useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const def of all) map[def.id] = targetOf(def);
-    return map;
-  }, [all, targetOf]);
-
-  const momentDefs = React.useMemo(
-    () => moment.ids.map((id) => byId[id]).filter((d): d is ZikrDef => Boolean(d)),
-    [moment.ids, byId],
-  );
-
-  /** One place to count, so the buzz on a completed set cannot be forgotten. */
-  const count = React.useCallback(
-    (id: string, by: number) => {
-      add(id, by);
-      const def = byId[id];
-      if (!def || by <= 0) return;
-      const target = prefs.goals[id] ?? def.target;
-      const before = counts[id] ?? 0;
-      if (target > 1 && Math.floor((before + by) / target) > Math.floor(before / target)) {
-        buzz([14, 40, 14]);
-      }
-    },
-    [add, byId, counts, prefs.goals],
-  );
-
+  const stats = React.useMemo(() => buildZikrStats(dayLogs, today), [dayLogs, today]);
   const todayTotal = React.useMemo(
     () => Object.values(counts).reduce((sum, n) => sum + n, 0),
     [counts],
   );
 
-  const todayRows = React.useMemo(
-    () => Object.entries(counts)
-      .filter(([, n]) => n > 0)
-      .sort((a, b) => b[1] - a[1])
-      .map(([id, n]) => ({ id, n, def: byId[id] })),
-    [counts, byId],
-  );
+  function pressItem(item: ZikrItem) {
+    add({ [item.id]: item.step });
+    buzz(12);
+  }
+
+  function pressSet(set: ZikrSet) {
+    const deltas = setDeltas(set);
+    if (!Object.keys(deltas).length) {
+      toast({ title: `${set.label} has nothing in it`, description: "Add a line to it in Manage." });
+      return;
+    }
+    add(deltas);
+    buzz([12, 40, 12]);
+  }
 
   return (
     <div className={RAIL}>
       <div className="flex flex-col gap-6">
-        <ZikrCounter
-          def={active}
-          catalog={all}
-          count={counts[active.id] ?? 0}
-          target={targetOf(active)}
-          lifetime={stats.perZikr[active.id] ?? 0}
-          onPick={setActiveId}
-          onAdd={(by) => count(active.id, by)}
-          onSet={(value) => setCount(active.id, value)}
-          onTarget={(value) => setPrefs({ goals: { ...prefs.goals, [active.id]: value } })}
-        />
-
-        <section>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-[13px] text-ink">
-              Today ·{" "}
-              <span className="tnum font-medium">{groupNumber(todayTotal)}</span>{" "}
-              <span className="text-ink-3">counted</span>
+        <section className="surface p-5">
+          <header className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[13.5px] font-medium text-ink">
+              Today{" "}
+              <span className="font-normal text-ink-3">
+                · <span className="tnum">{groupNumber(todayTotal)}</span> recorded
+              </span>
             </p>
-            <p className="text-[11.5px] text-ink-4">last two weeks</p>
+            {prefs.sets.length > 0 && (
+              <p className="text-[11.5px] text-ink-4">
+                a set records{" "}
+                <span className="tnum">{groupNumber(setTotal(prefs.sets[0]))}</span> in one press
+              </p>
+            )}
+          </header>
+
+          <div className="mt-4">
+            <ZikrBoard
+              items={prefs.items}
+              sets={prefs.sets}
+              counts={counts}
+              onPressItem={pressItem}
+              onPressSet={pressSet}
+              onAddZikr={() => { setManageOpen(true); setEditing({ kind: "item", item: null }); }}
+              onAddSet={() => { setManageOpen(true); setEditing({ kind: "set", set: null }); }}
+            />
           </div>
-          <div className="mt-2.5">
-            <RecentStrip perDay={stats.perDay} today={today} />
-          </div>
-          {todayRows.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-1.5">
-              {todayRows.map((row) => (
-                <li
-                  key={row.id}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-full bg-hover px-2.5 text-[11.5px] text-ink-2"
-                >
-                  {row.def?.label ?? row.id}
-                  <span className="tnum text-ink-4">{groupNumber(row.n)}</span>
-                </li>
-              ))}
-            </ul>
+
+          {prefs.items.length > 0 && (
+            <div className="hairline-t mt-5 pt-4">
+              <ZikrToday
+                items={prefs.items}
+                counts={counts}
+                onAdjust={(item, by) => add({ [item.id]: by })}
+              />
+            </div>
           )}
         </section>
 
         <Fold
           id="zikr-record"
-          title="The record"
+          title="Statistics and history"
           summary={
             stats.total > 0
               ? `${groupNumber(stats.total)} in all · ${stats.streak} day${stats.streak === 1 ? "" : "s"} running`
-              : "Nothing counted yet"
+              : "Nothing recorded yet"
           }
           open={recordOpen}
           onOpenChange={setRecordOpen}
         >
-          <ZikrReport stats={stats} today={today} byId={byId} weekStart={weekStart} />
+          <ZikrReport stats={stats} today={today} items={prefs.items} weekStart={weekStart} />
         </Fold>
 
         <Fold
-          id="zikr-library"
-          title="All zikr"
-          summary={`${all.length} to choose from · add your own`}
-          open={libraryOpen}
-          onOpenChange={setLibraryOpen}
+          id="zikr-manage"
+          title="Manage"
+          summary={
+            prefs.items.length === 0
+              ? "Nothing yet — make your first button"
+              : `${prefs.items.length} zikr · ${prefs.sets.length} ${prefs.sets.length === 1 ? "set" : "sets"}`
+          }
+          open={manageOpen}
+          onOpenChange={setManageOpen}
         >
-          <ZikrLibrary
-            catalog={all}
+          <ZikrManage
+            items={prefs.items}
+            sets={prefs.sets}
             lifetime={stats.perZikr}
-            goals={prefs.goals}
-            activeId={active.id}
-            onPick={setActiveId}
-            onTarget={(id, value) => setPrefs({ goals: { ...prefs.goals, [id]: value } })}
-            onAddCustom={(def) => {
-              setPrefs({ custom: [...prefs.custom, def] });
-              setActiveId(def.id);
-            }}
-            onRemoveCustom={(id) => {
-              setPrefs({ custom: prefs.custom.filter((z) => z.id !== id) });
-              if (id === activeId) setActiveId("subhanallah");
-            }}
+            editing={editing}
+            onEditingChange={setEditing}
+            onSaveItem={(item) => setPrefs({
+              items: prefs.items.some((i) => i.id === item.id)
+                ? prefs.items.map((i) => (i.id === item.id ? item : i))
+                : [...prefs.items, item],
+            })}
+            onDeleteItem={(id) => setPrefs({
+              items: prefs.items.filter((i) => i.id !== id),
+              // A set pointing at a deleted zikr would press into nothing, so
+              // the line goes with it. The counts already recorded stay.
+              sets: prefs.sets.map((s) => ({ ...s, entries: s.entries.filter((e) => e.zikrId !== id) })),
+            })}
+            onSaveSet={(set) => setPrefs({
+              sets: prefs.sets.some((s) => s.id === set.id)
+                ? prefs.sets.map((s) => (s.id === set.id ? set : s))
+                : [...prefs.sets, set],
+            })}
+            onDeleteSet={(id) => setPrefs({ sets: prefs.sets.filter((s) => s.id !== id) })}
           />
         </Fold>
       </div>
 
       <div className="flex flex-col gap-6">
-        <ZikrCompanion
-          moment={moment}
-          defs={momentDefs}
-          counts={counts}
-          targets={targets}
-          activeId={active.id}
-          onPick={setActiveId}
-          onAdd={count}
-        />
-        <ZikrLifetime stats={stats} />
+        <ZikrLifetime stats={stats} today={today} />
       </div>
     </div>
   );

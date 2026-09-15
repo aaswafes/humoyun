@@ -591,36 +591,41 @@ value as a toast.
 
 `src/components/salah/zikr-*` owns it. Times used to sit here; it is now folded
 inside Rhythm (`rhythm-view.tsx`), because a month of times, the Hijri date and
-the qibla are reference — looked up a few times a year, in the way every other
-day. Nothing was removed.
+the qibla are reference — looked up a few times a year, and in the way every
+other day. Nothing was removed.
+
+**Nothing is shipped with it.** There is no library of adhkar and there must not
+be one: every button on the board was written by the person using it, and the
+empty state says so. A button carries its own `step`, so **one press records the
+whole thirty-three** — the counting happens on a tasbih, in the hand, and this
+surface only keeps the record. There is no tap counter.
+
+**A set is one press over several zikr.** `setDeltas` turns it into the block to
+add, merging a zikr named twice rather than overwriting it, and the whole block
+is written at once so a set of three is still one patch and one undo step.
 
 **A count lives in `day_logs.data.zikr`,** `{ [zikrId]: number }`, one row per
 day, next to the sunnah ticks already in `data.salah`. There is no `zikr` table
 and there must not be one: the day's record stays in one row, no migration was
 needed, and every lifetime number is a sum over rows the store already holds.
-`zikrCountsOf` / `withZikrCounts` in `zikr-data.ts` are the only readers and
-writers — `withZikrCounts` merges, so it can never drop the salah block sharing
-that column.
+`zikrCountsOf` / `withZikrCounts` are the only readers and writers, and
+`withZikrCounts` merges, so it can never drop the salah block sharing that
+column.
 
 **No running total is stored anywhere.** `buildZikrStats` derives all of it. A
 total kept twice can disagree with itself, and correcting yesterday's number
 would leave the stored one wrong forever.
 
-**Taps are buffered.** A tasbih is thirty-three taps in a minute; `useZikrToday`
-accumulates them and lands one patch 700ms after the hand stops, and flushes on
-unmount, on a hidden tab and on the day rolling over. Anything that writes an
-absolute value settles the buffer first — a delta cannot be applied to a row
-that has already moved.
+**A count outlives the button that made it.** Deleting a zikr removes the button
+and drops it from any set that named it; the history keeps every number already
+recorded and labels it "Deleted zikr". Deleting must never silently subtract
+from a total that was true.
 
-**Preferences are `profile.prefs.zikr`** — set-size overrides and the user's own
-zikr. Per-day data never goes there; it would grow without limit in a jsonb
-column meant for knobs.
+**The buttons are `profile.prefs.zikr`** — `items` and `sets`. Per-day data never
+goes there; it would grow without limit in a jsonb column meant for knobs. The
+reader still accepts `custom` and `target`, the names the first build used.
 
-**The companion reads the clock, not a list.** `momentFor(times, nowMin)` names
-the moment — after the fard for thirty-five minutes, then morning, evening or
-night — and a prayer just finished always wins over the window it sits inside.
-Every id it names must exist in `ZIKR_LIBRARY`.
-
-**Virtues carry their narration.** Each library entry's one line names where it
-comes from (`Bukhari 6405 · Muslim 2691`) so it can be checked rather than taken
-on trust. Add nothing here without one.
+**Periods are one function.** `rangeFor(stats, period, offset, today, weekStart)`
+returns the window *and* the bars that describe it — days for a week or a month,
+months for a year, years for lifetime — so the headline, the breakdown and the
+history can never disagree about which days they counted.
