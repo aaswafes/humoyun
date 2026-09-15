@@ -32,6 +32,7 @@ import {
   clearPause, forgetBook, notesFor, pauseUntil, seriesNames, sessionsFor, setSeries,
   useLibraryPrefs,
 } from "./library-prefs";
+import { recordReading } from "./reading-actions";
 
 type BookStatus = Book["status"];
 
@@ -123,7 +124,6 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
   const toggleTask = useStore((s) => s.toggleTask);
   const scheduleBook = useStore((s) => s.scheduleBook);
   const unscheduleBook = useStore((s) => s.unscheduleBook);
-  const logReading = useStore((s) => s.logReading);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
   const library = useLibraryPrefs();
@@ -453,7 +453,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
                         onClick={() => {
                           // Pausing is a scheduling decision, so it asks for a date.
                           if (s === "paused" && book.status !== "paused") setPausing(true);
-                          else if (s === "finished") logReading(book.id, total);
+                          else if (s === "finished") recordReading(book.id, total);
                           else {
                             if (book.status === "paused") clearPause(book.id);
                             commit("status", s);
@@ -558,7 +558,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
               variant={pageDraft === read ? "secondary" : "primary"}
               disabled={pageDraft === read}
               onClick={() => {
-                logReading(book.id, pageDraft);
+                recordReading(book.id, pageDraft);
                 toast({
                   title: pageDraft >= total ? "Finished — nice." : `Bookmark moved to p.${pageDraft}`,
                   tone: "success",
@@ -571,7 +571,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => { logReading(book.id, total); toast({ title: "Marked as finished", tone: "success" }); }}
+                onClick={() => { recordReading(book.id, total); toast({ title: "Marked as finished", tone: "success" }); }}
               >
                 <Check className="size-3.5" />
                 Finish

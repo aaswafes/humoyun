@@ -15,6 +15,7 @@ import {
   buildWeekdayStats, bucketize, changePct, doneByDate, estimateSamples, focusByTag,
   focusByTask, isFocus, onTime, pagesPerWeek, perfectDays, previousDates, projectBooks,
   rangeDates, rangeLabel, sessionDate, summariseEstimates, tagUsage, trailingAverage,
+  buildGoalStats, buildNoteStats, buildShelfStats, buildWellbeing,
   type RangeKey,
 } from "@/components/stats/derive";
 import { csvFilename, downloadCsv, toCsv, type CsvSection } from "@/components/stats/csv";
@@ -31,6 +32,12 @@ import { ConsistencyHeatmap } from "@/components/stats/consistency-heatmap";
 import { HabitMatrix } from "@/components/stats/habit-matrix";
 import { SalahPanel } from "@/components/stats/salah-panel";
 import { ReadingPanel } from "@/components/stats/reading-panel";
+import { WellbeingPanel } from "@/components/stats/wellbeing-panel";
+import { GoalsPanel } from "@/components/stats/goals-panel";
+import { LibraryPanel } from "@/components/stats/library-panel";
+import { useLibraryPrefs } from "@/components/books/library-prefs";
+import { buildReadingHistory } from "@/components/books/reading-history";
+import { readDaysIndex } from "@/components/books/pace";
 
 /**
  * A ghost series only makes sense when it lines up index for index. Weekly
@@ -55,7 +62,14 @@ export default function StatsPage() {
   const habitLogs = useStore((s) => s.habitLogs);
   const prayers = useStore((s) => s.prayers);
   const books = useStore((s) => s.books);
+  const media = useStore((s) => s.media);
+  const notes = useStore((s) => s.notes);
+  const goals = useStore((s) => s.goals);
+  const projects = useStore((s) => s.projects);
+  const dayLogs = useStore((s) => s.dayLogs);
   const tagRows = useStore((s) => s.tags);
+  // Sittings ride along in the profile's prefs bag rather than in a table.
+  const { sessions: readingSessions } = useLibraryPrefs();
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
   const hour12 = useStore((s) => s.hour12);
   const toast = useStore((s) => s.toast);
@@ -165,8 +179,40 @@ export default function StatsPage() {
     [days, habits, habitLogs, weekStart, today],
   );
   const prayerStats = React.useMemo(() => buildPrayerStats(days, prayers), [days, prayers]);
-  const weeks = React.useMemo(() => pagesPerWeek(days, tasks, weekStart), [days, tasks, weekStart]);
-  const projections = React.useMemo(() => projectBooks(books, tasks, days), [books, tasks, days]);
+  // Reading always reads the whole task list: a tag filter narrowing "pages read"
+  // would quietly answer a different question than the one the panel asks.
+  const readingSrc = React.useMemo(
+    () => ({ sessions: readingSessions, tasks: allTasks, books, dayLogs }),
+    [readingSessions, allTasks, books, dayLogs],
+  );
+  const readingHistory = React.useMemo(
+    () => buildReadingHistory(days, readingSrc),
+    [days, readingSrc],
+  );
+  const readIndex = React.useMemo(
+    () => readDaysIndex(allTasks, readingSessions),
+    [allTasks, readingSessions],
+  );
+  const weeks = React.useMemo(
+    () => pagesPerWeek(readingHistory, weekStart),
+    [readingHistory, weekStart],
+  );
+  const projections = React.useMemo(
+    () => projectBooks(books, readIndex, days),
+    [books, readIndex, days],
+  );
+
+  // ---- wellbeing, goals, shelves, notes ----
+  const wellbeing = React.useMemo(() => buildWellbeing(days, dayLogs), [days, dayLogs]);
+  const goalStats = React.useMemo(
+    () => buildGoalStats(days, goals, projects, allTasks),
+    [days, goals, projects, allTasks],
+  );
+  const shelfStats = React.useMemo(
+    () => buildShelfStats(days, books, media, allTasks),
+    [days, books, media, allTasks],
+  );
+  const noteStats = React.useMemo(() => buildNoteStats(days, notes), [days, notes]);
 
   // ---- insights ----
   const insights = React.useMemo(
@@ -243,11 +289,60 @@ export default function StatsPage() {
         target: "panel-consistency",
         targetLabel: "the consistency heatmap",
       },
+      // The second row exists because each of these leads somewhere that had no
+      // way in from the top of the page at all.
+      {
+        key: "pages",
+        label: "Pages read",
+        value: String(readingHistory.pages + readingHistory.quranPages),
+        hint: readingHistory.daysRead
+          ? `over ${readingHistory.daysRead} reading day${readingHistory.daysRead === 1 ? "" : "s"}`
+          : "nothing logged yet",
+        spark: readingHistory.days.map((d) => d.pages + d.quranPages),
+        target: "panel-reading",
+        targetLabel: "reading",
+      },
+      {
+        key: "books",
+        label: "Books finished",
+        value: String(readingHistory.booksFinished),
+        hint: readingHistory.booksFinished
+          ? readingHistory.books.filter((b) => b.finishedOn).map((b) => b.book.title).join(", ")
+          : "none closed out in this window",
+        target: "panel-reading",
+        targetLabel: "reading",
+      },
+      {
+        key: "mood",
+        label: "Mood",
+        value: wellbeing.mood != null ? fmt(wellbeing.mood, 1) : "—",
+        unit: wellbeing.mood != null ? "of 5" : undefined,
+        hint: wellbeing.loggedDays
+          ? `${wellbeing.loggedDays} day${wellbeing.loggedDays === 1 ? "" : "s"} logged`
+          : "no day rated yet",
+        spark: wellbeing.days.map((d) => d.mood ?? 0),
+        target: "panel-wellbeing",
+        targetLabel: "mood and energy",
+      },
+      {
+        key: "goals",
+        label: "Goals moved",
+        value: String(goalStats.advanced),
+        hint: goalStats.active
+          ? `of ${goalStats.active} active, ${goalStats.untouched} untouched`
+          : "no goals tracked yet",
+        target: "panel-goals",
+        targetLabel: "goals and projects",
+      },
     ];
-  }, [stats, prevStats, totalDone, totalPlanned, focusTotal, sessionCount, scores, estimate, estimatePoints]);
+  }, [
+    stats, prevStats, totalDone, totalPlanned, focusTotal, sessionCount, scores, estimate,
+    estimatePoints, readingHistory, wellbeing, goalStats,
+  ]);
 
   const hasAnything =
-    allTasks.length + allSessions.length + habits.length + prayers.length + books.length > 0;
+    allTasks.length + allSessions.length + habits.length + prayers.length + books.length
+    + media.length + notes.length + goals.length + dayLogs.length > 0;
 
   const previousLabel = `Previous ${days.length} days`;
   const label = rangeLabel(days);
@@ -319,8 +414,34 @@ export default function StatsPage() {
       },
       {
         title: "Reading",
-        columns: ["Week", "Pages"],
-        rows: weeks.map((w) => [w.key, w.pages]),
+        columns: ["Week", "Book pages", "Qur'an pages", "Minutes"],
+        rows: weeks.map((w) => [w.key, w.pages, w.quranPages, Math.round(w.minutes)]),
+      },
+      {
+        title: "Books read",
+        columns: ["Book", "Pages", "Minutes", "Progress %", "Finished"],
+        rows: readingHistory.books.map((b) => [
+          b.book.title, b.pages, Math.round(b.minutes), b.progress, b.finishedOn ?? "",
+        ]),
+      },
+      {
+        title: "Wellbeing",
+        columns: ["Date", "Mood", "Energy", "Focus", "Sleep hours", "Water", "Steps"],
+        rows: wellbeing.days.filter((d) => d.logged).map((d) => [
+          d.date, d.mood ?? "", d.energy ?? "", d.focus ?? "", d.sleep ?? "", d.water, d.steps ?? "",
+        ]),
+      },
+      {
+        title: "Goals",
+        columns: ["Goal", "Tasks closed", "Progress %", "Status"],
+        rows: goalStats.rows.map((r) => [
+          r.goal.title, r.closed, r.pct ?? "", r.goal.status,
+        ]),
+      },
+      {
+        title: "Notes",
+        columns: ["Date", "Notes"],
+        rows: noteStats.byDay.filter((d) => d.count > 0).map((d) => [d.date, d.count]),
       },
     ];
 
@@ -333,6 +454,7 @@ export default function StatsPage() {
   }, [
     label, activeTags, days.length, stats, focusTotal, sessionCount, salahStreak, scores, estimate,
     weekdays, hours, samples, tagDrift, habitSeries, prayerStats, weeks, toast,
+    readingHistory, wellbeing, goalStats, noteStats,
   ]);
 
   const filteredNote = activeTags.length
@@ -446,7 +568,13 @@ export default function StatsPage() {
                 days={days.length}
               />
 
-              <ReadingPanel weeks={weeks} projections={projections} />
+              <ReadingPanel weeks={weeks} projections={projections} history={readingHistory} />
+
+              <WellbeingPanel data={wellbeing} />
+
+              <GoalsPanel data={goalStats} days={days.length} />
+
+              <LibraryPanel shelves={shelfStats} notes={noteStats} days={days.length} />
             </div>
 
             <p className="max-w-[76ch] text-[11.5px] leading-relaxed text-ink-4">

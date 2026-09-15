@@ -17,6 +17,7 @@ import { LibraryToolbar, type StatusFilter } from "@/components/books/library-to
 import { PauseDialog } from "@/components/books/pause-dialog";
 import { ShelfDnd, ShelfGroup, ShelfItem } from "@/components/shelf/shelf-dnd";
 import { finishedInYear } from "@/components/books/metrics";
+import { recordReading } from "@/components/books/reading-actions";
 import { mergeReadDays, readDaysIndex } from "@/components/books/pace";
 import {
   clearPause, orderedQueue, pauseUntil, setLibraryGroup, setLibraryView, useLibraryPrefs,
@@ -188,7 +189,6 @@ export default function BooksPage() {
     dueToday: dueToday.has(row.book.id),
   }), [library.paused, dueToday]);
 
-  const logReading = useStore((s) => s.logReading);
   const unscheduleBook = useStore((s) => s.unscheduleBook);
 
   const canRefile = library.view === "shelf" && REFILABLE.includes(library.group);
@@ -211,7 +211,7 @@ export default function BooksPage() {
       const status = groupKey as Status;
       if (status === "paused") { setPausing(book); return; }
       if (status === "finished") {
-        logReading(book.id, Math.max(1, book.total_pages));
+        recordReading(book.id, Math.max(1, book.total_pages));
         toast({ title: `Finished ${book.title}`, description: "Bookmark moved to the last page.", tone: "success" });
         return;
       }
@@ -228,7 +228,7 @@ export default function BooksPage() {
       title: value ? `Filed under ${value}` : `${facet[0].toUpperCase()}${facet.slice(1)} cleared`,
       description: book.title,
     });
-  }, [books, library.group, logReading, patch, toast]);
+  }, [books, library.group, patch, toast]);
 
   function pauseBook(book: Book, resume: string) {
     const cleared = upcomingBlocks(book.id);

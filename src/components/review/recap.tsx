@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDate, formatDuration } from "@/lib/date";
 import { Button } from "@/components/ui/primitives";
+import { useLibraryPrefs } from "@/components/books/library-prefs";
 import { Fold, Section } from "./section";
 import { Delta, Sparkline } from "./sparkline";
 import { habitTally, formatHours, metricsFor, pct, plural, type MetricSource, type Metrics } from "./metrics";
@@ -67,8 +68,45 @@ const STATS: StatDef[] = [
     label: "Pages read",
     read: (m) => m.pagesRead,
     format: (n) => String(n),
+    detail: (m) => {
+      if (!m.pagesRead) return "nothing logged";
+      const across = m.reading.books.length
+        ? `across ${m.reading.books.length} ${plural(m.reading.books.length, "book")}`
+        : "from reading blocks";
+      // Settled pages are the ones no dated record carried. Saying so is the
+      // difference between a number you can trust and one that merely looks right.
+      return m.pagesSettled
+        ? `${across} · ${m.pagesSettled} carried from a finish`
+        : across;
+    },
+  },
+  {
+    key: "books",
+    label: "Books finished",
+    read: (m) => m.booksFinished,
+    format: (n) => String(n),
+    detail: (m) => {
+      const titles = m.reading.books.filter((b) => b.finishedOn).map((b) => b.book.title);
+      if (!titles.length) return "none closed out";
+      return titles.length <= 2 ? titles.join(", ") : `${titles[0]} and ${titles.length - 1} more`;
+    },
+  },
+  {
+    key: "quran",
+    label: "Qur'an",
+    read: (m) => m.quranPages,
+    format: (n) => String(n),
+    detail: (m) => (m.quranPages ? `pages · ${Math.round(m.quranPages / 20 * 10) / 10} juz` : "no pages logged"),
+  },
+  {
+    key: "reading-time",
+    label: "Reading time",
+    read: (m) => m.readingMinutes,
+    format: formatHours,
     detail: (m) =>
-      m.booksRead ? `across ${m.booksRead} ${plural(m.booksRead, "book")}` : "from reading blocks",
+      m.reading.daysRead
+        ? `on ${m.reading.daysRead} ${plural(m.reading.daysRead, "day")}`
+        : "no sitting timed",
   },
   {
     key: "goals",
@@ -76,6 +114,35 @@ const STATS: StatDef[] = [
     read: (m) => m.goalsAdvanced,
     format: (n) => String(n),
     detail: (m) => (m.goalsActive ? `of ${m.goalsActive} active` : "no active goals"),
+  },
+  {
+    key: "notes",
+    label: "Notes written",
+    read: (m) => m.notesWritten,
+    format: (n) => String(n),
+    detail: (m) => (m.notesWritten ? "captured in this period" : "nothing written down"),
+  },
+  {
+    key: "mood",
+    label: "Mood",
+    read: (m) => m.mood ?? 0,
+    format: (n) => (n ? n.toFixed(1) : "—"),
+    detail: (m) =>
+      m.mood == null
+        ? "no day logged"
+        : `out of 5 · ${m.daysLogged} ${plural(m.daysLogged, "day")} logged`,
+  },
+  {
+    key: "energy",
+    label: "Energy",
+    read: (m) => m.energy ?? 0,
+    format: (n) => (n ? n.toFixed(1) : "—"),
+    detail: (m) =>
+      m.energy == null
+        ? "no day logged"
+        : m.sleepHours != null
+          ? `out of 5 · ${m.sleepHours}h sleep`
+          : "out of 5",
   },
 ];
 
@@ -87,9 +154,13 @@ export function useMetricSource(): MetricSource {
   const focusSessions = useStore((s) => s.focusSessions);
   const goals = useStore((s) => s.goals);
   const books = useStore((s) => s.books);
+  const dayLogs = useStore((s) => s.dayLogs);
+  const notes = useStore((s) => s.notes);
+  // Sittings are not a table — they ride along in the profile's prefs bag.
+  const { sessions } = useLibraryPrefs();
   return React.useMemo(
-    () => ({ tasks, habits, habitLogs, prayers, focusSessions, goals, books }),
-    [tasks, habits, habitLogs, prayers, focusSessions, goals, books],
+    () => ({ tasks, habits, habitLogs, prayers, focusSessions, goals, books, sessions, dayLogs, notes }),
+    [tasks, habits, habitLogs, prayers, focusSessions, goals, books, sessions, dayLogs, notes],
   );
 }
 
@@ -191,7 +262,8 @@ export function Recap({
         tone="inline"
         storageKey="recapMore"
         label="More numbers"
-        summary={rest.map((s) => s.label.toLowerCase()).join(", ")}
+        // Naming all six would run past the row it has to fit on.
+        summary={`${rest.slice(0, 3).map((s) => s.label.toLowerCase()).join(", ")} and ${rest.length - 3} more`}
       >
         <div className={STAT_GRID}>{rest.map(tile)}</div>
       </Fold>

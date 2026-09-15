@@ -11,9 +11,12 @@ import {
 } from "@/lib/habits";
 import { PRAYER_NAMES } from "@/lib/types";
 import type {
-  Book, FocusSession, Goal, Habit, HabitLog, Prayer, PrayerName, PrayerStatus, Task, Tint,
+  FocusSession, Goal, Habit, HabitLog, Prayer, PrayerName, PrayerStatus, Task, Tint,
 } from "@/lib/types";
-import { COMPLETED_PRAYER, isFocusSession, pagesOf, sessionDate, tasksIn } from "./metrics";
+import { COMPLETED_PRAYER, isFocusSession, sessionDate, tasksIn } from "./metrics";
+import {
+  buildReadingHistory, type BookReading, type ReadingSource,
+} from "@/components/books/reading-history";
 
 // ---------------------------------------------------------
 // Goals advanced
@@ -60,43 +63,15 @@ export function goalsUntouched(days: string[], tasks: Task[], goals: Goal[]): Go
 // ---------------------------------------------------------
 // Books progressed
 // ---------------------------------------------------------
-export interface BookEvidence {
-  book: Book;
-  pages: number;
-  sessions: number;
-  /** Where the bookmark stands now, as a percentage of the book. */
-  progress: number;
-  finished: boolean;
-}
+/**
+ * A book's week. Re-exported from the shelf's own reading model rather than
+ * recounted here — the review used to total ticked blocks by hand, which is
+ * exactly how it came to report nought pages for a week that finished two books.
+ */
+export type BookEvidence = BookReading;
 
-export function bookEvidence(days: string[], tasks: Task[], books: Book[]): BookEvidence[] {
-  const inRange = new Set(days);
-  const pagesByBook = new Map<string, { pages: number; sessions: number }>();
-
-  for (const t of tasks) {
-    if (t.status !== "done" || !t.book_id || !t.date || !inRange.has(t.date)) continue;
-    const pages = pagesOf(t);
-    const cur = pagesByBook.get(t.book_id) ?? { pages: 0, sessions: 0 };
-    cur.pages += pages;
-    cur.sessions += 1;
-    pagesByBook.set(t.book_id, cur);
-  }
-
-  const out: BookEvidence[] = [];
-  for (const [bookId, agg] of pagesByBook) {
-    const book = books.find((b) => b.id === bookId);
-    if (!book) continue;
-    out.push({
-      book,
-      pages: agg.pages,
-      sessions: agg.sessions,
-      progress: book.total_pages > 0
-        ? Math.min(100, Math.round((book.current_page / book.total_pages) * 100))
-        : 0,
-      finished: book.status === "finished",
-    });
-  }
-  return out.sort((a, b) => b.pages - a.pages || b.sessions - a.sessions);
+export function bookEvidence(days: string[], src: ReadingSource): BookEvidence[] {
+  return buildReadingHistory(days, src).books;
 }
 
 // ---------------------------------------------------------

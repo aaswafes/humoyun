@@ -3,8 +3,10 @@ import {
   habitScheduledOn, isHabitComplete, weeklyTarget, type HabitCounts,
 } from "@/lib/habits";
 import type {
-  Book, FocusSession, Goal, Habit, HabitLog, Prayer, PrayerStatus, Task,
+  Book, DayLog, FocusSession, Goal, Habit, HabitLog, Note, Prayer, PrayerStatus, Task,
 } from "@/lib/types";
+import type { ReadingSession } from "@/components/books/library-prefs";
+import { buildReadingHistory, EMPTY_HISTORY, type ReadingHistory } from "@/components/books/reading-history";
 
 // =========================================================
 // The recap numbers. Pure functions over the store's collections so the same
@@ -22,6 +24,10 @@ export interface MetricSource {
   focusSessions: FocusSession[];
   goals: Goal[];
   books: Book[];
+  /** Logged sittings. They live in `profile.prefs.books`, not in a table. */
+  sessions: ReadingSession[];
+  dayLogs: DayLog[];
+  notes: Note[];
 }
 
 export interface Metrics {
@@ -37,7 +43,19 @@ export interface Metrics {
   salahDue: number;
   salahJamaah: number;
   pagesRead: number;
-  booksRead: number;
+  /** Books whose last page was read inside the period. */
+  booksFinished: number;
+  readingMinutes: number;
+  /** How much of `pagesRead` no dated record accounted for. */
+  pagesSettled: number;
+  quranPages: number;
+  reading: ReadingHistory;
+  notesWritten: number;
+  /** Averages across the days that were actually logged, null when none were. */
+  mood: number | null;
+  energy: number | null;
+  sleepHours: number | null;
+  daysLogged: number;
   goalsAdvanced: number;
   goalsActive: number;
 }
@@ -48,7 +66,9 @@ export const EMPTY_METRICS: Metrics = {
   focusMinutes: 0, sessionCount: 0,
   habitsHit: 0, habitsDue: 0,
   salahDone: 0, salahDue: 0, salahJamaah: 0,
-  pagesRead: 0, booksRead: 0,
+  pagesRead: 0, booksFinished: 0, readingMinutes: 0, pagesSettled: 0, quranPages: 0,
+  reading: EMPTY_HISTORY,
+  notesWritten: 0, mood: null, energy: null, sleepHours: null, daysLogged: 0,
   goalsAdvanced: 0, goalsActive: 0,
 };
 
@@ -134,7 +154,19 @@ export function metricsFor(days: string[], src: MetricSource, weekStartDay = 1):
   const habits = habitTally(days, src.habits, src.habitLogs, weekStartDay);
 
   const prayers = src.prayers.filter((p) => inRange.has(p.date));
-  const reading = done.filter((t) => pagesOf(t) > 0);
+
+  // Reading is answered by the one model the shelf already uses, so the review,
+  // the stats page and the book's own card can never disagree about a week.
+  const reading = buildReadingHistory(days, {
+    sessions: src.sessions, tasks: src.tasks, books: src.books, dayLogs: src.dayLogs,
+  });
+
+  const logs = src.dayLogs.filter((d) => inRange.has(d.date));
+  const mean = (pick: (d: DayLog) => number | null): number | null => {
+    const values = logs.map(pick).filter((v): v is number => v != null);
+    if (!values.length) return null;
+    return Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) / 10;
+  };
 
   const advanced = new Set<string>();
   done.forEach((t) => { if (t.goal_id) advanced.add(t.goal_id); });
@@ -151,8 +183,20 @@ export function metricsFor(days: string[], src: MetricSource, weekStartDay = 1):
     salahDone: prayers.filter((p) => COMPLETED_PRAYER.has(p.status)).length,
     salahDue: days.length * 5,
     salahJamaah: prayers.filter((p) => p.status === "jamaah").length,
-    pagesRead: reading.reduce((sum, t) => sum + pagesOf(t), 0),
-    booksRead: new Set(reading.map((t) => t.book_id).filter(Boolean)).size,
+    pagesRead: reading.pages,
+    booksFinished: reading.booksFinished,
+    readingMinutes: reading.minutes,
+    pagesSettled: reading.settledPages,
+    quranPages: reading.quranPages,
+    reading,
+    notesWritten: src.notes.filter((n) => {
+      const day = n.date ?? n.created_at.slice(0, 10);
+      return inRange.has(day);
+    }).length,
+    mood: mean((d) => d.mood),
+    energy: mean((d) => d.energy),
+    sleepHours: mean((d) => d.sleep_hours),
+    daysLogged: logs.length,
     goalsAdvanced: advanced.size,
     goalsActive: src.goals.filter((g) => g.status === "active").length,
   };

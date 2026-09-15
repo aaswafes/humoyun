@@ -8,8 +8,11 @@ import {
 } from "@/lib/habits";
 import { PRAYER_NAMES } from "@/lib/types";
 import type {
-  Book, FocusSession, Habit, HabitLog, Prayer, PrayerName, Task, Tint,
+  Book, DayLog, FocusSession, Goal, Habit, HabitLog, Media, Note, Prayer, PrayerName,
+  Project, Task, Tint,
 } from "@/lib/types";
+import { PACE_WINDOW, paceStats, type ReadDay } from "@/components/books/pace";
+import type { ReadingHistory } from "@/components/books/reading-history";
 
 // =========================================================
 // Every number on the Stats page is derived here, from the
@@ -812,37 +815,36 @@ export function prayerKeptDates(prayers: Prayer[], name: PrayerName): Set<string
 
 // ---------------------------------------------------------
 // Reading
+//
+// Every figure here comes from `buildReadingHistory`, the same model the shelf
+// and the review read. Pages used to be totalled from ticked reading blocks
+// alone, so a book read off-plan — or finished by dragging the bookmark —
+// contributed nothing and the panel reported an honest-looking nought.
 // ---------------------------------------------------------
-export interface WeekPages { key: string; label: string; title: string; pages: number }
-
-function pagesOf(t: Task): number {
-  if (t.page_from == null || t.page_to == null) return 0;
-  return Math.max(0, t.page_to - t.page_from + 1);
+export interface WeekPages {
+  key: string;
+  label: string;
+  title: string;
+  pages: number;
+  quranPages: number;
+  minutes: number;
 }
 
-/** Pages come from finished reading blocks — the only dated page history there is. */
-export function readingPagesByDate(tasks: Task[]): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const t of tasks) {
-    if (t.kind !== "reading" || t.status !== "done" || !t.date) continue;
-    const pages = pagesOf(t);
-    if (pages) m.set(t.date, (m.get(t.date) ?? 0) + pages);
-  }
-  return m;
-}
-
-export function pagesPerWeek(days: string[], tasks: Task[], weekStart: number): WeekPages[] {
-  const byDate = readingPagesByDate(tasks);
+export function pagesPerWeek(history: ReadingHistory, weekStart: number): WeekPages[] {
   const map = new Map<string, WeekPages>();
-  for (const d of days) {
-    const key = startOfWeek(d, weekStart);
+  for (const day of history.days) {
+    const key = startOfWeek(day.date, weekStart);
     const row = map.get(key) ?? {
       key,
       label: formatDate(key, { weekday: false }),
       title: `Week of ${formatDate(key)}`,
       pages: 0,
+      quranPages: 0,
+      minutes: 0,
     };
-    row.pages += byDate.get(d) ?? 0;
+    row.pages += day.pages;
+    row.quranPages += day.quranPages;
+    row.minutes += day.minutes;
     map.set(key, row);
   }
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
@@ -858,24 +860,20 @@ export interface Projection {
   farOut: boolean;
 }
 
-export function projectBooks(books: Book[], tasks: Task[], days: string[]): Projection[] {
+/**
+ * When a book actually lands, measured from its own dated history rather than
+ * from the rate the plan wishes for. `paceStats` already averages that history
+ * over a sensible window, so this only has to turn a rate into a date.
+ */
+export function projectBooks(
+  books: Book[], index: Map<string, ReadDay[]>, days: string[],
+): Projection[] {
   const today = days[days.length - 1] ?? todayISO();
   const active = books.filter((b) => b.status === "reading" && b.current_page < b.total_pages);
-  const dates = new Set(days);
 
   return active
     .map<Projection>((book) => {
-      let pages = 0;
-      let firstRead: string | null = null;
-      for (const t of tasks) {
-        if (t.book_id !== book.id || t.kind !== "reading" || t.status !== "done" || !t.date) continue;
-        if (!dates.has(t.date)) continue;
-        pages += pagesOf(t);
-        if (!firstRead || t.date < firstRead) firstRead = t.date;
-      }
-
-      const span = firstRead ? Math.max(1, daysBetween(firstRead, today).length) : days.length;
-      const measured = pages / span;
+      const measured = paceStats(index.get(book.id) ?? [], PACE_WINDOW, today).perDay;
       const perDay = measured > 0 ? measured : (book.pages_per_day ?? 0);
       const source: Projection["source"] = measured > 0 ? "pace" : perDay > 0 ? "plan" : "none";
       const remaining = book.total_pages - book.current_page;
@@ -1107,4 +1105,251 @@ export function buildInsights(input: InsightInput): Insight[] {
   }
 
   return out;
+}
+
+// ---------------------------------------------------------
+// Wellbeing
+//
+// Mood, energy, sleep, water and steps have been written to the day log since
+// it existed, and nothing has ever read them back. A number you are asked for
+// daily and never shown is a chore, not a measure.
+// ---------------------------------------------------------
+export interface WellbeingDay {
+  date: string;
+  mood: number | null;
+  energy: number | null;
+  focus: number | null;
+  sleep: number | null;
+  water: number;
+  steps: number | null;
+  logged: boolean;
+}
+
+export interface WellbeingSummary {
+  days: WellbeingDay[];
+  loggedDays: number;
+  mood: number | null;
+  energy: number | null;
+  focus: number | null;
+  sleep: number | null;
+  water: number | null;
+  steps: number | null;
+  /** How mood moves with sleep, -1..1, or null below a usable sample. */
+  sleepMoodCorrelation: number | null;
+  best: WellbeingDay | null;
+  worst: WellbeingDay | null;
+}
+
+/** Pearson's r. Null under eight pairs — below that it is noise with a decimal point. */
+function correlate(pairs: [number, number][]): number | null {
+  if (pairs.length < 8) return null;
+  const n = pairs.length;
+  const mx = pairs.reduce((s, [x]) => s + x, 0) / n;
+  const my = pairs.reduce((s, [, y]) => s + y, 0) / n;
+  let num = 0;
+  let dx = 0;
+  let dy = 0;
+  for (const [x, y] of pairs) {
+    num += (x - mx) * (y - my);
+    dx += (x - mx) ** 2;
+    dy += (y - my) ** 2;
+  }
+  if (dx === 0 || dy === 0) return null;
+  return Math.round((num / Math.sqrt(dx * dy)) * 100) / 100;
+}
+
+export function buildWellbeing(days: string[], dayLogs: DayLog[]): WellbeingSummary {
+  const byDate = new Map(dayLogs.map((d) => [d.date, d]));
+
+  const rows: WellbeingDay[] = days.map((date) => {
+    const log = byDate.get(date);
+    return {
+      date,
+      mood: log?.mood ?? null,
+      energy: log?.energy ?? null,
+      focus: log?.focus_score ?? null,
+      sleep: log?.sleep_hours ?? null,
+      water: log?.water ?? 0,
+      steps: log?.steps ?? null,
+      // An empty row is not a logged day — it is a day the question went unanswered.
+      logged: !!log && (log.mood != null || log.energy != null || log.sleep_hours != null
+        || log.focus_score != null || log.water > 0 || log.steps != null),
+    };
+  });
+
+  const mean = (pick: (d: WellbeingDay) => number | null): number | null => {
+    const values = rows.map(pick).filter((v): v is number => v != null);
+    if (!values.length) return null;
+    return Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) / 10;
+  };
+
+  const rated = rows.filter((r) => r.mood != null);
+
+  return {
+    days: rows,
+    loggedDays: rows.filter((r) => r.logged).length,
+    mood: mean((d) => d.mood),
+    energy: mean((d) => d.energy),
+    focus: mean((d) => d.focus),
+    sleep: mean((d) => d.sleep),
+    water: mean((d) => (d.water > 0 ? d.water : null)),
+    steps: mean((d) => d.steps),
+    sleepMoodCorrelation: correlate(
+      rows.filter((r) => r.sleep != null && r.mood != null).map((r) => [r.sleep as number, r.mood as number]),
+    ),
+    best: rated.reduce<WellbeingDay | null>((a, r) => (!a || (r.mood as number) > (a.mood as number) ? r : a), null),
+    worst: rated.reduce<WellbeingDay | null>((a, r) => (!a || (r.mood as number) < (a.mood as number) ? r : a), null),
+  };
+}
+
+// ---------------------------------------------------------
+// Goals and projects
+// ---------------------------------------------------------
+export interface GoalRow {
+  goal: Goal;
+  closed: number;
+  /** Progress against its own target, 0..100, null when it carries no target. */
+  pct: number | null;
+  overdue: boolean;
+}
+
+export interface GoalSummary {
+  rows: GoalRow[];
+  active: number;
+  done: number;
+  advanced: number;
+  untouched: number;
+  projectsActive: number;
+  projectsDone: number;
+  /** Tasks closed in the window that served no goal and no project. */
+  unattached: number;
+}
+
+export function buildGoalStats(
+  days: string[], goals: Goal[], projects: Project[], tasks: Task[],
+): GoalSummary {
+  const inRange = new Set(days);
+  const today = days[days.length - 1] ?? todayISO();
+  const closedHere = tasks.filter(
+    (t) => t.status === "done" && !!t.date && inRange.has(t.date) && !t.parent_id,
+  );
+
+  const byGoal = new Map<string, number>();
+  for (const t of closedHere) {
+    if (t.goal_id) byGoal.set(t.goal_id, (byGoal.get(t.goal_id) ?? 0) + 1);
+  }
+
+  const live = goals.filter((g) => g.status === "active" || g.status === "done");
+  const rows: GoalRow[] = live
+    .map((goal) => ({
+      goal,
+      closed: byGoal.get(goal.id) ?? 0,
+      pct: goal.target && goal.target > 0
+        ? Math.min(100, Math.round((goal.current / goal.target) * 100))
+        : null,
+      overdue: goal.status === "active" && !!goal.end_date && goal.end_date < today,
+    }))
+    .sort((a, b) => b.closed - a.closed || a.goal.title.localeCompare(b.goal.title));
+
+  return {
+    rows,
+    active: goals.filter((g) => g.status === "active").length,
+    done: goals.filter((g) => g.status === "done").length,
+    advanced: byGoal.size,
+    untouched: goals.filter((g) => g.status === "active" && !byGoal.has(g.id)).length,
+    projectsActive: projects.filter((p) => p.status === "active").length,
+    projectsDone: projects.filter((p) => p.status === "done").length,
+    unattached: closedHere.filter((t) => !t.goal_id && !t.project_id).length,
+  };
+}
+
+// ---------------------------------------------------------
+// The shelves
+// ---------------------------------------------------------
+export interface ShelfSummary {
+  booksFinished: number;
+  booksReading: number;
+  booksPlanned: number;
+  mediaFinished: number;
+  mediaWatching: number;
+  episodes: number;
+  /** Watching minutes from finished episodes, where a runtime is known. */
+  watchMinutes: number;
+}
+
+export function buildShelfStats(
+  days: string[], books: Book[], media: Media[], tasks: Task[],
+): ShelfSummary {
+  const inRange = new Set(days);
+  let episodes = 0;
+  let watchMinutes = 0;
+
+  const runtime = new Map(media.map((m) => [m.id, m.runtime_min ?? 0]));
+  for (const t of tasks) {
+    if (t.status !== "done" || !t.date || !inRange.has(t.date) || !t.media_id) continue;
+    if (t.episode_from == null || t.episode_to == null) continue;
+    const n = Math.max(0, t.episode_to - t.episode_from + 1);
+    episodes += n;
+    watchMinutes += n * (runtime.get(t.media_id) ?? 0);
+  }
+
+  return {
+    booksFinished: books.filter((b) => b.status === "finished").length,
+    booksReading: books.filter((b) => b.status === "reading").length,
+    booksPlanned: books.filter((b) => b.status === "planned").length,
+    mediaFinished: media.filter((m) => m.status === "finished").length,
+    mediaWatching: media.filter((m) => m.status === "watching").length,
+    episodes,
+    watchMinutes,
+  };
+}
+
+// ---------------------------------------------------------
+// Notes
+// ---------------------------------------------------------
+type NoteKindLabel = Note["kind"];
+
+export interface NoteSummary {
+  total: number;
+  byDay: { date: string; count: number }[];
+  byKind: { kind: NoteKindLabel; count: number }[];
+  words: number;
+  busiest: { date: string; count: number } | null;
+}
+
+/** The day a note belongs to: the day it is about, else the day it was written. */
+export function noteDay(n: Note): string {
+  return n.date ?? n.created_at.slice(0, 10);
+}
+
+export function buildNoteStats(days: string[], notes: Note[]): NoteSummary {
+  const inRange = new Set(days);
+  const live = notes.filter((n) => !n.deleted_at && !n.is_template && inRange.has(noteDay(n)));
+
+  const perDay = new Map(days.map((d) => [d, 0]));
+  const perKind = new Map<NoteKindLabel, number>();
+  let words = 0;
+
+  for (const n of live) {
+    const day = noteDay(n);
+    perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    perKind.set(n.kind, (perKind.get(n.kind) ?? 0) + 1);
+    // Rough, and deliberately so — stripping tags is enough to tell a paragraph
+    // from a line, which is all this number is ever asked to do.
+    words += n.body.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length;
+  }
+
+  const byDay = days.map((date) => ({ date, count: perDay.get(date) ?? 0 }));
+
+  return {
+    total: live.length,
+    byDay,
+    byKind: [...perKind.entries()]
+      .map(([kind, count]) => ({ kind, count }))
+      .sort((a, b) => b.count - a.count),
+    words,
+    busiest: byDay.reduce<{ date: string; count: number } | null>(
+      (a, d) => (d.count > 0 && (!a || d.count > a.count) ? d : a), null,
+    ),
+  };
 }

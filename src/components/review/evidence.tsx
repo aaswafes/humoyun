@@ -312,22 +312,24 @@ function BooksPanel({ books }: { books: BookEvidence[] }) {
     <Panel title="Books progressed" meta={books.length ? `${books.length} ${plural(books.length, "book")}` : undefined}>
       {books.length === 0 ? (
         <MiniEmpty action={<Button size="xs" variant="secondary" onClick={() => router.push("/books")}>Open books</Button>}>
-          No reading block was completed. Schedule a book and each session lands here.
+          Nothing was read, logged or finished. Move a bookmark or log a sitting and it lands here.
         </MiniEmpty>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {books.slice(0, 5).map(({ book, pages, sessions, progress, finished }) => (
+          {books.slice(0, 5).map(({ book, pages, minutes, progress, finishedOn, settled }) => (
             <div key={book.id} className={cn(`tint-${book.color}`, "min-w-0")}>
               <div className="flex items-baseline gap-2">
                 <BookOpen className="size-3 shrink-0 translate-y-px" style={{ color: "var(--tint)" }} />
                 <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{book.title}</span>
-                {finished && <Badge tint={book.color}>Finished</Badge>}
+                {finishedOn && <Badge tint={book.color}>Finished</Badge>}
                 <span className="shrink-0 text-[11.5px] text-ink-3 tnum">{pages} pp</span>
               </div>
               <div className="mt-1.5 flex items-center gap-2 pl-5">
                 <Progress value={progress} tint={book.color} height={3} className="flex-1" />
                 <span className="shrink-0 text-[11px] text-ink-4 tnum">
-                  {progress}% · {sessions} {plural(sessions, "session")}
+                  {progress}%
+                  {minutes > 0 && ` · ${formatHours(minutes)}`}
+                  {settled > 0 && ` · ${settled} pp carried`}
                 </span>
               </div>
             </div>
@@ -441,7 +443,7 @@ export function Evidence({
       perDay: columns.length > 0 && columns[0].days.length === 1,
       goals: goalEvidence(days, src.tasks, src.goals),
       untouched: goalsUntouched(days, src.tasks, src.goals).length,
-      books: bookEvidence(days, src.tasks, src.books),
+      books: bookEvidence(days, src),
       habits: habitRows(days, src.habits, src.habitLogs, weekStartDay),
       salah: salahDays(days, src.prayers),
       tags: focusByTag(days, src.focusSessions, src.tasks),
@@ -524,11 +526,11 @@ export function evidenceLines(
     lines.push("Goals advanced:");
     goals.slice(0, 5).forEach((g) => lines.push(`  - ${g.goal.title} — ${g.closed} ${plural(g.closed, "task")}`));
   }
-  const books = bookEvidence(days, src.tasks, src.books);
+  const books = bookEvidence(days, src);
   if (books.length) {
     lines.push("Books:");
     books.slice(0, 5).forEach((b) =>
-      lines.push(`  - ${b.book.title} — ${b.pages} pages, now ${b.progress}%${b.finished ? " (finished)" : ""}`));
+      lines.push(`  - ${b.book.title} — ${b.pages} pages, now ${b.progress}%${b.finishedOn ? " (finished)" : ""}`));
   }
   const habits = habitRows(days, src.habits, src.habitLogs, weekStartDay);
   if (habits.length) {

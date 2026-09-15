@@ -4,6 +4,7 @@ import * as React from "react";
 import { BookOpen } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
+import { recordReading } from "@/components/books/reading-actions";
 import type { Book, Task } from "@/lib/types";
 import { Button, Checkbox, Progress } from "@/components/ui/primitives";
 import { RailCard, RailEmpty, RailItem, RailLink, RailMeta } from "./rail-card";
@@ -22,7 +23,6 @@ export function ReadingCard({ date }: { date: string }) {
   const tasks = useStore((s) => s.tasks);
   const books = useStore((s) => s.books);
   const toggleTask = useStore((s) => s.toggleTask);
-  const logReading = useStore((s) => s.logReading);
   const patch = useStore((s) => s.patch);
   const toast = useStore((s) => s.toast);
 
@@ -86,7 +86,7 @@ export function ReadingCard({ date }: { date: string }) {
   function log(group: Group) {
     const before = group.book.current_page;
     const gained = group.to - before;
-    logReading(group.book.id, group.to);
+    recordReading(group.book.id, group.to);
     toast({
       title: `${gained} page${gained === 1 ? "" : "s"} logged`,
       description: `${group.book.title} — now on p.${group.to}`,
