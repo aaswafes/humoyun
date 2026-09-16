@@ -227,6 +227,38 @@ interface StoreState extends CollectionState {
   timerSeconds: () => number;
 }
 
+/**
+ * Every PostgREST response is capped at the project's "Max rows" setting, and
+ * it truncates in silence — `.limit(5000)` simply comes back short, with no
+ * error and nothing to say rows are missing. Once `tasks` passed a thousand
+ * live rows the tail stopped loading, so days added to the database were
+ * invisible in the app; a hard refresh could not help, because the data had
+ * never arrived.
+ *
+ * Paging is the fix. `id` gives a stable sort, so no row is skipped or repeated
+ * between pages, and a short page marks the end. On error we keep what we have
+ * rather than throwing: `hydrate` runs inside a `Promise.all`, and a rejection
+ * there would strand the app with `loading` stuck true.
+ */
+const PAGE_SIZE = 1000;
+
+async function fetchAll(table: string, liveOnly: boolean) {
+  const rows: unknown[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const base = supabase.from(table).select("*");
+    const scoped = liveOnly ? base.is("deleted_at", null) : base;
+    const { data, error } = await scoped.order("id").range(from, from + PAGE_SIZE - 1);
+    if (error) {
+      console.error(`fetchAll(${table}) stopped at offset ${from}:`, error.message);
+      break;
+    }
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) break;
+  }
+  return { data: rows };
+}
+
 const COLLECTION_KEYS: CollectionKey[] = [
   "tasks", "books", "media", "notes", "noteCategories", "habits", "habitLogs", "goals",
   "projects", "prayers", "dayLogs",
@@ -599,10 +631,7 @@ export const useStore = create<StoreState>((set, get) => ({
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       // A trashed row is still in Postgres; it just stops existing as far as
       // the app is concerned, which is what keeps every surface unchanged.
-      ...tables.map(([key, table]) => {
-        const q = supabase.from(table).select("*").limit(5000);
-        return TRASHABLE.has(key) ? q.is("deleted_at", null) : q;
-      }),
+      ...tables.map(([key, table]) => fetchAll(table, TRASHABLE.has(key))),
     ]);
 
     const next: Partial<CollectionState> = {};
