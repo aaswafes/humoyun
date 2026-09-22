@@ -9,6 +9,7 @@ import { Badge, Button, IconButton, Textarea } from "@/components/ui/primitives"
 import { Field } from "@/components/ui/form";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { SubjectPicker } from "./subject-picker";
+import { CategoryPicker } from "@/components/umr/category-picker";
 import { interruptionsOf, normalizeTag, toView, visibleTags } from "./focus-data";
 import {
   deleteSession, reattachSession, setSessionInterruptions, setSessionNote, setSessionTags,
@@ -29,6 +30,7 @@ export function SessionEditor({
   const tasks = useStore((s) => s.tasks);
   const allTags = useStore((s) => s.tags);
   const hour12 = useStore((s) => s.hour12);
+  const patch = useStore((s) => s.patch);
 
   const [note, setNote] = React.useState("");
   const [tagDraft, setTagDraft] = React.useState("");
@@ -95,6 +97,23 @@ export function SessionEditor({
                   : "Stopwatch"}
             </span>
           </div>
+
+          {session.mode !== "break" && (
+            <Field
+              label="Kind of living"
+              description="Which of the five this hour went to. It is what Umr counts, and it can be corrected here long after the timer stopped."
+            >
+              {() => (
+                <CategoryPicker
+                  size="sm"
+                  allowNone
+                  value={session.umr}
+                  onChange={(c) => patch("focusSessions", session.id, { umr: c })}
+                  label="Kind of living"
+                />
+              )}
+            </Field>
+          )}
 
           {session.mode !== "break" && (
             <Field

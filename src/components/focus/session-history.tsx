@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
+import { UMR_META } from "@/lib/umr";
 import { formatDuration, formatRange, friendlyDate } from "@/lib/date";
 import type { FocusSession } from "@/lib/types";
 import { Badge, Button, IconButton } from "@/components/ui/primitives";
@@ -39,6 +40,7 @@ function Row({
   const { session } = view;
   const task = session.task_id ? tasks.find((t) => t.id === session.task_id) ?? null : null;
   const title = task?.title || session.label || (view.isBreak ? "Break" : "Focus");
+  const kind = session.umr ? UMR_META[session.umr] : null;
   const pomodoro = session.mode === "pomodoro";
   const Icon = view.isBreak ? Coffee : pomodoro ? Timer : Watch;
   const kept = pomodoro && session.completed;
@@ -82,8 +84,20 @@ function Row({
         ) : (
           <span className="block truncate text-[13.5px] text-ink-2">{title}</span>
         )}
-        {session.note && (
-          <p className="truncate text-[11.5px] leading-snug text-ink-4">{session.note}</p>
+        {(kind || session.note) && (
+          <p className="truncate text-[11.5px] leading-snug text-ink-4">
+            {kind && (
+              <span className={`tint-${kind.tint} mr-1.5 inline-flex items-center gap-1 align-middle`}>
+                <span
+                  className="inline-block size-1.5 rounded-full"
+                  style={{ background: "var(--tint)" }}
+                  aria-hidden
+                />
+                <span className="text-ink-3">{kind.label}</span>
+              </span>
+            )}
+            {session.note}
+          </p>
         )}
       </div>
 

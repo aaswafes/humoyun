@@ -4,7 +4,7 @@ import * as React from "react";
 import { useStore } from "@/lib/store";
 import { useNow } from "@/hooks/use-hotkeys";
 import { todayISO } from "@/lib/date";
-import type { FocusSession } from "@/lib/types";
+import type { FocusSession, UmrCategory } from "@/lib/types";
 import { useFocusPrefs, type SessionPreset } from "./focus-prefs";
 import { withInterruptions } from "./focus-data";
 import { deleteSession } from "./session-actions";
@@ -12,7 +12,20 @@ import { deleteSession } from "./session-actions";
 export type FocusPhase = "idle" | "focus" | "break" | "wrap" | "return";
 export type FocusMode = "pomodoro" | "stopwatch";
 
+/**
+ * What a sitting is about.
+ *
+ * The kind of living comes first, and is the thing the dial asks for: on the
+ * Focus page you are not timing a task, you are spending an hour of your life
+ * on learning, worship, rest, amusement or people. The label is optional and
+ * only says *what exactly* — it is what the Umr stats group by, so "Chemistry"
+ * and "Qurʼan" stay tellable apart inside their kind.
+ *
+ * `taskId` stays for a timer started from a task row, where the minutes still
+ * have to land on that task.
+ */
 export interface FocusSubject {
+  umr: UmrCategory | null;
   taskId: string | null;
   label: string;
 }
@@ -92,6 +105,7 @@ function liveActive(): boolean {
 }
 
 export interface StartOptions {
+  umr?: UmrCategory | null;
   taskId?: string | null;
   label?: string;
   mode?: FocusMode;
@@ -119,7 +133,7 @@ export function useFocusEngine() {
   const { prefs, presets, preset, setPrefs, selectPreset, savePreset, deletePreset } = useFocusPrefs();
 
   const [room, setRoom] = React.useState<Room>(loadRoom);
-  const [subject, setSubject] = React.useState<FocusSubject>({ taskId: null, label: "" });
+  const [subject, setSubject] = React.useState<FocusSubject>({ umr: null, taskId: null, label: "" });
   const [last, setLast] = React.useState<LastBlock | null>(null);
   const [prompt, setPrompt] = React.useState<"none" | "wrap" | "return">("none");
 
@@ -184,7 +198,7 @@ export function useFocusEngine() {
       const before = new Set(useStore.getState().focusSessions.map((s) => s.id));
       const taps = room.interruptions.length;
       const runMode: FocusMode = t.mode === "stopwatch" ? "stopwatch" : "pomodoro";
-      const runSubject: FocusSubject = { taskId: t.taskId, label: t.label };
+      const runSubject: FocusSubject = { umr: t.umr, taskId: t.taskId, label: t.label };
 
       stopTimer(true);
 
@@ -267,6 +281,7 @@ export function useFocusEngine() {
       }
 
       const next: FocusSubject = {
+        umr: opts.umr !== undefined ? opts.umr : subject.umr,
         taskId: opts.taskId !== undefined ? opts.taskId : subject.taskId,
         label: opts.label !== undefined ? opts.label : subject.label,
       };
@@ -276,6 +291,7 @@ export function useFocusEngine() {
       startTimer({
         taskId: next.taskId,
         label: next.label,
+        umr: next.umr,
         mode: nextMode,
         targetMinutes: opts.minutes ?? preset.focus,
       });
@@ -440,7 +456,7 @@ export function useFocusEngine() {
     discardWrapped,
 
     /** While a timer runs the store owns the subject; the picker owns it otherwise. */
-    subject: active ? { taskId: timer.taskId, label: timer.label } : subject,
+    subject: active ? { umr: timer.umr, taskId: timer.taskId, label: timer.label } : subject,
     setSubject,
 
     start,

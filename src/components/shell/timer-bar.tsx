@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Pause, Play, Square, Timer as TimerIcon } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { UMR_META } from "@/lib/umr";
 import { useNow } from "@/hooks/use-hotkeys";
 import { formatClock } from "@/lib/date";
 import { cn } from "@/lib/cn";
@@ -21,7 +22,10 @@ export function TimerBar() {
   const seconds = timer.accumulated + (timer.running && timer.startedAt ? Math.floor((Date.now() - timer.startedAt) / 1000) : 0);
   const target = timer.targetMinutes * 60;
   const task = timer.taskId ? tasks.find((t) => t.id === timer.taskId) : null;
-  const label = task?.title || timer.label || "Focus";
+  // A timer started on the Focus dial has a kind and often no label at all,
+  // so "Focus" would be the only thing the bar ever said.
+  const kind = timer.umr ? UMR_META[timer.umr] : null;
+  const label = task?.title || timer.label || kind?.label || "Focus";
   const overrun = timer.mode === "pomodoro" && seconds >= target;
 
   // Chime once when a pomodoro completes.
@@ -63,7 +67,18 @@ export function TimerBar() {
       </Ring>
 
       <div className="min-w-0">
-        <p className="max-w-[180px] truncate text-[12.5px] font-medium leading-tight text-ink">{label}</p>
+        <p className="flex max-w-[180px] items-center gap-1.5 truncate text-[12.5px] font-medium leading-tight text-ink">
+          {kind && (
+            <span className={`tint-${kind.tint} shrink-0`}>
+              <span
+                className="block size-1.5 rounded-full"
+                style={{ background: "var(--tint)" }}
+                aria-hidden
+              />
+            </span>
+          )}
+          <span className="truncate">{label}</span>
+        </p>
         <p className={cn("text-[11px] leading-tight tnum", overrun ? "text-success" : "text-ink-3")}>
           {formatClock(seconds)}
           {timer.mode === "pomodoro" && ` / ${timer.targetMinutes}:00`}

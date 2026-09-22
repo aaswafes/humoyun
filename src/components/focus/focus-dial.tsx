@@ -8,10 +8,12 @@ import { cn } from "@/lib/cn";
 import { formatClock, formatDuration } from "@/lib/date";
 import { Button, IconButton, Kbd } from "@/components/ui/primitives";
 import { DialFace, type DialTone } from "./dial-face";
-import { SubjectPicker } from "./subject-picker";
+import { KindPicker } from "./kind-picker";
+import { DamLine } from "./dam-line";
 import { CyclePlan } from "./cycle-plan";
 import { presetRhythm } from "./focus-prefs";
-import type { FocusEngine } from "./focus-engine";
+import type { FocusEngine, FocusSubject } from "./focus-engine";
+import { UMR_META } from "@/lib/umr";
 
 /** One line under the clock — the only thing on the dial that changes wording. */
 function stateLine(engine: FocusEngine): string {
@@ -108,7 +110,7 @@ export function FocusDial({
         <p className="text-[13px] text-ink-3">
           {last.discarded
             ? "Under 20 seconds — nothing was logged."
-            : `${formatDuration(last.minutes)} logged${last.subject.label ? ` on ${last.subject.label}` : ""}.`}
+            : `${formatDuration(last.minutes)} logged${kindLine(last.subject) ? ` on ${kindLine(last.subject)}` : ""}.`}
           {last.interruptions > 0 && (
             <span className="text-ink-4"> {last.interruptions} interruption{last.interruptions === 1 ? "" : "s"}.</span>
           )}
@@ -268,13 +270,18 @@ export function FocusDial({
         </div>
       </DialFace>
 
-      <div className="mt-5 flex justify-center">
+      <div className="mt-5 flex flex-col items-center gap-2">
         {ambient ? (
           <span className="max-w-[300px] truncate text-[13px] text-ink-3">
-            {engine.subject.label || "Open focus"}
+            {kindLine(engine.subject) || "Open focus"}
           </span>
         ) : (
-          <SubjectPicker value={engine.subject} onChange={engine.setSubject} locked={active} />
+          <>
+            <KindPicker value={engine.subject} onChange={engine.setSubject} locked={active} />
+            {/* The cap earns a line here, where it can still change the choice —
+                not on a stats page read afterwards. */}
+            {engine.subject.umr === "dam" && <DamLine />}
+          </>
         )}
       </div>
 
@@ -290,4 +297,11 @@ export function FocusDial({
       )}
     </div>
   );
+}
+
+/** "Taʼlim · Chemistry", or whichever half of that exists. */
+function kindLine(subject: FocusSubject): string {
+  const kind = subject.umr ? UMR_META[subject.umr].label : "";
+  const what = subject.label.trim();
+  return [kind, what].filter(Boolean).join(" · ");
 }

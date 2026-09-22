@@ -71,6 +71,8 @@ export type CalendarView = "day" | "week" | "month" | "agenda";
 export interface TimerState {
   taskId: string | null;
   label: string;
+  /** The kind of living this sitting is. Chosen on the dial before it starts. */
+  umr: UmrCategory | null;
   mode: "stopwatch" | "pomodoro";
   startedAt: number | null;   // epoch ms of current run segment
   accumulated: number;        // seconds banked from previous segments
@@ -82,6 +84,7 @@ export interface TimerState {
 const EMPTY_TIMER: TimerState = {
   taskId: null,
   label: "",
+  umr: null,
   mode: "stopwatch",
   startedAt: null,
   accumulated: 0,
@@ -233,7 +236,10 @@ interface StoreState extends CollectionState {
   logReading: (bookId: string, page: number) => void;
 
   // ---- timer ----
-  startTimer: (opts?: { taskId?: string | null; label?: string; mode?: "stopwatch" | "pomodoro"; targetMinutes?: number }) => void;
+  startTimer: (opts?: {
+    taskId?: string | null; label?: string; umr?: UmrCategory | null;
+    mode?: "stopwatch" | "pomodoro"; targetMinutes?: number;
+  }) => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
   stopTimer: (save?: boolean) => void;
@@ -404,7 +410,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         highlight: null, note: null, quran_pages: 0, water: 0, sleep_hours: null, steps: null, data: {},
       };
     case "focusSessions":
-      return { id: base.id, user_id: userId, task_id: null, label: null, tags: [], mode: "stopwatch", started_at: nowIso(), ended_at: null, seconds: 0, completed: false, note: null };
+      return { id: base.id, user_id: userId, task_id: null, label: null, umr: null, tags: [], mode: "stopwatch", started_at: nowIso(), ended_at: null, seconds: 0, completed: false, note: null };
     case "umrLogs":
       return {
         ...base, date: todayISO(), category: "xordiq", minutes: 0, label: null,
@@ -1291,6 +1297,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const timer: TimerState = {
       taskId: opts.taskId ?? null,
       label: opts.label ?? "",
+      umr: opts.umr ?? null,
       mode: opts.mode ?? "stopwatch",
       startedAt: Date.now(),
       accumulated: 0,
@@ -1330,6 +1337,7 @@ export const useStore = create<StoreState>((set, get) => ({
       get().insert("focusSessions", {
         task_id: t.taskId,
         label: t.label || null,
+        umr: t.umr,
         mode: t.mode,
         started_at: t.sessionStart ?? nowIso(),
         ended_at: nowIso(),

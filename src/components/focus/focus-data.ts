@@ -1,5 +1,6 @@
 import { addDays, startOfWeek, toISO, todayISO, weekDates } from "@/lib/date";
-import type { FocusSession, Task } from "@/lib/types";
+import type { FocusSession, Task, UmrCategory } from "@/lib/types";
+import { UMR_CATEGORIES } from "@/lib/types";
 
 // =========================================================
 // Session metadata carried in the `tags` column
@@ -432,5 +433,57 @@ export function tagTotals(groups: DayGroup[], tasks: Task[]): TagBreakdown {
     totals: [...totals.values()].sort((a, b) => b.minutes - a.minutes || a.tag.localeCompare(b.tag)),
     untaggedMinutes,
     taggedMinutes,
+  };
+}
+
+// ---------------------------------------------------------
+// Where the hours went, by kind of living
+// ---------------------------------------------------------
+
+export interface KindTotal {
+  category: UmrCategory;
+  minutes: number;
+  sessions: number;
+}
+
+export interface KindBreakdown {
+  totals: KindTotal[];
+  /** Sittings that never said which kind they were. */
+  unsetMinutes: number;
+  setMinutes: number;
+}
+
+/**
+ * The five-way split of focus time.
+ *
+ * Unlike tags, a session answers this itself — the dial asks before the clock
+ * starts — so the only sittings that fall out are ones timed from a task row
+ * whose task has no kind either. Those are counted separately rather than
+ * guessed at, the same rule the Umr page follows.
+ */
+export function kindTotals(groups: DayGroup[], resolve: (s: FocusSession) => UmrCategory | null): KindBreakdown {
+  const totals = new Map<UmrCategory, KindTotal>();
+  let unsetMinutes = 0;
+  let setMinutes = 0;
+
+  for (const group of groups) {
+    for (const view of group.items) {
+      const category = resolve(view.session);
+      if (!category) { unsetMinutes += view.minutes; continue; }
+      setMinutes += view.minutes;
+      const entry = totals.get(category) ?? { category, minutes: 0, sessions: 0 };
+      entry.minutes += view.minutes;
+      entry.sessions += 1;
+      totals.set(category, entry);
+    }
+  }
+
+  return {
+    totals: UMR_CATEGORIES
+      .map((c) => totals.get(c))
+      .filter((t): t is KindTotal => !!t)
+      .sort((a, b) => b.minutes - a.minutes),
+    unsetMinutes,
+    setMinutes,
   };
 }

@@ -7,12 +7,14 @@ import { SessionHistory } from "./session-history";
 import { FocusHeatmap } from "./focus-heatmap";
 import { TimeOfDay } from "./time-of-day";
 import { TagTotals } from "./tag-totals";
+import { KindTotals } from "./kind-totals";
 import type { DayGroup } from "./focus-data";
 
-export type SessionsTab = "history" | "tags" | "hours" | "months";
+export type SessionsTab = "history" | "kinds" | "tags" | "hours" | "months";
 
 export const SESSIONS_TABS: { value: SessionsTab; label: string; title: string }[] = [
   { value: "history", label: "History", title: "Every session, searchable" },
+  { value: "kinds", label: "Kinds", title: "Where the hours went, across the five kinds of living" },
   { value: "tags", label: "Tags", title: "Where the hours went by subject" },
   { value: "hours", label: "Time of day", title: "Which hours hold your focus" },
   { value: "months", label: "Six months", title: "One square per day" },
@@ -58,6 +60,8 @@ export function SessionsPanel({
             focusDate={pickedDay}
           />
         )}
+
+        {tab === "kinds" && <KindTotals groups={groups} onFixLast={onTagLast} />}
 
         {tab === "tags" && <TagTotals groups={groups} onTagLast={onTagLast} />}
 

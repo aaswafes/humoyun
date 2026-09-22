@@ -250,6 +250,11 @@ export function taskCategory(task: Task, index: UmrIndex): UmrCategory | null {
 }
 
 export function sessionCategory(session: FocusSession, index: UmrIndex): UmrCategory | null {
+  // What the sitting says about itself wins. The Focus dial asks for a kind of
+  // living before the clock starts, so this is the usual answer and nothing
+  // downstream has to guess.
+  if (isUmrCategory(session.umr)) return session.umr;
+
   // A break is time off, whatever the task under it was.
   if (session.mode === "break") return "xordiq";
 
@@ -328,7 +333,10 @@ export function buildLedger(input: LedgerInput): UmrEntry[] {
   // ---- tracked sittings ----
   const sessionMinutesByTask = new Map<string, number>();
   for (const s of sessions) {
-    const minutes = Math.round(s.seconds / 60);
+    // A sitting the store bothered to log is worth at least a minute. Plain
+    // rounding dropped anything under thirty seconds, so the Focus page said
+    // "1m logged" and Umr said nothing happened at all.
+    const minutes = Math.max(s.seconds > 0 ? 1 : 0, Math.round(s.seconds / 60));
     if (minutes <= 0) continue;
     if (s.task_id) {
       sessionMinutesByTask.set(s.task_id, (sessionMinutesByTask.get(s.task_id) ?? 0) + minutes);

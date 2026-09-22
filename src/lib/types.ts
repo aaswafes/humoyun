@@ -314,6 +314,12 @@ export interface FocusSession {
   user_id: string;
   task_id: string | null;
   label: string | null;
+  /**
+   * The kind of living this sitting was, chosen on the dial before it started.
+   * A session says it itself rather than inheriting from a task, because on the
+   * Focus page there is no task to inherit from.
+   */
+  umr: UmrCategory | null;
   tags: string[];
   mode: "stopwatch" | "pomodoro" | "break";
   started_at: string;

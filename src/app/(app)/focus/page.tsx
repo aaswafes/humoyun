@@ -182,7 +182,7 @@ export default function FocusPage() {
             <EmptyState
               icon={Timer}
               title="No sessions logged yet"
-              description="Every finished timer lands here — credited to the task you attached it to, so you can see where the hours actually went."
+              description="Choose a kind of living on the dial — Taʼlim, Ibodat, Xordiq, Dam or Inson — and every finished timer lands here under it, so you can see where the hours actually went."
               action={
                 <div className="flex items-center gap-2">
                   <Button variant="primary" size="sm" onClick={() => start()}>

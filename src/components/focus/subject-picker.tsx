@@ -7,7 +7,19 @@ import { useStore } from "@/lib/store";
 import { friendlyDate, todayISO } from "@/lib/date";
 import type { Task } from "@/lib/types";
 import { Popover, MenuItem, MenuSeparator, MenuLabel } from "@/components/ui/overlays";
-import type { FocusSubject } from "./focus-engine";
+
+/**
+ * What a logged session is credited to.
+ *
+ * The dial no longer asks for this — it asks for a kind of living (see
+ * `kind-picker.tsx`). This picker survives for the one job that still needs a
+ * task: re-attaching a session in the editor, where moving it moves its
+ * minutes onto that task's `actual_min`.
+ */
+export interface TaskSubject {
+  taskId: string | null;
+  label: string;
+}
 
 const PILL =
   "inline-flex h-7 max-w-[300px] items-center gap-1.5 rounded-full border border-line px-2.5 text-[12.5px]";
@@ -33,8 +45,8 @@ export function SubjectPicker({
   emptyLabel = "Open focus",
   "aria-describedby": describedBy,
 }: {
-  value: FocusSubject;
-  onChange: (next: FocusSubject) => void;
+  value: TaskSubject;
+  onChange: (next: TaskSubject) => void;
   locked?: boolean;
   variant?: "pill" | "field";
   id?: string;
@@ -90,7 +102,7 @@ export function SubjectPicker({
     );
   }
 
-  const commit = (next: FocusSubject, close: () => void) => {
+  const commit = (next: TaskSubject, close: () => void) => {
     onChange(next);
     close();
   };

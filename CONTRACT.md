@@ -362,6 +362,26 @@ Everything else — the ratio, the budget window, the minutes a prayer is worth,
 the kind and tag rules, the minutes a habit tick is worth, where sleep goes —
 lives in `profiles.prefs.umr`, so retuning a rule never needs a migration.
 
+### The Focus dial asks for a kind, not a task
+
+`/focus` times a **kind of living**, not a goal and not a task:
+`kind-picker.tsx` is the dial's picker and writes `focus_sessions.umr`, with an
+optional free-text label saying *what exactly* (the Umr stats group by it, so
+"Chemistry" and "Qurʼan" stay tellable apart inside Taʼlim).
+
+- `sessionCategory` reads `session.umr` first and only then falls back to the
+  task, the tags and the kind rules. A sitting started on the dial answers for
+  itself; one started from a task row still inherits, and still credits that
+  task's `actual_min`.
+- `subject-picker.tsx` survives for exactly one job — re-attaching a logged
+  session to a task in the editor — and no longer speaks `FocusSubject`.
+- Choosing Dam draws `dam-line.tsx` under the dial with the live balance. It
+  never blocks the start button; it states the number while the choice can
+  still change, which is the only moment it can do any good.
+- A logged sitting is worth **at least one minute** in the ledger. Plain
+  rounding dropped anything under thirty seconds, so Focus said "1m logged" and
+  Umr said nothing had happened.
+
 ### Counting a minute exactly once
 
 Stopping a timer credits `task.actual_min`, so a task and its sessions describe
