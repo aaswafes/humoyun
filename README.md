@@ -2,9 +2,11 @@
 
 A calendar-first personal operating system. Notion's structure, Apple's manners.
 
-Tasks and events live on one timeline. Books drag onto the calendar and schedule
-themselves. Notes carry categories, tags and a password when one is needed.
-Habits, salah, focus timers and a weekly review all feed the same day.
+Tasks and events live on one timeline. Books, films and videos share one
+Consumption shelf, and a book drags onto the calendar and schedules itself.
+Umr divides every recorded minute into five kinds of living — taʼlim, ibodat,
+xordiq, dam, inson — and caps amusement at a share of study. Habits, salah,
+focus timers and a weekly review all feed the same day.
 
 ## Run it
 
@@ -110,5 +112,5 @@ adding a surface.
 | `N` | quick add — one line of natural language |
 | `T` | jump to today |
 | `⇧←` `⇧→` | previous / next day |
-| `G` then `C` | calendar (also `T` today, `I` inbox, `P` projects, `N` notes, `B` books, `H` habits, `S` salah, `F` focus, `G` goals, `R` review, `A` stats) |
+| `G` then `C` | calendar (also `T` today, `I` inbox, `P` projects, `U` Umr, `B` consumption, `H` habits, `S` salah, `F` focus, `G` goals, `R` review, `A` stats) |
 | `⌘\` | toggle sidebar |

@@ -20,13 +20,11 @@ import { Callout, Pane } from "./ui";
 
 const TYPE_LABEL: Record<string, string> = {
   tasks: "Task",
-  notes: "Note",
   books: "Book",
   media: "Film or video",
   goals: "Goal",
   projects: "Project",
   habits: "Habit",
-  noteCategories: "Note category",
 };
 
 /** "3 days ago", from a timestamptz. Exact dates are noise at this scale. */
@@ -101,7 +99,7 @@ export function TrashSection() {
   return (
     <Pane
       title="Trash"
-      description="Deleted tasks, notes, books, goals and projects wait here instead of going straight out. Nothing leaves on its own — empty the trash yourself when you are sure."
+      description="Deleted tasks, books, goals and projects wait here instead of going straight out. Nothing leaves on its own — empty the trash yourself when you are sure."
     >
       {rows === null ? (
         <div className="flex items-center gap-2 py-6 text-[13px] text-ink-3">

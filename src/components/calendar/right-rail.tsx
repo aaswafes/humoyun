@@ -208,7 +208,7 @@ function BooksPane({ date }: { date: string }) {
 
   if (!shelf.length) {
     return (
-      <MiniEmpty action={<Button size="sm" onClick={() => router.push("/books")}>Add a book</Button>}>
+      <MiniEmpty action={<Button size="sm" onClick={() => router.push("/consumption/books")}>Add a book</Button>}>
         Books you are reading or planning live here. Drag one onto a day and the
         following days fill with reading blocks.
       </MiniEmpty>
@@ -309,7 +309,7 @@ function WatchPane({ date }: { date: string }) {
 
   if (!shelf.length) {
     return (
-      <MiniEmpty action={<Button size="sm" onClick={() => router.push("/watch")}>Add a film</Button>}>
+      <MiniEmpty action={<Button size="sm" onClick={() => router.push("/consumption/films")}>Add a film</Button>}>
         Films and anime you are watching or planning live here. A film drops onto
         one evening; an anime fills the days after it, episode by episode.
       </MiniEmpty>

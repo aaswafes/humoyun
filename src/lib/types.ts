@@ -20,6 +20,14 @@ export type TaskKind =
   | "task" | "event" | "reading" | "watching"
   | "habit" | "prayer" | "block" | "milestone";
 export type Horizon = "life" | "year" | "quarter" | "month" | "week";
+
+/**
+ * The five kinds of living Umr divides time into. Names, colours, rules and
+ * every calculation live in `@/lib/umr`; only the column type is here, so a
+ * row can name one without dragging the whole module in.
+ */
+export type UmrCategory = "talim" | "ibodat" | "xordiq" | "dam" | "inson";
+export const UMR_CATEGORIES: UmrCategory[] = ["talim", "ibodat", "xordiq", "dam", "inson"];
 export type PrayerName = "fajr" | "dhuhr" | "asr" | "maghrib" | "isha";
 export type PrayerStatus = "none" | "prayed" | "jamaah" | "late" | "qadha" | "missed";
 
@@ -104,6 +112,11 @@ export interface Task {
    * silently becoming the place tasks go to be forgotten.
    */
   someday: boolean;
+  /**
+   * Which kind of living this time is. Null means nobody has said yet — which
+   * is not the same as "none", and is what the Umr page lists for triage.
+   */
+  umr: UmrCategory | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -184,149 +197,6 @@ export interface Media {
   updated_at: string;
 }
 
-export type NoteKind = "note" | "highlight" | "thought" | "daily" | "idea" | "summary";
-
-export const NOTE_KINDS: NoteKind[] = ["note", "highlight", "thought", "daily", "idea", "summary"];
-export const NOTE_KIND_LABELS: Record<NoteKind, string> = {
-  note: "Note",
-  highlight: "Highlight",
-  thought: "Thought",
-  daily: "Daily",
-  idea: "Idea",
-  summary: "Summary",
-};
-
-/**
- * How a note's body is stored. Everything written before the rich editor is
- * 'plain' and stays that way until it is opened and edited — so no note ever
- * has to be migrated in place, and a body is never guessed at.
- */
-export type NoteFormat = "plain" | "html";
-
-/**
- * Where a note has been put on the notes board, and how big it was made.
- *
- * `null` means nobody has moved it: the board lays it out itself, in reading
- * order, and will keep doing so as the window changes width. The moment it is
- * dragged or resized this is written, and from then on that card stays exactly
- * where it was put.
- *
- * `z` is stored rather than derived from list order so that bringing a card to
- * the front survives a re-sort.
- */
-export interface NoteLayout {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  z: number;
-}
-
-/**
- * A shelf a note can sit on — Books, Films, Sirah. Unlike `kind`, which is one
- * word for what a note *is*, a note belongs to as many categories as apply.
- *
- * The name is stored on the note as text; this row only carries the colour,
- * the icon and the order. A category with no row still works, it just draws
- * slate — which is what makes typing a new one into the picker safe.
- */
-export interface NoteCategory {
-  id: string;
-  user_id: string;
-  name: string;
-  icon: string | null;
-  color: Tint;
-  order_index: number;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * What is needed to try a password against a locked note.
- *
- * Deliberately not a password, a hash of one, or anything derived from one:
- * a salt and an IV are public inputs. The key is derived in the browser from
- * what the reader types and never leaves it, so a locked note is unreadable to
- * the database, to the network and to whoever is looking over your shoulder —
- * and to you, permanently, if the password is forgotten.
- */
-export interface NoteLock {
-  /**
-   * 1 — a password belonging to this note alone, with its own salt.
-   * 2 — the one vault password, whose salt lives on the profile. A v1 note
-   *     joins the vault the next time it is opened, so nothing is stranded.
-   */
-  v: 1 | 2;
-  /** base64, 16 bytes. Only a v1 note carries its own; v2 uses the vault's. */
-  salt?: string;
-  /** base64, 12 bytes, re-rolled on every save. Never shared, never reused. */
-  iv: string;
-  /** an optional nudge, shown on the unlock prompt. Never the password. */
-  hint?: string | null;
-}
-
-/**
- * What proves a vault password is the right one, kept in `profile.prefs`.
- *
- * There is no hash of the password here and nothing derived from it that could
- * be attacked offline any faster than the notes themselves. `check` is a fixed
- * sentence encrypted under the derived key: decrypt it and you have the right
- * password, fail and you do not. That is the whole mechanism.
- */
-export interface NoteVault {
-  v: 2;
-  salt: string;
-  iv: string;
-  check: string;
-  hint?: string | null;
-}
-
-/**
- * A note stands on its own but usually came from somewhere — a book, a film,
- * a day. Those links are what let the same note appear on the shelf it belongs
- * to and in one list of everything written.
- */
-export interface Note {
-  id: string;
-  user_id: string;
-  title: string | null;
-  body: string;
-  kind: NoteKind;
-  book_id: string | null;
-  media_id: string | null;
-  task_id: string | null;
-  goal_id: string | null;
-  project_id: string | null;
-  /** the day a daily note belongs to */
-  date: string | null;
-  /** page for a book, minutes for a film, episode for a series */
-  locator: number | null;
-  tags: string[];
-  /** the shelves it sits on — many at once, unlike `kind` */
-  categories: string[];
-  color: Tint | null;
-  pinned: boolean;
-  format: NoteFormat;
-  /** folded down to its title on the cards and the board */
-  collapsed: boolean;
-  /** set when `body` is ciphertext rather than words */
-  lock: NoteLock | null;
-  /** a template is a note held back from the lists and offered when writing */
-  is_template: boolean;
-  /** its place on the canvas, or null when it has not been put there */
-  layout: NoteLayout | null;
-  /**
-   * Other names this note answers to. `[[Ghazali]]` and `[[Al-Ghazali]]`
-   * resolve to one note without either spelling becoming the real title.
-   */
-  aliases: string[];
-  icon: string | null;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Habit {
   id: string;
   user_id: string;
@@ -341,6 +211,8 @@ export interface Habit {
   /** Completions needed within a single day. */
   target_count: number;
   unit: string | null;
+  /** Which kind of living a tick of this habit is. */
+  umr: UmrCategory | null;
   archived: boolean;
   order_index: number;
   deleted_at: string | null;
@@ -451,6 +323,24 @@ export interface FocusSession {
   note: string | null;
 }
 
+/**
+ * A minute of life nothing else in the app records: sleep, a meal, a commute,
+ * an hour on the phone. Everything Umr can derive from tasks, sessions,
+ * prayers and habits is derived — this table is only the remainder.
+ */
+export interface UmrLog {
+  id: string;
+  user_id: string;
+  date: string;
+  category: UmrCategory;
+  minutes: number;
+  label: string | null;
+  /** minutes past midnight, when it is known */
+  start_min: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Review {
   id: string;
   user_id: string;
@@ -480,8 +370,6 @@ export interface Collections {
   tasks: Task;
   books: Book;
   media: Media;
-  notes: Note;
-  noteCategories: NoteCategory;
   habits: Habit;
   habitLogs: HabitLog;
   goals: Goal;
@@ -489,6 +377,7 @@ export interface Collections {
   prayers: Prayer;
   dayLogs: DayLog;
   focusSessions: FocusSession;
+  umrLogs: UmrLog;
   reviews: Review;
   tags: Tag;
 }
@@ -499,8 +388,6 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   tasks: "tasks",
   books: "books",
   media: "media",
-  notes: "notes",
-  noteCategories: "note_categories",
   habits: "habits",
   habitLogs: "habit_logs",
   goals: "goals",
@@ -508,6 +395,7 @@ export const TABLE_OF: Record<CollectionKey, string> = {
   prayers: "prayers",
   dayLogs: "day_logs",
   focusSessions: "focus_sessions",
+  umrLogs: "umr_logs",
   reviews: "reviews",
   tags: "tags",
 };

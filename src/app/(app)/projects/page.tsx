@@ -39,7 +39,6 @@ const VIEW_OPTIONS = [
 export default function ProjectsPage() {
   const projects = useStore((s) => s.projects);
   const tasks = useStore((s) => s.tasks);
-  const notes = useStore((s) => s.notes);
   const ready = useStore((s) => s.ready);
   const { createProject } = useProjectActions();
 
@@ -49,8 +48,8 @@ export default function ProjectsPage() {
   const [openId, setOpenId] = React.useState<string | null>(null);
 
   const index = React.useMemo(
-    () => buildProjectIndex(projects, tasks, notes),
-    [projects, tasks, notes],
+    () => buildProjectIndex(projects, tasks),
+    [projects, tasks],
   );
 
   // The board draws its own Done column, so it always gets the whole set; the
@@ -100,7 +99,7 @@ export default function ProjectsPage() {
           <EmptyState
             icon={Boxes}
             title="No projects yet"
-            description="A goal says what you are aiming at. A project is the thing you actually build to get there — it holds the tasks, the milestones and the notes, and it ends."
+            description="A goal says what you are aiming at. A project is the thing you actually build to get there — it holds the tasks and the milestones, and it ends."
             className="py-20"
             action={
               <div className="flex flex-wrap justify-center gap-2">

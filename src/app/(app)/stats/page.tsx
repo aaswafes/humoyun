@@ -15,7 +15,7 @@ import {
   buildWeekdayStats, bucketize, changePct, doneByDate, estimateSamples, focusByTag,
   focusByTask, isFocus, onTime, pagesPerWeek, perfectDays, previousDates, projectBooks,
   rangeDates, rangeLabel, sessionDate, summariseEstimates, tagUsage, trailingAverage,
-  buildGoalStats, buildNoteStats, buildShelfStats, buildWellbeing,
+  buildGoalStats, buildShelfStats, buildWellbeing,
   type RangeKey,
 } from "@/components/stats/derive";
 import { csvFilename, downloadCsv, toCsv, type CsvSection } from "@/components/stats/csv";
@@ -63,7 +63,6 @@ export default function StatsPage() {
   const prayers = useStore((s) => s.prayers);
   const books = useStore((s) => s.books);
   const media = useStore((s) => s.media);
-  const notes = useStore((s) => s.notes);
   const goals = useStore((s) => s.goals);
   const projects = useStore((s) => s.projects);
   const dayLogs = useStore((s) => s.dayLogs);
@@ -202,7 +201,7 @@ export default function StatsPage() {
     [books, readIndex, days],
   );
 
-  // ---- wellbeing, goals, shelves, notes ----
+  // ---- wellbeing, goals, shelves ----
   const wellbeing = React.useMemo(() => buildWellbeing(days, dayLogs), [days, dayLogs]);
   const goalStats = React.useMemo(
     () => buildGoalStats(days, goals, projects, allTasks),
@@ -212,7 +211,6 @@ export default function StatsPage() {
     () => buildShelfStats(days, books, media, allTasks),
     [days, books, media, allTasks],
   );
-  const noteStats = React.useMemo(() => buildNoteStats(days, notes), [days, notes]);
 
   // ---- insights ----
   const insights = React.useMemo(
@@ -342,7 +340,7 @@ export default function StatsPage() {
 
   const hasAnything =
     allTasks.length + allSessions.length + habits.length + prayers.length + books.length
-    + media.length + notes.length + goals.length + dayLogs.length > 0;
+    + media.length + goals.length + dayLogs.length > 0;
 
   const previousLabel = `Previous ${days.length} days`;
   const label = rangeLabel(days);
@@ -438,11 +436,6 @@ export default function StatsPage() {
           r.goal.title, r.closed, r.pct ?? "", r.goal.status,
         ]),
       },
-      {
-        title: "Notes",
-        columns: ["Date", "Notes"],
-        rows: noteStats.byDay.filter((d) => d.count > 0).map((d) => [d.date, d.count]),
-      },
     ];
 
     downloadCsv(csvFilename(label, activeTags), toCsv(sections));
@@ -454,7 +447,7 @@ export default function StatsPage() {
   }, [
     label, activeTags, days.length, stats, focusTotal, sessionCount, salahStreak, scores, estimate,
     weekdays, hours, samples, tagDrift, habitSeries, prayerStats, weeks, toast,
-    readingHistory, wellbeing, goalStats, noteStats,
+    readingHistory, wellbeing, goalStats,
   ]);
 
   const filteredNote = activeTags.length
@@ -574,7 +567,7 @@ export default function StatsPage() {
 
               <GoalsPanel data={goalStats} days={days.length} />
 
-              <LibraryPanel shelves={shelfStats} notes={noteStats} days={days.length} />
+              <LibraryPanel shelves={shelfStats} days={days.length} />
             </div>
 
             <p className="max-w-[76ch] text-[11.5px] leading-relaxed text-ink-4">

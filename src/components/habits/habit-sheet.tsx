@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/primitives";
 import { MenuItem, Popover, Sheet, TintPicker, SheetMaximize } from "@/components/ui/overlays";
 import { Field, MiniEmpty, Select, VisuallyHidden } from "@/components/ui/form";
+import { CategoryPicker } from "@/components/umr/category-picker";
 import { HabitIcon } from "./habit-icons";
 import { Heatmap, HeatmapLegend } from "./heatmap";
 import { DayControl, WeekDots } from "./day-control";
@@ -74,6 +75,7 @@ function SheetBody({
   const habits = useStore((s) => s.habits);
   const habitLogs = useStore((s) => s.habitLogs);
   const patch = useStore((s) => s.patch);
+  const setHabitUmr = useStore((s) => s.setHabitUmr);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
   const { meta, metaOf, skipsOf, setMeta, setSkip } = useHabitMeta();
@@ -451,6 +453,21 @@ function SheetBody({
                   const next = e.target.value.trim();
                   if (next !== (row.cue ?? "")) setMeta(habit.id, { cue: next || null });
                 }}
+              />
+            )}
+          </Field>
+
+          <Field
+            label="Umr"
+            description="Which kind of living a tick of this habit is. Give it a length in Settings → Umr and every tick starts counting."
+          >
+            {() => (
+              <CategoryPicker
+                size="sm"
+                allowNone
+                value={habit.umr}
+                onChange={(c) => setHabitUmr(habit.id, c)}
+                label="Kind of living"
               />
             )}
           </Field>

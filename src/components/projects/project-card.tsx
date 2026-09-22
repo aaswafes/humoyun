@@ -254,7 +254,6 @@ export function ProjectCard({
     stats.total ? `${stats.done} of ${stats.total} tasks · ${pct(stats.progress)}` : "no tasks yet",
     range,
     stats.nextMilestone ? `next: ${stats.nextMilestone.title}` : null,
-    stats.notes ? `${stats.notes} note${stats.notes === 1 ? "" : "s"}` : null,
   ].filter(Boolean).join(" · ");
 
   return (

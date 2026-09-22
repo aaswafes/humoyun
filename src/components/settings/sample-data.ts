@@ -178,7 +178,7 @@ const PROJECT: readonly Item[] = [
     checklist: ["Cell scale", "Screen-reader summary", "Streak overlay"],
   },
   {
-    title: "Notes — lock a note with a password", dur: 120, priority: 3, color: "violet", tags: ["deep", "ship"], goal: "v1",
+    title: "Consumption — one shelf for books, films and videos", dur: 120, priority: 3, color: "violet", tags: ["deep", "ship"], goal: "v1",
     notes: "Encrypted in the browser. A forgotten password is a lost note, and the dialog has to say so.",
     checklist: ["Key derivation", "Fresh IV per save", "Wrong-password path"],
   },
@@ -251,7 +251,7 @@ const ANCHORS: { day: number; item: Item }[] = [
   { day: 18, item: { title: "Tashkent Dev Days — day one", kind: "event", start: H(10), dur: 420, color: "orange", tags: ["travel"] } },
   { day: 19, item: { title: "Tashkent Dev Days — day two", kind: "event", start: H(10), dur: 420, color: "orange", tags: ["travel"] } },
   { day: 20, item: { title: "Give the lightning talk", kind: "event", start: H(15), dur: 30, color: "orange", priority: 3, tags: ["travel"] } },
-  { day: 26, item: { title: "v1.1 — locked notes", kind: "milestone", color: "violet", tags: ["ship"], goal: "v1" } },
+  { day: 26, item: { title: "v1.1 — one Consumption shelf", kind: "milestone", color: "violet", tags: ["ship"], goal: "v1" } },
   { day: 31, item: { title: "Nodira's birthday", kind: "event", color: "pink", priority: 2, tags: ["family"] } },
   { day: 40, item: { title: "Quarter close — write the recap", start: H(10), dur: 120, priority: 2, color: "amber", tags: ["writing", "review"] } },
 ];

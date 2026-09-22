@@ -311,7 +311,7 @@ function BooksPanel({ books }: { books: BookEvidence[] }) {
   return (
     <Panel title="Books progressed" meta={books.length ? `${books.length} ${plural(books.length, "book")}` : undefined}>
       {books.length === 0 ? (
-        <MiniEmpty action={<Button size="xs" variant="secondary" onClick={() => router.push("/books")}>Open books</Button>}>
+        <MiniEmpty action={<Button size="xs" variant="secondary" onClick={() => router.push("/consumption/books")}>Open books</Button>}>
           Nothing was read, logged or finished. Move a bookmark or log a sitting and it lands here.
         </MiniEmpty>
       ) : (

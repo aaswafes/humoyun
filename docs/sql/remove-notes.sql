@@ -1,0 +1,42 @@
+-- =========================================================
+-- Notes, removed.
+--
+-- The Notes feature is gone from the app root and branch: the /notes page,
+-- every component under src/components/notes, the `notes` and `noteCategories`
+-- collections in the store, book marginalia, media marginalia, project note
+-- logs, the daily note, note search in the command palette, note recents and
+-- the note panel on Stats.
+--
+-- What is NOT gone, and must not be confused with it — these are plain text
+-- columns on their own rows, not the Notes feature:
+--   tasks.notes            the description on a task
+--   books.notes            your verdict on a book
+--   media.notes            your verdict on a title
+--   day_logs.note          the line about how today felt
+--   habit_logs.note        what you wrote when you ticked a habit
+--   focus_sessions.note    the wrap-up on a sitting
+--
+-- THE TABLES ARE DELIBERATELY NOT DROPPED. This is the same decision the
+-- Templates removal made (see community.sql): code can be restored from git,
+-- but rows cannot be restored from anywhere. `notes` holds years of quotes,
+-- thoughts and daily entries. Nothing reads these tables any more, they cost
+-- nothing to keep, and dropping them is a one-way door.
+--
+-- Export first if you want the words: Settings -> Data -> Export writes JSON
+-- of every collection, and a backup taken before this change still contains
+-- `notes` and `note_categories`.
+--
+-- Run the block below by hand, and only once you are certain.
+-- =========================================================
+
+-- drop table if exists public.notes cascade;
+-- drop table if exists public.note_categories cascade;
+
+-- The vault lived in the profile's prefs bag rather than in a column. It is
+-- the salt/IV/check for locked notes and is meaningless without them.
+-- update public.profiles set prefs = prefs - 'noteVault' where prefs ? 'noteVault';
+
+-- Book marginalia written before the notes table existed sat in prefs too.
+-- update public.profiles
+--    set prefs = jsonb_set(prefs, '{books}', (prefs -> 'books') - 'notes')
+--  where prefs -> 'books' ? 'notes';

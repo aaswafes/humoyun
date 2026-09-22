@@ -23,13 +23,12 @@ import { PlanEditor } from "./plan-editor";
 import { PlanDiffView } from "./plan-diff-view";
 import { BookCalendarStrip } from "./book-calendar-strip";
 import { SessionLog } from "./session-log";
-import { BookNotes } from "./book-notes";
 import { PauseDialog } from "./pause-dialog";
 import { computePlan, shortDate, skipWeekdaysOf, type PlanDraft } from "./plan";
 import { diffPlan, projectBlocks } from "./plan-diff";
 import { daysPhrase, paceStats, projectFinish, ratePhrase, readDays } from "./pace";
 import {
-  clearPause, forgetBook, notesFor, pauseUntil, seriesNames, sessionsFor, setSeries,
+  clearPause, forgetBook, pauseUntil, seriesNames, sessionsFor, setSeries,
   useLibraryPrefs,
 } from "./library-prefs";
 import { recordReading } from "./reading-actions";
@@ -193,8 +192,6 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
   // ---- what actually happened ----
   const sessions = React.useMemo(
     () => sessionsFor(library.sessions, book.id), [library.sessions, book.id]);
-  const marginalia = React.useMemo(
-    () => notesFor(library.notes, book.id), [library.notes, book.id]);
   const history = React.useMemo(
     () => readDays(book.id, tasks, library.sessions), [book.id, tasks, library.sessions]);
   const pace = React.useMemo(() => paceStats(history), [history]);
@@ -229,10 +226,7 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
     ? `${sessions.length} ${sessions.length === 1 ? "sitting" : "sittings"} · ${pace.pages} pp in ${pace.spanDays} days`
     : "Log what you actually read";
 
-  const notesSummary = [
-    marginalia.length ? `${marginalia.length} kept` : null,
-    book.notes?.trim() ? "your verdict written" : null,
-  ].filter(Boolean).join(" · ") || "Quotes, thoughts and your verdict";
+  const notesSummary = book.notes?.trim() ? "written" : "What stayed with you?";
 
   const detailsSummary = [
     `${total.toLocaleString()} pages`,
@@ -764,32 +758,21 @@ function BookSheetBody({ book, onClose }: { book: Book; onClose: () => void }) {
           />
         </Group>
 
-        {/* ---- Notes: the trail, and the verdict ---- */}
+        {/* ---- The verdict: one field on the book, not a note ---- */}
         <Group
           storageKey="humoyun.books.sheet.notes"
-          label="Notes"
+          label="Verdict"
           summary={notesSummary}
         >
-          <BookNotes
-            bookId={book.id}
-            notes={marginalia}
-            totalPages={total}
-            currentPage={read}
-            tint={book.color}
+          <AutoTextarea
+            aria-label="Verdict"
+            value={notes}
+            onChange={setNotes}
+            onBlur={() => commit("notes", notes.trim() || null)}
+            minRows={3}
+            placeholder="What stayed with you?"
+            className="text-[13px] text-ink placeholder:text-ink-4"
           />
-
-          <div className="mt-4">
-            <p className="mb-1 text-[11.5px] font-medium text-ink-3">Your verdict</p>
-            <AutoTextarea
-              aria-label="Notes"
-              value={notes}
-              onChange={setNotes}
-              onBlur={() => commit("notes", notes.trim() || null)}
-              minRows={3}
-              placeholder="What stayed with you?"
-              className="text-[13px] text-ink placeholder:text-ink-4"
-            />
-          </div>
         </Group>
 
         {/* ---- Details ---- */}

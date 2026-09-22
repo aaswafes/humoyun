@@ -6,7 +6,7 @@ import {
   Search, CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon,
   Target, Timer, BarChart3, ClipboardCheck, Settings, Users,
   Plus, CornerDownLeft, CheckSquare, Circle, ArrowRight, Play, SunMedium, MoonStar, Clapperboard,
-  MonitorPlay, NotebookPen, Boxes, FileText,
+  MonitorPlay, Boxes, Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
@@ -14,7 +14,6 @@ import { MEDIA_KIND_LABELS } from "@/lib/types";
 import { friendlyDate, todayISO } from "@/lib/date";
 import { Modal } from "@/components/ui/overlays";
 import { Kbd } from "@/components/ui/primitives";
-import { notePlain } from "@/components/notes/note-model";
 
 interface Command {
   id: string;
@@ -35,7 +34,6 @@ export function CommandPalette() {
   const habits = useStore((s) => s.habits);
   const goals = useStore((s) => s.goals);
   const projects = useStore((s) => s.projects);
-  const notes = useStore((s) => s.notes);
   const media = useStore((s) => s.media);
   const toggleTask = useStore((s) => s.toggleTask);
   const openInspector = useStore((s) => s.openInspector);
@@ -61,15 +59,16 @@ export function CommandPalette() {
       { id: "n-cal", label: "Calendar", group: "Go to", icon: CalendarDays, run: () => go("/calendar") },
       { id: "n-inbox", label: "Inbox", group: "Go to", icon: Inbox, run: () => go("/inbox") },
       { id: "n-projects", label: "Projects", group: "Go to", icon: Boxes, run: () => go("/projects") },
-      { id: "n-books", label: "Books", group: "Go to", icon: BookOpen, run: () => go("/books") },
-      { id: "n-watch", label: "Films & Anime", group: "Go to", icon: Clapperboard, run: () => go("/watch") },
-      { id: "n-youtube", label: "YouTube", group: "Go to", icon: MonitorPlay, run: () => go("/youtube") },
-      { id: "n-notes", label: "Notes", group: "Go to", icon: NotebookPen, run: () => go("/notes") },
+      { id: "n-umr", label: "Umr", group: "Go to", icon: Hourglass, keywords: "time life talim ibodat xordiq dam inson", run: () => go("/umr") },
+      { id: "n-books", label: "Books", group: "Go to", icon: BookOpen, run: () => go("/consumption/books") },
+      { id: "n-watch", label: "Films & Anime", group: "Go to", icon: Clapperboard, run: () => go("/consumption/films") },
+      { id: "n-youtube", label: "YouTube", group: "Go to", icon: MonitorPlay, run: () => go("/consumption/youtube") },
       { id: "n-habits", label: "Habits", group: "Go to", icon: Flame, run: () => go("/habits") },
       { id: "n-salah", label: "Salah", group: "Go to", icon: Moon, run: () => go("/salah") },
       { id: "n-goals", label: "Goals", group: "Go to", icon: Target, run: () => go("/goals") },
       { id: "n-focus", label: "Focus", group: "Go to", icon: Timer, run: () => go("/focus") },
       { id: "n-stats", label: "Stats", group: "Go to", icon: BarChart3, run: () => go("/stats") },
+      { id: "n-umr-stats", label: "Umr stats", group: "Go to", icon: Hourglass, keywords: "time life balance dam budget", run: () => go("/umr/stats") },
       { id: "n-review", label: "Weekly Review", group: "Go to", icon: ClipboardCheck, run: () => go("/review") },
       { id: "n-community", label: "Community", group: "Go to", icon: Users, run: () => go("/community") },
       { id: "n-settings", label: "Settings", group: "Go to", icon: Settings, run: () => go("/settings") },
@@ -113,7 +112,7 @@ export function CommandPalette() {
 
     const bookResults: Command[] = books.map((b) => ({
       id: `b-${b.id}`, label: b.title, hint: b.author ?? "Book", group: "Books",
-      icon: BookOpen, run: () => go("/books"),
+      icon: BookOpen, run: () => go("/consumption/books"),
     }));
 
     const habitResults: Command[] = habits.filter((h) => !h.archived).map((h) => ({
@@ -135,26 +134,6 @@ export function CommandPalette() {
       run: () => go("/projects"),
     }));
 
-    // Notes are the one place where the words worth finding are in the body
-    // rather than the title, so the body rides along as keywords. A locked
-    // note contributes nothing: its body is ciphertext, and indexing it would
-    // be both useless and a small betrayal of the lock.
-    const noteResults: Command[] = notes
-      .filter((n) => !n.is_template)
-      .map((n) => {
-        const plain = n.lock ? "" : notePlain(n);
-        const label = n.title?.trim() || plain.split("\n")[0]?.trim() || "Untitled note";
-        return {
-          id: `no-${n.id}`,
-          label,
-          hint: n.lock ? "Locked" : (n.categories[0] ?? n.kind),
-          group: "Notes",
-          icon: FileText,
-          keywords: n.lock ? "" : `${plain.slice(0, 600)} ${n.tags.join(" ")} ${(n.aliases ?? []).join(" ")}`,
-          run: () => go(`/notes#n-${n.id}`),
-        };
-      });
-
     const mediaResults: Command[] = media.map((m) => ({
       id: `md-${m.id}`,
       label: m.title,
@@ -162,14 +141,14 @@ export function CommandPalette() {
       group: m.kind === "youtube" || m.kind === "playlist" ? "YouTube" : "Films & Anime",
       icon: m.kind === "youtube" || m.kind === "playlist" ? MonitorPlay : Clapperboard,
       keywords: [m.genre, m.topic, m.series, m.channel].filter(Boolean).join(" "),
-      run: () => go(m.kind === "youtube" || m.kind === "playlist" ? "/youtube" : "/watch"),
+      run: () => go(m.kind === "youtube" || m.kind === "playlist" ? "/consumption/youtube" : "/consumption/films"),
     }));
 
     return [
-      ...actions, ...nav, ...taskResults, ...bookResults, ...noteResults,
+      ...actions, ...nav, ...taskResults, ...bookResults,
       ...mediaResults, ...habitResults, ...goalResults, ...projectResults,
     ];
-  }, [tasks, books, notes, media, habits, goals, projects, go, close, openInspector, setSelectedDate, setTheme, startTimer]);
+  }, [tasks, books, media, habits, goals, projects, go, close, openInspector, setSelectedDate, setTheme, startTimer]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();

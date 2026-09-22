@@ -4,9 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CalendarDays, Sun, Inbox, Network, BookOpen, Flame, Moon, Target,
-  Timer, BarChart3, ClipboardCheck, Settings, Search, Clapperboard,
-  MonitorPlay, NotebookPen, Boxes, Users,
+  CalendarDays, Sun, Inbox, Network, Flame, Moon, Target,
+  Timer, BarChart3, ClipboardCheck, Settings, Search, Library, Hourglass,
+  Boxes, Users,
   Plus, ChevronDown, ChevronRight, LogOut, Monitor, SunMedium, MoonStar, Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -86,7 +86,7 @@ export function Sidebar() {
         { href: "/calendar", label: t("nav.calendar"), icon: CalendarDays },
         { href: "/inbox", label: t("nav.inbox"), icon: Inbox, badge: inboxCount },
         { href: "/projects", label: t("nav.projects"), icon: Boxes },
-        { href: "/notes", label: t("nav.notes"), icon: NotebookPen },
+        { href: "/umr", label: t("nav.umr"), icon: Hourglass },
       ],
     },
     {
@@ -95,9 +95,7 @@ export function Sidebar() {
       items: [
         { href: "/habits", label: t("nav.habits"), icon: Flame },
         { href: "/salah", label: t("nav.salah"), icon: Moon },
-        { href: "/books", label: t("nav.books"), icon: BookOpen },
-        { href: "/watch", label: t("nav.watch"), icon: Clapperboard },
-        { href: "/youtube", label: t("nav.youtube"), icon: MonitorPlay },
+        { href: "/consumption", label: t("nav.consumption"), icon: Library },
         { href: "/focus", label: t("nav.focus"), icon: Timer },
       ],
     },
@@ -107,6 +105,7 @@ export function Sidebar() {
       items: [
         { href: "/goals", label: t("nav.goals"), icon: Target },
         { href: "/stats", label: t("nav.stats"), icon: BarChart3 },
+        { href: "/umr/stats", label: t("nav.umrStats"), icon: Hourglass },
         { href: "/review", label: t("nav.review"), icon: ClipboardCheck },
       ],
     },
@@ -118,6 +117,26 @@ export function Sidebar() {
       ],
     },
   ];
+
+  /**
+   * Exactly one entry lights up: the longest href the path starts with.
+   *
+   * A plain `startsWith` per item lit both Umr and Umr stats on /umr/stats,
+   * because one route sits under the other. Picking the longest match is the
+   * general answer and needs no per-item flag.
+   */
+  const activeHref = (() => {
+    let best = "";
+    for (const group of groups) {
+      for (const item of group.items) {
+        if (item.href === "/") continue;
+        if ((pathname === item.href || pathname.startsWith(`${item.href}/`)) && item.href.length > best.length) {
+          best = item.href;
+        }
+      }
+    }
+    return best || (pathname === "/" ? "/" : "");
+  })();
 
   if (!sidebarOpen) return null;
 
@@ -248,7 +267,7 @@ export function Sidebar() {
             </button>
             <ul className={cn("space-y-px", collapsed.has(group.id) && "hidden")}>
               {group.items.map((item) => {
-                const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                const active = item.href === activeHref;
                 const Icon = item.icon;
                 return (
                   <li key={item.href}>

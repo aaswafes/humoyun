@@ -11,11 +11,11 @@ import * as React from "react";
 // on. Reads go through useSyncExternalStore so a second tab stays in step.
 //
 // Only ids are stored. Labels are resolved from the store at render time, so
-// renaming a note renames it here too, and a deleted note simply stops being
+// renaming a book renames it here too, and a deleted one simply stops being
 // listed rather than lingering as a dead row.
 // =========================================================
 
-export type RecentKind = "note" | "task" | "book" | "media" | "project" | "goal";
+export type RecentKind = "task" | "book" | "media" | "project" | "goal";
 
 export interface Ref {
   kind: RecentKind;
@@ -35,7 +35,7 @@ let cache: Snapshot = EMPTY;
 let loaded = false;
 const listeners = new Set<() => void>();
 
-const KINDS: RecentKind[] = ["note", "task", "book", "media", "project", "goal"];
+const KINDS: RecentKind[] = ["task", "book", "media", "project", "goal"];
 
 function sanitise(raw: unknown): Snapshot {
   if (!raw || typeof raw !== "object") return EMPTY;

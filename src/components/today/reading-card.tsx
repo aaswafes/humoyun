@@ -109,7 +109,7 @@ export function ReadingCard({ date }: { date: string }) {
       title="Reading"
       foldKey="rail.reading"
       summary={summary}
-      href="/books"
+      href="/consumption/books"
       hrefLabel="Open Books"
       accessory={
         blocks.length > 0 ? (
@@ -130,7 +130,7 @@ export function ReadingCard({ date }: { date: string }) {
       }
     >
       {groups.length === 0 && loose.length === 0 ? (
-        <RailEmpty action={<RailLink href="/books">{books.length ? "Schedule a book" : "Add a book"}</RailLink>}>
+        <RailEmpty action={<RailLink href="/consumption/books">{books.length ? "Schedule a book" : "Add a book"}</RailLink>}>
           Nothing to read today. Schedule a book across your calendar and its daily page ranges land here.
         </RailEmpty>
       ) : (

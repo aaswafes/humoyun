@@ -127,7 +127,7 @@ export function ReadingPanel({
           title="No books on the go"
           description="Add a book and give it a page count. Move the bookmark, log a sitting or tick a scheduled block and this panel tracks pages a week, time at the page, and the date each book finishes."
           action={
-            <Button variant="primary" size="sm" onClick={() => router.push("/books")}>
+            <Button variant="primary" size="sm" onClick={() => router.push("/consumption/books")}>
               Add a book
             </Button>
           }

@@ -16,7 +16,6 @@ import { TaskList } from "@/components/tasks/task-list";
 import { Fold, useFold } from "./fold";
 import { FlagLine, IdentityPicker, ProjectMenu } from "./project-card";
 import { ProjectMilestones } from "./project-milestones";
-import { ProjectNotes } from "./project-notes";
 import {
   dueLabel, formatRange, pct, projectAttention, STATUS_LABEL,
   type ProjectIndex,
@@ -78,7 +77,6 @@ function ProjectSheetBody({
   const patch = useStore((s) => s.patch);
   const goals = useStore((s) => s.goals);
   const allTasks = useStore((s) => s.tasks);
-  const allNotes = useStore((s) => s.notes);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
 
   const stats = index.stats(project.id);
@@ -90,7 +88,6 @@ function ProjectSheetBody({
 
   const plan = useFold("sheet.plan", false);
   const milestones = useFold("sheet.milestones", false);
-  const notes = useFold("sheet.notes", false);
 
   // The list is the work; milestones are the checkpoints and have their own
   // panel, so showing them in both places would say the same thing twice.
@@ -102,11 +99,6 @@ function ProjectSheetBody({
     () => allTasks.filter((t) => t.project_id === project.id && t.kind === "milestone"),
     [allTasks, project.id],
   );
-  const projectNotes = React.useMemo(
-    () => allNotes.filter((n) => n.project_id === project.id),
-    [allNotes, project.id],
-  );
-
   const goalOptions = React.useMemo(() => [
     { value: "", label: <span className="text-ink-4">Not linked</span> },
     ...goals
@@ -322,20 +314,6 @@ function ProjectSheetBody({
           onToggle={milestones.toggle}
         >
           <ProjectMilestones project={project} milestones={milestoneTasks} />
-        </Fold>
-
-        <Fold
-          id="project-sheet-notes"
-          label="Notes"
-          summary={
-            projectNotes.length
-              ? `${projectNotes.length} ${projectNotes.length === 1 ? "note" : "notes"}`
-              : "nothing written down"
-          }
-          open={notes.open}
-          onToggle={notes.toggle}
-        >
-          <ProjectNotes project={project} notes={projectNotes} />
         </Fold>
       </div>
     </div>

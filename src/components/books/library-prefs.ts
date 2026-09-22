@@ -6,7 +6,7 @@ import { useStore, uid } from "@/lib/store";
 // =========================================================
 // Library state that has no column in the books table.
 //
-// Sessions, marginalia, series, the queue, pauses and the yearly goal all
+// Sessions, series, the queue, pauses and the yearly goal all
 // live under profile.prefs.books — the same loosely-typed bag Settings
 // already uses for work_start / hour12. It round-trips through
 // updateProfile, so it persists in Supabase and in solo localStorage
@@ -15,7 +15,6 @@ import { useStore, uid } from "@/lib/store";
 
 const KEY = "books";
 
-export type NoteKind = "highlight" | "thought";
 export type LibraryView = "shelf" | "table";
 export type GroupBy = "status" | "series" | "author" | "genre" | "topic" | "none";
 
@@ -29,23 +28,12 @@ export interface ReadingSession {
   end_page: number;  // the bookmark this session left behind
 }
 
-/** A quote or a thought, anchored to a page. */
-export interface BookNote {
-  id: string;
-  book_id: string;
-  kind: NoteKind;
-  page: number | null;
-  text: string;
-  created_at: string;
-}
-
 export interface LibraryPrefs {
   view: LibraryView;
   group: GroupBy;
   /** books to finish this calendar year */
   goal: number;
   sessions: ReadingSession[];
-  notes: BookNote[];
   /** book id -> series / collection name */
   series: Record<string, string>;
   /** ordered book ids for the "to read" queue */
@@ -59,7 +47,6 @@ export const DEFAULT_LIBRARY: LibraryPrefs = {
   group: "status",
   goal: 12,
   sessions: [],
-  notes: [],
   series: {},
   queue: [],
   paused: {},
@@ -104,24 +91,6 @@ function parseSessions(v: unknown): ReadingSession[] {
   });
 }
 
-function parseNotes(v: unknown): BookNote[] {
-  if (!Array.isArray(v)) return [];
-  return v.flatMap((raw): BookNote[] => {
-    if (!isRecord(raw)) return [];
-    const bookId = str(raw.book_id);
-    const text = str(raw.text);
-    if (!bookId || !text.trim()) return [];
-    return [{
-      id: str(raw.id) || uid(),
-      book_id: bookId,
-      kind: raw.kind === "thought" ? "thought" : "highlight",
-      page: raw.page == null ? null : Math.max(0, Math.round(num(raw.page))),
-      text,
-      created_at: str(raw.created_at) || new Date().toISOString(),
-    }];
-  });
-}
-
 export function parseLibrary(prefs: Record<string, unknown> | undefined | null): LibraryPrefs {
   const raw = isRecord(prefs) ? prefs[KEY] : undefined;
   if (!isRecord(raw)) return DEFAULT_LIBRARY;
@@ -134,7 +103,6 @@ export function parseLibrary(prefs: Record<string, unknown> | undefined | null):
         : "status",
     goal: Math.max(0, Math.round(num(raw.goal, DEFAULT_LIBRARY.goal))),
     sessions: parseSessions(raw.sessions),
-    notes: parseNotes(raw.notes),
     series: stringMap(raw.series),
     queue: Array.isArray(raw.queue) ? raw.queue.filter((x): x is string => typeof x === "string") : [],
     paused: stringMap(raw.paused),
@@ -184,30 +152,6 @@ export function addSession(input: {
 export const removeSession = (id: string) =>
   commit((p) => ({ ...p, sessions: p.sessions.filter((s) => s.id !== id) }));
 
-export function addNote(input: {
-  bookId: string; kind: NoteKind; page: number | null; text: string;
-}): BookNote {
-  const note: BookNote = {
-    id: uid(),
-    book_id: input.bookId,
-    kind: input.kind,
-    page: input.page,
-    text: input.text,
-    created_at: new Date().toISOString(),
-  };
-  commit((p) => ({ ...p, notes: [...p.notes, note] }));
-  return note;
-}
-
-export const updateNote = (id: string, changes: Partial<Omit<BookNote, "id" | "book_id">>) =>
-  commit((p) => ({
-    ...p,
-    notes: p.notes.map((n) => (n.id === id ? { ...n, ...changes } : n)),
-  }));
-
-export const removeNote = (id: string) =>
-  commit((p) => ({ ...p, notes: p.notes.filter((n) => n.id !== id) }));
-
 export function setSeries(bookId: string, name: string): void {
   const trimmed = name.trim();
   commit((p) => {
@@ -243,7 +187,6 @@ export function forgetBook(bookId: string): void {
       series,
       paused,
       sessions: p.sessions.filter((s) => s.book_id !== bookId),
-      notes: p.notes.filter((n) => n.book_id !== bookId),
       queue: p.queue.filter((id) => id !== bookId),
     };
   });
@@ -255,14 +198,6 @@ export function forgetBook(bookId: string): void {
 /** Newest sitting first. */
 export const sessionsFor = (sessions: ReadingSession[], bookId: string): ReadingSession[] =>
   sessions.filter((s) => s.book_id === bookId).sort((a, b) => b.date.localeCompare(a.date));
-
-/** In page order, unplaced notes last. */
-export const notesFor = (notes: BookNote[], bookId: string): BookNote[] =>
-  notes
-    .filter((n) => n.book_id === bookId)
-    .sort((a, b) =>
-      (a.page ?? Number.MAX_SAFE_INTEGER) - (b.page ?? Number.MAX_SAFE_INTEGER)
-      || a.created_at.localeCompare(b.created_at));
 
 /** Every series name in use, alphabetical — feeds the suggestion list. */
 export function seriesNames(series: Record<string, string>): string[] {

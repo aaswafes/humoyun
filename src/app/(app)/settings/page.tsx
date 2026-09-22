@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarDays, Database, Languages, LogOut, MoonStar, Palette, User } from "lucide-react";
+import { Bell, CalendarDays, Database, Hourglass, Languages, LogOut, MoonStar, Palette, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useT } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
@@ -20,6 +20,7 @@ import { PushSection } from "@/components/settings/push-section";
 import { DataSection } from "@/components/settings/data-section";
 import { TrashSection } from "@/components/settings/trash-section";
 import { LanguageSection } from "@/components/settings/language-section";
+import { UmrSection } from "@/components/settings/umr-section";
 import { ShortcutsCard } from "@/components/settings/shortcuts-card";
 import { startReminders } from "@/components/settings/reminders";
 
@@ -31,6 +32,7 @@ const TABS = [
   { id: "language", labelKey: "settings.language", icon: Languages },
   { id: "calendar", labelKey: "settings.calendar", icon: CalendarDays },
   { id: "salah", labelKey: "settings.salah", icon: MoonStar },
+  { id: "umr", labelKey: "settings.umr", icon: Hourglass },
   { id: "notifications", labelKey: "settings.notifications", icon: Bell },
   { id: "data", labelKey: "settings.data", icon: Database },
 ] as const;
@@ -170,6 +172,7 @@ export default function SettingsPage() {
             {tab === "language" && <LanguageSection />}
             {tab === "calendar" && <CalendarSection />}
             {tab === "salah" && <SalahSection />}
+            {tab === "umr" && <UmrSection />}
             {tab === "notifications" && (
               <>
                 <NotificationsSection />

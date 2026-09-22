@@ -8,7 +8,7 @@ re-invent it, do not edit the files listed under "Do not touch".
 A calendar-first personal operating system. Notion's structure (checkboxes, inline
 editing, tints, templates) with Apple's manners (hairlines, springs, restraint,
 tabular numerals). One user, their whole life: tasks, events, reading plans, habits,
-salah, goals, notes, focus timers, and weekly review.
+salah, goals, focus timers, the Umr time ledger, and weekly review.
 
 ## Stack
 
@@ -71,8 +71,8 @@ actions confirm via `ConfirmDialog`. Empty states always offer the action that f
 ### `@/lib/store` (Zustand)
 
 ```ts
-const { tasks, books, habits, habitLogs, goals, projects, boards, nodes, edges,
-        prayers, dayLogs, focusSessions, reviews, tags,
+const { tasks, books, media, habits, habitLogs, goals, projects,
+        prayers, dayLogs, focusSessions, umrLogs, reviews, tags,
         profile, ready, selectedDate, calendarView, hour12 } = useStore();
 ```
 
@@ -87,8 +87,8 @@ remove(collectionKey, id)
 removeWhere(collectionKey, predicate)
 ```
 
-Collection keys: `tasks books habits habitLogs goals projects boards nodes edges
-prayers dayLogs focusSessions reviews tags`.
+Collection keys: `tasks books media habits habitLogs goals projects
+prayers dayLogs focusSessions umrLogs reviews tags`.
 
 Semantic actions already written — call these instead of hand-rolling:
 
@@ -98,6 +98,8 @@ addSubtask(parentId, title) createSeries(base, recurrence) deleteSeries(seriesId
 logHabit(habitId, date, count?) toggleHabit(habitId, date)
 setPrayer(date, name, status) cyclePrayer(date, name)
 setDayLog(date, changes) setReview(weekStart, changes)
+logUmr({date?, category, minutes, label?, startMin?})
+setTaskUmr(taskId, category|null) setHabitUmr(habitId, category|null)
 scheduleBook(bookId, { startDate, pagesPerDay, endDate, skipWeekdays, replace })
 unscheduleBook(bookId, from?) logReading(bookId, page)
 startTimer({taskId,label,mode,targetMinutes}) pauseTimer() resumeTimer() stopTimer(save)
@@ -137,7 +139,8 @@ Never call `toISOString()` on a user-facing date.
 ### `@/lib/types`
 
 All entity interfaces plus `TINTS`, `ACCENTS`, `PRAYER_NAMES`, `PRAYER_LABELS`,
-`PRIORITY_LABELS`, `TABLE_OF`.
+`PRIORITY_LABELS`, `TABLE_OF`, `UMR_CATEGORIES`. The Umr *category type* is here
+because it is a column type; everything else about Umr is in `@/lib/umr`.
 
 ### `@/lib/parse`
 
@@ -264,7 +267,7 @@ the `custom` cadence. Anything that answers "is this habit due today" imports
 `src/components/projects/` owns the surface. Read `project-model.ts` first: it is
 the single source of truth for a project's numbers.
 
-- `buildProjectIndex(projects, tasks, notes)` → `index.stats(id)`. Board, list,
+- `buildProjectIndex(projects, tasks)` → `index.stats(id)`. Board, list,
   timeline and sheet all read the same index, so three views can never disagree
   about how far along a project is. **Never count a project's tasks by hand.**
 - Only top-level tasks count (`parent_id === null`); a subtask inherits its
@@ -273,16 +276,33 @@ the single source of truth for a project's numbers.
 - A **milestone is a task**, `kind: "milestone"` with a date, inside the project.
   There is no milestones table and there must not be one — the calendar and the
   timeline already draw them.
-- Deleting a project unlinks its tasks and notes and keeps them. `useProjectActions`
+- Deleting a project unlinks its tasks and keeps them. `useProjectActions`
   wraps that in one `batchUndo` step; go through the hook, not `remove` directly.
 - Attention flags come from `projectAttention`. `danger` is for a due date that
   has already passed and nothing else; everything else is `quiet`.
 
-## The three shelves
+## Consumption — the three shelves, one section
 
-Books, Films & Anime and YouTube are one surface drawn three times: cards in a
-grid, grouped by whatever the toolbar is grouping by. `src/components/shelf/`
-owns what they share.
+Books, Films & Anime and YouTube are **one section called Consumption**, at
+`/consumption/{books,films,youtube}`, with one sidebar entry and one tab strip
+(`src/components/consumption/tabs.tsx`). The shelves themselves were not
+redesigned — only the chrome merged. Each keeps its own toolbar, views, add
+button and sheet.
+
+- The views live in `src/components/consumption/{books,films,youtube}-view.tsx`
+  and the route files under `src/app/(app)/consumption/` do nothing but render
+  one. A view renders its own `PageHeader` (titled with `nav.consumption`),
+  then `<ConsumptionTabs active="…" />`, then its `PageBody`.
+- `/books`, `/watch` and `/youtube` are permanent redirects in `next.config.ts`.
+  They exist for bookmarks and old deep links; **link to `/consumption/…`
+  inside the app**, or every in-app navigation pays for a round trip.
+- The sidebar lights **one** entry: the longest `href` the path starts with.
+  A plain `startsWith` per item lit two things at once as soon as one route sat
+  under another, which is why the rule is stated rather than inferred.
+
+Underneath, they are still one surface drawn three times: cards in a grid,
+grouped by whatever the toolbar is grouping by. `src/components/shelf/` owns
+what they share.
 
 - `ShelfDnd` / `ShelfGroup` / `ShelfItem` make a card draggable **between
   shelves**, and nothing else. A drop re-files the card under the group it
@@ -302,67 +322,77 @@ owns what they share.
   the bookmark to the last page, pausing one asks for a resume date. If those
   ever disagree, the drag is wrong, not the menu.
 
-## The notes workspace
+## Umr — the time ledger
 
-`src/components/notes/` is one surface with four views over the same rows, and
-the whole design turns on that: a note on the canvas, a dot in the graph and a
-card in the list are the same note, so arranging the board is never a second
-copy of your writing that can drift from the first.
+Umr is a lifetime, counted. Every minute the app knows about belongs to one of
+five kinds of living: **taʼlim** (learning), **ibodat** (worship), **xordiq**
+(restoring yourself), **dam** (amusement) and **inson** (people). The section
+is `/umr` in the Plan group, with its own long stats page at `/umr/stats` in
+Reflect.
 
-Schema in `docs/sql/notes-workspace.sql` — four columns on `notes` and one small
-table. Run it once.
+**The rule the section exists for.** Dam is capped at a share of taʼlim —
+ten minutes of study buys one minute of games, by default. That cap is the
+reason everything funnels through **one** module: if study time and game time
+were counted by two different pieces of code the cap would drift and mean
+nothing.
 
-**Body.** `format` is `'plain'` for everything written before the rich editor
-and `'html'` after. Nothing is migrated in place: a plain note is converted the
-first time it is actually edited, so opening one to read it leaves it alone.
-Never touch `note.body` directly — `noteText`, `notePlain` and `bodyAsHtml` in
-`rich-text.ts` answer for both shapes, and a summary that read the raw body
-would match style attributes and tag names.
+### `@/lib/umr` is the only place any of this is decided
 
-**The editor.** `RichEditor` is a contentEditable, not a document model. Three
-things are load-bearing and were each a bug first:
+`UMR_CATEGORIES`, `UMR_META` (label, gloss, examples, tint), `parseUmrPrefs` /
+`writeUmrPrefs`, `buildUmrIndex`, `taskCategory`, `sessionCategory`,
+`habitCategory`, `buildLedger`, `totalsOf`, `damBalance`, `ratioPhrase`.
+**No surface re-derives a category or a budget.** `@/components/umr/use-umr`
+wraps it for React (`useUmrLedger`, `useDamBalance`, `useSetUmrPrefs`) and
+`@/components/umr/derive` holds every statistic, as pure functions.
 
-- Every styling command goes through `wrapSelection`, which borrows execCommand
-  only to split the range and then writes the one declaration asked for. Each
-  property has **its own marker command** — `fontSize` strips inline font-sizes
-  before writing its own, so sharing one marker made highlighting text silently
-  undo its own size.
-- Toolbar controls kill their own `mousedown`. Without it the editor blurs, the
-  selection collapses, and the command lands on nothing.
-- `normalizeBlocks` runs after every block command. The browser nests lists
-  inside paragraphs and leaves childless `<p>`s behind; both only bite once the
-  HTML is stored and re-parsed into a different shape than was on screen.
+### What is stored, and what is not
 
-Paste is the one door untrusted markup comes through, and `sanitizeHtml` is an
-allowlist. Do not add a tag to it casually.
+Almost nothing is stored. Focus sessions, minutes on tasks, prayers and habit
+ticks are already rows; Umr reads them. Only two things were added:
 
-**Categories** are where a note belongs; `kind` is what a note *is*. A note has
-as many categories as apply and exactly one kind — that is the entire
-difference, and it is why one is an array. The name is stored on the note as
-text and `noteCategories` only carries colour, icon and order, so a category
-with no row still works and typing a new one into the picker is safe.
+- `tasks.umr` and `habits.umr` — nullable text, checked against the five names.
+  **Null means nobody has said yet**, which is not the same as "none": the Umr
+  page lists exactly those rows for triage, and answering once writes the
+  category onto the task or habit so it never has to be answered again.
+- `umr_logs` — the minutes nothing else records: sleep, meals, a commute, an
+  hour on the phone. One user, their own rows, the same four `own_*` policies
+  every other table carries. `docs/sql/umr.sql`, applied.
 
-**The canvas** is one infinite board. A note is on it when `layout` is not null.
-Frames are scenery: `readableNotes` keeps them out of the lists, the counts and
-the graph, because nobody wrote them. Dragging never writes to the store — the
-offset lives in the item until the pointer comes up, so a move is one undo step.
-Only the axis a gesture touched is committed; snapping the size on a move grew
-every card by two pixels each time it was picked up.
+Everything else — the ratio, the budget window, the minutes a prayer is worth,
+the kind and tag rules, the minutes a habit tick is worth, where sleep goes —
+lives in `profiles.prefs.umr`, so retuning a rule never needs a migration.
 
-**The graph** clusters rather than laying out. Notes are pulled hard to their
-own hub and pushed away from everything else, and `separateLabels` then spreads
-titles vertically — the dots were never the problem, the names on top of each
-other were. The legend is a multiselect: switching a cluster off takes it out of
-the layout so the rest spreads into the space.
+### Counting a minute exactly once
 
-**Templates are notes** with `is_template`. Same table, same editor, same
-categories; there is no second kind of thing and no second editor. Four
-placeholders are filled on use, everything else is copied exactly.
+Stopping a timer credits `task.actual_min`, so a task and its sessions describe
+the same minutes. **Sessions win** — they carry a clock time, which the hour
+profile needs — and a task contributes only the residual it can prove beyond
+them. Taking the larger of the two, the way the Stats page does for a single
+figure, would double-count here.
 
-**Rows that predate a column.** `repair` in the store fills in fields a cached
-or pre-migration row is missing, once, where rows enter. Readers downstream
-trust the type instead of defending themselves — one `for (const c of
-note.categories)` on an old row took the whole page down before it existed.
+### The honesty rules, which must not be softened
+
+- **Nothing is estimated.** A minute is in the ledger because a timer measured
+  it, a row records it, or the user said so. Prayers are the single declared
+  figure, at a length the user sets, and every surface that shows them says so.
+- **The gap stays visible.** Bars are drawn against the whole 24 hours, not
+  against what was recorded, so the hours nothing knows about read as empty
+  space instead of being normalised away.
+- **The cap warns, never blocks.** Logging Dam past the budget asks once and
+  then goes through. A ledger you lie to in order to stay under a self-imposed
+  cap is worth nothing, and every other number on the page depends on it.
+- **The budget does not roll over.** An unspent hour on Monday buys nothing on
+  Tuesday — the only version of the rule that cannot be gamed.
+- **Balance is a description, not a score.** The panel says so out loud: a week
+  spent almost entirely on taʼlim reads low, and may be exactly the right week.
+
+### Drawing a category
+
+Tints are theme-aware and tint-set aware, so a hex value in a chart is wrong in
+dark mode and wrong again under "vivid". Custom properties inherit through SVG:
+put `tint-<name>` on a `<g>` and every shape inside reads `var(--tint)`. That is
+what `@/components/umr/stats/shared.tsx` exists for, and it is why no chart in
+this section names a colour.
 
 ## Accessibility floor
 

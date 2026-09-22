@@ -6,7 +6,7 @@ import {
   Target, ListTree, Timer as TimerIcon, CheckSquare, Inbox, Shapes,
   History, Copy, MoreHorizontal, Ban, Link2, ChevronUp,
   ChevronDown, ChevronRight, CornerDownRight, Sparkles, Milestone, CalendarClock,
-  Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal, Boxes,
+  Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal, Boxes, Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, subtasksOf, orderBetween, uid } from "@/lib/store";
@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/primitives";
 import { Toggle } from "@/components/ui/form";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
+import { CategoryPicker } from "@/components/umr/category-picker";
+import { UMR_META } from "@/lib/umr";
 import { InlineComposer, useDisclosure, FOLD_ANIM } from "./task-list";
 import {
   blockedByThis, blockersOf, useDayLoad, useTaskLinks, useUpdateTaskLinks,
@@ -448,6 +450,7 @@ export function TaskInspector() {
       : current.tags.length > 1
         ? `${current.tags.length} tags`
         : null,
+    current.umr ? UMR_META[current.umr].label : null,
     current.recurrence ? recurrenceLabel(current.recurrence).toLowerCase() : null,
     project ? (project.name || "untitled project") : null,
     goal?.title ?? null,
@@ -678,7 +681,7 @@ export function TaskInspector() {
               id="details"
               icon={SlidersHorizontal}
               title="Details"
-              summary={detailBits.length ? detailBits.join(" · ") : "Estimate, type, colour, tags, repeat, project, goal"}
+              summary={detailBits.length ? detailBits.join(" · ") : "Estimate, type, Umr, colour, tags, repeat, project, goal"}
               defaultOpen={false}
             >
               <div className="space-y-0.5">
@@ -752,6 +755,17 @@ export function TaskInspector() {
                   <Badge tint="slate">{current.kind}</Badge>
                 )}
               </div>
+            </InspectorRow>
+
+            {/* umr — the kind of living this time is */}
+            <InspectorRow icon={Hourglass} label="Umr">
+              <CategoryPicker
+                size="sm"
+                allowNone
+                value={current.umr}
+                onChange={(c) => set({ umr: c })}
+                label="Kind of living"
+              />
             </InspectorRow>
 
             {/* colour */}

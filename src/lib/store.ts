@@ -7,7 +7,6 @@ import {
   type Accent,
   type Book,
   type Media,
-  type Note,
   type Collections,
   type CollectionKey,
   type DayLog,
@@ -24,9 +23,12 @@ import {
   type Tag,
   type Task,
   type Tint,
+  type UmrCategory,
+  type UmrLog,
 } from "./types";
 import { addDays, todayISO, toISO, startOfWeek, weekday } from "./date";
 import { horizonForDate } from "./timeframe";
+import { MINUTES_IN_DAY } from "./umr";
 import { SOLO, SOLO_PROFILE, SOLO_USER_ID, loadLocal, saveLocal } from "./local-db";
 import { recordOpen } from "./recents";
 import {
@@ -196,6 +198,17 @@ interface StoreState extends CollectionState {
   // ---- day log ----
   setDayLog: (date: string, changes: Partial<DayLog>) => DayLog;
 
+  // ---- umr ----
+  logUmr: (input: {
+    date?: string;
+    category: UmrCategory;
+    minutes: number;
+    label?: string | null;
+    startMin?: number | null;
+  }) => void;
+  setTaskUmr: (taskId: string, category: UmrCategory | null) => void;
+  setHabitUmr: (habitId: string, category: UmrCategory | null) => void;
+
   // ---- reviews ----
   setReview: (weekStart: string, changes: Partial<Review>) => Review;
 
@@ -260,9 +273,9 @@ async function fetchAll(table: string, liveOnly: boolean) {
 }
 
 const COLLECTION_KEYS: CollectionKey[] = [
-  "tasks", "books", "media", "notes", "noteCategories", "habits", "habitLogs", "goals",
+  "tasks", "books", "media", "habits", "habitLogs", "goals",
   "projects", "prayers", "dayLogs",
-  "focusSessions", "reviews", "tags",
+  "focusSessions", "umrLogs", "reviews", "tags",
 ];
 
 /**
@@ -277,8 +290,8 @@ const COLLECTION_KEYS: CollectionKey[] = [
  * it failed.
  */
 const HAS_UPDATED_AT: Record<CollectionKey, boolean> = {
-  tasks: true, books: true, media: true, notes: true, noteCategories: true, habits: true,
-  goals: true, projects: true, dayLogs: true, reviews: true,
+  tasks: true, books: true, media: true, habits: true,
+  goals: true, projects: true, dayLogs: true, reviews: true, umrLogs: true,
   habitLogs: false, prayers: false, focusSessions: false, tags: false,
 };
 
@@ -306,8 +319,8 @@ const UPSERT_ON: Partial<Record<CollectionKey, string>> = {
  * the entry was wrong and keeping it around would be the bug.
  */
 export const TRASHABLE = new Set<CollectionKey>([
-  "tasks", "notes", "books", "media", "goals",
-  "projects", "habits", "noteCategories",
+  "tasks", "books", "media", "goals",
+  "projects", "habits",
 ]);
 
 
@@ -321,31 +334,6 @@ export interface TrashEntry {
 const emptyCollections = () =>
   Object.fromEntries(COLLECTION_KEYS.map((k) => [k, []])) as unknown as CollectionState;
 
-/**
- * Fill in columns that were added after a row was written.
- *
- * A row cached in a local snapshot — or read back before its table was
- * migrated — can be missing a field the types promise is always there, and
- * one `for (const c of note.categories)` then takes the whole page down.
- * Repairing it here, at the one door rows come in through, is what lets every
- * reader downstream trust the type instead of defending itself.
- */
-function repair(key: CollectionKey, rows: unknown[]): unknown[] {
-  if (key !== "notes") return rows;
-  return (rows as Note[]).map((n) => (
-    n.categories && n.format && n.layout !== undefined && n.is_template !== undefined
-      ? n
-      : {
-        ...n,
-        tags: n.tags ?? [],
-        categories: n.categories ?? [],
-        format: n.format ?? "plain",
-        is_template: n.is_template ?? false,
-        layout: n.layout ?? null,
-      }
-  ));
-}
-
 // Defaults applied on insert so callers can pass only what they care about.
 /** What a trashed row is called in the Trash list, per collection. */
 function trashLabel(key: CollectionKey, row: Record<string, unknown>): string {
@@ -356,16 +344,6 @@ function trashLabel(key: CollectionKey, row: Record<string, unknown>): string {
     }
     return "";
   };
-  if (key === "notes") {
-    const title = pick("title");
-    if (title) return title;
-    // A note need not have a title, so fall back to the first words of the
-    // body — with tags stripped, because an HTML note would otherwise read
-    // as markup.
-    const body = typeof row.body === "string" ? row.body.replace(/<[^>]*>/g, " ") : "";
-    const words = body.replace(/\s+/g, " ").trim().slice(0, 60);
-    return words || `Untitled ${singular(key)}`;
-  }
   return pick("title", "name") || `Untitled ${singular(key)}`;
 }
 
@@ -380,7 +358,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         order_index: 0, parent_id: null, book_id: null, habit_id: null, goal_id: null,
         project_id: null, template_id: null, page_from: null, page_to: null,
         media_id: null, episode_from: null, episode_to: null,
-        recurrence: null, series_id: null, someday: false, deleted_at: null,
+        recurrence: null, series_id: null, someday: false, umr: null, deleted_at: null,
       };
     case "books":
       return {
@@ -398,24 +376,11 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         status: "planned", rating: null, notes: null, order_index: 0,
         url: null, channel: null, deleted_at: null,
       };
-    case "notes":
-      // 'plain' until something actually writes HTML into it. The rich editor
-      // converts on the first edit; the plain textareas on a book, a title and
-      // a project never do, and their notes stay round-trippable text.
-      return {
-        ...base, title: null, body: "", kind: "note", book_id: null, media_id: null,
-        task_id: null, goal_id: null, project_id: null, date: null, locator: null,
-        tags: [], categories: [], color: null, pinned: false,
-        format: "plain", is_template: false, layout: null,
-        collapsed: false, lock: null, aliases: [], icon: null, deleted_at: null,
-      };
-    case "noteCategories":
-      return { ...base, name: "New category", icon: null, color: "slate", order_index: 0, deleted_at: null };
     case "habits":
       return {
         ...base, name: "New habit", icon: "check", color: "emerald", cadence: "daily",
         weekdays: [0, 1, 2, 3, 4, 5, 6], times_per_week: 3, target_count: 1,
-        unit: null, archived: false, order_index: 0, deleted_at: null,
+        unit: null, umr: null, archived: false, order_index: 0, deleted_at: null,
       };
     case "habitLogs":
       return { id: base.id, user_id: userId, habit_id: "", date: todayISO(), count: 1, note: null, logged_at: nowIso() };
@@ -440,6 +405,11 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
       };
     case "focusSessions":
       return { id: base.id, user_id: userId, task_id: null, label: null, tags: [], mode: "stopwatch", started_at: nowIso(), ended_at: null, seconds: 0, completed: false, note: null };
+    case "umrLogs":
+      return {
+        ...base, date: todayISO(), category: "xordiq", minutes: 0, label: null,
+        start_min: null,
+      };
     case "reviews":
       return { ...base, week_start: startOfWeek(todayISO()), went_well: null, went_bad: null, learned: null, next_week: null, rating: null, data: {} };
     case "tags":
@@ -503,11 +473,10 @@ let batch: UndoOp[] | null = null;
 let batchLabel = "";
 
 const SINGULAR: Partial<Record<CollectionKey, string>> = {
-  tasks: "task", books: "book", media: "title", notes: "note", habits: "habit",
-  noteCategories: "category",
+  tasks: "task", books: "book", media: "title", habits: "habit",
   habitLogs: "habit log", goals: "goal", projects: "project",
   prayers: "prayer", dayLogs: "day",
-  focusSessions: "session", reviews: "review", tags: "tag",
+  focusSessions: "session", umrLogs: "Umr entry", reviews: "review", tags: "tag",
 };
 
 function singular(key: CollectionKey): string {
@@ -609,7 +578,7 @@ export const useStore = create<StoreState>((set, get) => ({
         for (const key of COLLECTION_KEYS) {
           const rows = saved.collections[key];
           if (Array.isArray(rows)) {
-            (collections as Record<string, unknown[]>)[key] = repair(key, rows);
+            (collections as Record<string, unknown[]>)[key] = rows;
           }
         }
       }
@@ -638,7 +607,7 @@ export const useStore = create<StoreState>((set, get) => ({
     results.forEach((res, i) => {
       const key = tables[i][0];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (next as any)[key] = repair(key, (res as any).data ?? []);
+      (next as any)[key] = (res as any).data ?? [];
     });
 
     let resolvedProfile = profile as Profile | null;
@@ -1111,6 +1080,33 @@ export const useStore = create<StoreState>((set, get) => ({
     return get().insert("dayLogs", { date, ...changes });
   },
 
+  // -------------------------------------------------------
+  // Umr
+  //
+  // Only the minutes nothing else records go through here; everything Umr can
+  // derive from a session, a task, a prayer or a habit stays derived, so there
+  // is never a second copy of the same minute to keep in step.
+  // -------------------------------------------------------
+  logUmr({ date, category, minutes, label, startMin }) {
+    const rounded = Math.round(minutes);
+    if (!(rounded > 0)) return;
+    get().insert("umrLogs", {
+      date: date ?? todayISO(),
+      category,
+      minutes: Math.min(MINUTES_IN_DAY, rounded),
+      label: label?.trim() || null,
+      start_min: startMin ?? null,
+    });
+  },
+
+  setTaskUmr(taskId, category) {
+    get().patch("tasks", taskId, { umr: category });
+  },
+
+  setHabitUmr(habitId, category) {
+    get().patch("habits", habitId, { umr: category });
+  },
+
   setReview(weekStart, changes) {
     const existing = get().reviews.find((r) => r.week_start === weekStart);
     if (existing) { get().patch("reviews", existing.id, changes); return { ...existing, ...changes }; }
@@ -1441,6 +1437,6 @@ export function focusMinutesOn(sessions: FocusSession[], date: string): number {
 }
 
 export type {
-  Task, Book, Media, Note, Habit, HabitLog, Goal,
-  Prayer, DayLog, FocusSession, Review, Tag, Profile, Tint,
+  Task, Book, Media, Habit, HabitLog, Goal,
+  Prayer, DayLog, FocusSession, UmrLog, Review, Tag, Profile, Tint,
 };

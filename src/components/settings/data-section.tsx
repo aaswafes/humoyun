@@ -23,9 +23,7 @@ const KEYS = Object.keys(TABLE_OF) as CollectionKey[];
 const LABELS: Record<CollectionKey, string> = {
   tasks: "Tasks",
   books: "Books",
-  media: "Films & anime",
-  notes: "Notes",
-  noteCategories: "Note categories",
+  media: "Films, anime and videos",
   habits: "Habits",
   habitLogs: "Habit logs",
   goals: "Goals",
@@ -34,6 +32,7 @@ const LABELS: Record<CollectionKey, string> = {
   dayLogs: "Day logs",
   focusSessions: "Focus sessions",
   reviews: "Reviews",
+  umrLogs: "Umr entries",
   tags: "Tags",
 };
 
@@ -77,8 +76,6 @@ const VALIDATORS: Record<CollectionKey, (r: AnyRow) => string | null> = {
           : null,
   books: (r) => (!str(r.title) ? "no title" : r.total_pages != null && typeof r.total_pages !== "number" ? "total_pages is not a number" : null),
   media: (r) => (!str(r.title) ? "no title" : !oneOf(r.kind, ["film", "anime", "series", "youtube", "playlist"]) ? "unknown kind" : null),
-  notes: (r) => (typeof r.body === "string" || str(r.title) ? null : "no body"),
-  noteCategories: (r) => (str(r.name) ? null : "no name"),
   habits: (r) => (!str(r.name) ? "no name" : !oneOf(r.cadence, ["daily", "weekly", "custom"]) ? "unknown cadence" : null),
   habitLogs: (r) => (!str(r.habit_id) ? "no habit_id" : !ISO_DATE.test(String(r.date)) ? "date is not yyyy-mm-dd" : null),
   goals: (r) => (!str(r.title) ? "no title" : !oneOf(r.horizon, ["life", "year", "quarter", "month", "week"]) ? "unknown horizon" : null),
@@ -95,6 +92,11 @@ const VALIDATORS: Record<CollectionKey, (r: AnyRow) => string | null> = {
   dayLogs: (r) => (ISO_DATE.test(String(r.date)) ? null : "date is not yyyy-mm-dd"),
   focusSessions: (r) => (r.seconds != null && typeof r.seconds !== "number" ? "seconds is not a number" : null),
   reviews: (r) => (ISO_DATE.test(String(r.week_start)) ? null : "week_start is not yyyy-mm-dd"),
+  umrLogs: (r) =>
+    !ISO_DATE.test(String(r.date)) ? "date is not yyyy-mm-dd"
+      : !oneOf(r.category, ["talim", "ibodat", "xordiq", "dam", "inson"]) ? "unknown category"
+        : typeof r.minutes !== "number" ? "minutes is not a number"
+          : null,
   tags: (r) => (str(r.name) ? null : "no name"),
 };
 
@@ -473,7 +475,7 @@ export function DataSection() {
           }
         >
           Ninety-one days of a believable life — tasks, four books on reading plans, six habits with two
-          months of history, prayers, focus sessions, goals and notes. It is
+          months of history, prayers, focus sessions and goals. It is
           real data: edit it, or delete all of it in one click.
         </Callout>
       )}
@@ -587,7 +589,7 @@ export function DataSection() {
           label={seeded ? "Sample data is loaded" : "Load sample data"}
           hint={
             seeded
-              ? "Ninety-one days of tasks, reading plans, habits, prayers, focus sessions, goals and notes."
+              ? "Ninety-one days of tasks, reading plans, habits, prayers, focus sessions and goals."
               : "Ninety-one days centred on today: every day has something, the past is mostly done, the future is planned."
           }
         >

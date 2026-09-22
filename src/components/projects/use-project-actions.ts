@@ -57,19 +57,17 @@ export function useProjectActions() {
   );
 
   /**
-   * Deleting the container must not delete the work. Tasks and notes are
-   * unlinked and stay where they are — on the calendar, in the inbox, on the
-   * shelf they came from.
+   * Deleting the container must not delete the work. Tasks are unlinked and
+   * stay where they are — on the calendar, in the inbox, on the shelf they
+   * came from.
    */
   const deleteProject = React.useCallback(
     (project: Project) => {
-      const { tasks, notes } = useStore.getState();
+      const { tasks } = useStore.getState();
       const ownTasks = tasks.filter((t) => t.project_id === project.id);
-      const ownNotes = notes.filter((n) => n.project_id === project.id);
 
       batchUndo("Delete project", () => {
         ownTasks.forEach((t) => patch("tasks", t.id, { project_id: null }));
-        ownNotes.forEach((n) => patch("notes", n.id, { project_id: null }));
         remove("projects", project.id);
       });
 

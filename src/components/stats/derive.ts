@@ -8,7 +8,7 @@ import {
 } from "@/lib/habits";
 import { PRAYER_NAMES } from "@/lib/types";
 import type {
-  Book, DayLog, FocusSession, Goal, Habit, HabitLog, Media, Note, Prayer, PrayerName,
+  Book, DayLog, FocusSession, Goal, Habit, HabitLog, Media, Prayer, PrayerName,
   Project, Task, Tint,
 } from "@/lib/types";
 import { PACE_WINDOW, paceStats, type ReadDay } from "@/components/books/pace";
@@ -1301,55 +1301,5 @@ export function buildShelfStats(
     mediaWatching: media.filter((m) => m.status === "watching").length,
     episodes,
     watchMinutes,
-  };
-}
-
-// ---------------------------------------------------------
-// Notes
-// ---------------------------------------------------------
-type NoteKindLabel = Note["kind"];
-
-export interface NoteSummary {
-  total: number;
-  byDay: { date: string; count: number }[];
-  byKind: { kind: NoteKindLabel; count: number }[];
-  words: number;
-  busiest: { date: string; count: number } | null;
-}
-
-/** The day a note belongs to: the day it is about, else the day it was written. */
-export function noteDay(n: Note): string {
-  return n.date ?? n.created_at.slice(0, 10);
-}
-
-export function buildNoteStats(days: string[], notes: Note[]): NoteSummary {
-  const inRange = new Set(days);
-  const live = notes.filter((n) => !n.deleted_at && !n.is_template && inRange.has(noteDay(n)));
-
-  const perDay = new Map(days.map((d) => [d, 0]));
-  const perKind = new Map<NoteKindLabel, number>();
-  let words = 0;
-
-  for (const n of live) {
-    const day = noteDay(n);
-    perDay.set(day, (perDay.get(day) ?? 0) + 1);
-    perKind.set(n.kind, (perKind.get(n.kind) ?? 0) + 1);
-    // Rough, and deliberately so — stripping tags is enough to tell a paragraph
-    // from a line, which is all this number is ever asked to do.
-    words += n.body.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length;
-  }
-
-  const byDay = days.map((date) => ({ date, count: perDay.get(date) ?? 0 }));
-
-  return {
-    total: live.length,
-    byDay,
-    byKind: [...perKind.entries()]
-      .map(([kind, count]) => ({ kind, count }))
-      .sort((a, b) => b.count - a.count),
-    words,
-    busiest: byDay.reduce<{ date: string; count: number } | null>(
-      (a, d) => (d.count > 0 && (!a || d.count > a.count) ? d : a), null,
-    ),
   };
 }

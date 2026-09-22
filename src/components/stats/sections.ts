@@ -11,8 +11,14 @@ import * as React from "react";
 
 const KEY = "humoyun.stats.sections";
 
-/** Open on a first visit. Everything else starts folded behind its summary. */
-const DEFAULT_OPEN = ["panel-completion", "panel-estimates"];
+/**
+ * Open on a first visit. Everything else starts folded behind its summary.
+ *
+ * Umr's two lead panels are here for the same reason the Stats page's are: a
+ * page whose every panel is folded reads as empty, and these two carry the
+ * question each page exists to answer.
+ */
+const DEFAULT_OPEN = ["panel-completion", "panel-estimates", "umr-flow", "umr-dam"];
 
 type State = Readonly<Record<string, boolean>>;
 

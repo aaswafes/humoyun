@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { ArrowRight, Check, NotebookPen, NotebookText } from "lucide-react";
+import { Check, NotebookPen } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import { addDays, formatDate } from "@/lib/date";
-import { AutoTextarea, Button } from "@/components/ui/primitives";
+import { addDays } from "@/lib/date";
+import { AutoTextarea } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
 import { Fold, useFold } from "./fold";
 import { useAutosave } from "./use-autosave";
@@ -60,16 +59,13 @@ function Scale({
 }
 
 /**
- * The evening surface: mood, energy and the note. Nothing here is needed at
+ * The evening surface: mood, energy and the line about the day. Nothing here is needed at
  * 9am, so it rests folded behind what it already holds.
  */
 export function DayLogPanel({ date, className }: { date: string; className?: string }) {
   const log = useStore((s) => s.dayLogs.find((d) => d.date === date));
   const yesterday = useStore((s) => s.dayLogs.find((d) => d.date === addDays(date, -1)));
   const setDayLog = useStore((s) => s.setDayLog);
-  const daily = useStore((s) => s.notes.find((n) => n.kind === "daily" && n.date === date));
-  const insert = useStore((s) => s.insert);
-  const router = useRouter();
   const { open, toggle } = useFold("logOpen", false);
 
   const [note, setNote] = React.useState(log?.note ?? "");
@@ -88,23 +84,7 @@ export function DayLogPanel({ date, className }: { date: string; className?: str
       log?.mood ? MOOD_LABELS[log.mood - 1] : null,
       log?.energy ? `${ENERGY_LABELS[log.energy - 1]} energy` : null,
       note.trim() ? "note written" : null,
-      daily ? "daily note started" : null,
     ].filter(Boolean).join(" · ") || "not logged yet";
-
-  /**
-   * The long form of the day. It is a `notes` row, not a second copy of the
-   * field above — so it is written on the Notes page, where it can be read
-   * back beside every other day.
-   */
-  function openDailyNote() {
-    flush(); // leaving the page mid-sentence must not lose the sentence
-    const row = daily ?? insert("notes", {
-      kind: "daily",
-      date,
-      title: formatDate(date, { year: true }),
-    });
-    router.push(`/notes?note=${row.id}`);
-  }
 
   return (
     <Fold
@@ -166,17 +146,6 @@ export function DayLogPanel({ date, className }: { date: string; className?: str
               </div>
             )}
           </Field>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <Button size="sm" variant="ghost" className="-ml-2" onClick={openDailyNote}>
-            <NotebookText className="size-3.5" aria-hidden />
-            {daily ? "Open the daily note" : "Start a daily note"}
-            <ArrowRight className="size-3" aria-hidden />
-          </Button>
-          <span className="min-w-0 text-[11.5px] text-ink-4">
-            A line or two stays here; the long write-up lives in Notes.
-          </span>
         </div>
 
         {yesterdayLine && (

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  BookOpen, Boxes, Clapperboard, CheckSquare, NotebookPen,
+  BookOpen, Boxes, Clapperboard, CheckSquare,
   Pin, PinOff, Target,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -14,7 +14,7 @@ import { useRecents, togglePin, type Ref, type RecentKind } from "@/lib/recents"
 // Pinned and Recent, at the top of the sidebar.
 //
 // Labels are never stored — they are resolved from the store here, so a
-// renamed note is renamed in this list too, and anything deleted simply
+// renamed book is renamed in this list too, and anything deleted simply
 // drops out instead of lingering as a dead entry.
 //
 // Pinning happens from this list and nowhere else. That keeps the feature to
@@ -23,7 +23,6 @@ import { useRecents, togglePin, type Ref, type RecentKind } from "@/lib/recents"
 // =========================================================
 
 const ICON: Record<RecentKind, React.ComponentType<{ className?: string }>> = {
-  note: NotebookPen,
   task: CheckSquare,
   book: BookOpen,
   media: Clapperboard,
@@ -38,7 +37,6 @@ interface Resolved extends Ref {
 }
 
 function useResolver() {
-  const notes = useStore((s) => s.notes);
   const tasks = useStore((s) => s.tasks);
   const books = useStore((s) => s.books);
   const media = useStore((s) => s.media);
@@ -47,29 +45,19 @@ function useResolver() {
 
   return React.useCallback((ref: Ref): Resolved | null => {
     switch (ref.kind) {
-      case "note": {
-        const n = notes.find((x) => x.id === ref.id);
-        if (!n) return null;
-        const body = n.lock ? "" : n.body.replace(/<[^>]*>/g, " ").trim();
-        return {
-          ...ref,
-          label: n.title?.trim() || body.slice(0, 40) || "Untitled note",
-          href: `/notes#n-${n.id}`,
-        };
-      }
       case "task": {
         const t = tasks.find((x) => x.id === ref.id);
         return t ? { ...ref, label: t.title || "Untitled task", href: null } : null;
       }
       case "book": {
         const b = books.find((x) => x.id === ref.id);
-        return b ? { ...ref, label: b.title, href: "/books" } : null;
+        return b ? { ...ref, label: b.title, href: "/consumption/books" } : null;
       }
       case "media": {
         const m = media.find((x) => x.id === ref.id);
         if (!m) return null;
         const yt = m.kind === "youtube" || m.kind === "playlist";
-        return { ...ref, label: m.title, href: yt ? "/youtube" : "/watch" };
+        return { ...ref, label: m.title, href: yt ? "/consumption/youtube" : "/consumption/films" };
       }
       case "project": {
         const p = projects.find((x) => x.id === ref.id);
@@ -82,7 +70,7 @@ function useResolver() {
       default:
         return null;
     }
-  }, [notes, tasks, books, media, projects, goals]);
+  }, [tasks, books, media, projects, goals]);
 }
 
 function RefRow({ item, pinned }: { item: Resolved; pinned: boolean }) {

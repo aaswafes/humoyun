@@ -18,6 +18,7 @@ import { HabitsCard } from "@/components/today/habits-card";
 import { ReadingCard } from "@/components/today/reading-card";
 import { FocusCard } from "@/components/today/focus-card";
 import { ComingUpCard } from "@/components/today/coming-up-card";
+import { UmrCard } from "@/components/today/umr-card";
 import { Leftovers } from "@/components/today/leftovers";
 
 export default function TodayPage() {
@@ -149,6 +150,7 @@ export default function TodayPage() {
             <HabitsCard date={today} />
             <ReadingCard date={today} />
             <FocusCard date={today} now={now} />
+            <UmrCard date={today} />
             <ComingUpCard date={today} />
           </aside>
         </div>

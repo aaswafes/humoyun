@@ -27,7 +27,7 @@ function asHabit(h: CommunityHabit): Habit {
   return {
     id: h.id, user_id: h.created_by, name: h.name, icon: h.icon, color: h.color,
     cadence: h.cadence, weekdays: h.weekdays, times_per_week: h.times_per_week,
-    target_count: h.target_count, unit: h.unit, archived: h.archived,
+    target_count: h.target_count, unit: h.unit, umr: null, archived: h.archived,
     order_index: 0, deleted_at: null, created_at: h.created_at, updated_at: h.updated_at,
   };
 }

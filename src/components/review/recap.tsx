@@ -116,13 +116,6 @@ const STATS: StatDef[] = [
     detail: (m) => (m.goalsActive ? `of ${m.goalsActive} active` : "no active goals"),
   },
   {
-    key: "notes",
-    label: "Notes written",
-    read: (m) => m.notesWritten,
-    format: (n) => String(n),
-    detail: (m) => (m.notesWritten ? "captured in this period" : "nothing written down"),
-  },
-  {
     key: "mood",
     label: "Mood",
     read: (m) => m.mood ?? 0,
@@ -155,12 +148,11 @@ export function useMetricSource(): MetricSource {
   const goals = useStore((s) => s.goals);
   const books = useStore((s) => s.books);
   const dayLogs = useStore((s) => s.dayLogs);
-  const notes = useStore((s) => s.notes);
   // Sittings are not a table — they ride along in the profile's prefs bag.
   const { sessions } = useLibraryPrefs();
   return React.useMemo(
-    () => ({ tasks, habits, habitLogs, prayers, focusSessions, goals, books, sessions, dayLogs, notes }),
-    [tasks, habits, habitLogs, prayers, focusSessions, goals, books, sessions, dayLogs, notes],
+    () => ({ tasks, habits, habitLogs, prayers, focusSessions, goals, books, sessions, dayLogs }),
+    [tasks, habits, habitLogs, prayers, focusSessions, goals, books, sessions, dayLogs],
   );
 }
 

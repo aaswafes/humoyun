@@ -3,7 +3,7 @@ import {
   habitScheduledOn, isHabitComplete, weeklyTarget, type HabitCounts,
 } from "@/lib/habits";
 import type {
-  Book, DayLog, FocusSession, Goal, Habit, HabitLog, Note, Prayer, PrayerStatus, Task,
+  Book, DayLog, FocusSession, Goal, Habit, HabitLog, Prayer, PrayerStatus, Task,
 } from "@/lib/types";
 import type { ReadingSession } from "@/components/books/library-prefs";
 import { buildReadingHistory, EMPTY_HISTORY, type ReadingHistory } from "@/components/books/reading-history";
@@ -27,7 +27,6 @@ export interface MetricSource {
   /** Logged sittings. They live in `profile.prefs.books`, not in a table. */
   sessions: ReadingSession[];
   dayLogs: DayLog[];
-  notes: Note[];
 }
 
 export interface Metrics {
@@ -50,7 +49,6 @@ export interface Metrics {
   pagesSettled: number;
   quranPages: number;
   reading: ReadingHistory;
-  notesWritten: number;
   /** Averages across the days that were actually logged, null when none were. */
   mood: number | null;
   energy: number | null;
@@ -68,7 +66,7 @@ export const EMPTY_METRICS: Metrics = {
   salahDone: 0, salahDue: 0, salahJamaah: 0,
   pagesRead: 0, booksFinished: 0, readingMinutes: 0, pagesSettled: 0, quranPages: 0,
   reading: EMPTY_HISTORY,
-  notesWritten: 0, mood: null, energy: null, sleepHours: null, daysLogged: 0,
+  mood: null, energy: null, sleepHours: null, daysLogged: 0,
   goalsAdvanced: 0, goalsActive: 0,
 };
 
@@ -189,10 +187,6 @@ export function metricsFor(days: string[], src: MetricSource, weekStartDay = 1):
     pagesSettled: reading.settledPages,
     quranPages: reading.quranPages,
     reading,
-    notesWritten: src.notes.filter((n) => {
-      const day = n.date ?? n.created_at.slice(0, 10);
-      return inRange.has(day);
-    }).length,
     mood: mean((d) => d.mood),
     energy: mean((d) => d.energy),
     sleepHours: mean((d) => d.sleep_hours),

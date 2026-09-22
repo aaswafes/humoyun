@@ -1,5 +1,5 @@
 import { diffDays, formatDate, todayISO } from "@/lib/date";
-import type { Note, Project, ProjectStatus, Task } from "@/lib/types";
+import type { Project, ProjectStatus, Task } from "@/lib/types";
 
 // =========================================================
 // What a project knows about itself.
@@ -73,14 +73,13 @@ export interface ProjectStats {
   /** effective window: explicit dates first, task dates as the fallback */
   start: string | null;
   end: string | null;
-  notes: number;
 }
 
 const EMPTY: ProjectStats = {
   total: 0, done: 0, open: 0, overdue: 0, progress: 0,
   tasks: [], milestones: [], milestoneTotal: 0, milestoneDone: 0,
   nextMilestone: null, nextDate: null, lastDone: null,
-  start: null, end: null, notes: 0,
+  start: null, end: null,
 };
 
 export interface ProjectIndex {
@@ -94,29 +93,23 @@ function byDate(a: Task, b: Task): number {
 }
 
 /**
- * One pass over tasks and notes, not one pass per card. The board, the list and
+ * One pass over the tasks, not one pass per card. The board, the list and
  * the timeline all read the same index, so three views can never disagree about
  * how far along a project is.
  */
 export function buildProjectIndex(
   projects: Project[],
   tasks: Task[],
-  notes: Note[],
   today = todayISO(),
 ): ProjectIndex {
   const byId = new Map(projects.map((p) => [p.id, p]));
   const grouped = new Map<string, Task[]>();
-  const noteCount = new Map<string, number>();
 
   for (const task of tasks) {
     if (!task.project_id || task.parent_id) continue;
     const list = grouped.get(task.project_id);
     if (list) list.push(task);
     else grouped.set(task.project_id, [task]);
-  }
-  for (const note of notes) {
-    if (!note.project_id) continue;
-    noteCount.set(note.project_id, (noteCount.get(note.project_id) ?? 0) + 1);
   }
 
   const cache = new Map<string, ProjectStats>();
@@ -158,7 +151,6 @@ export function buildProjectIndex(
       lastDone: completions.length ? completions[completions.length - 1].slice(0, 10) : null,
       start: project.start_date ?? dated[0] ?? null,
       end: project.due_date ?? dated[dated.length - 1] ?? null,
-      notes: noteCount.get(id) ?? 0,
     };
   }
 

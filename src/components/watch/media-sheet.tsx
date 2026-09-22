@@ -2,22 +2,21 @@
 
 import * as React from "react";
 import {
-  ArrowRight, CalendarRange, CalendarX, Check, ChevronDown, Dot, Gauge, Lightbulb,
-  Minus, MoreHorizontal, Palette, Plus, Quote, Trash2, X,
+  ArrowRight, CalendarRange, CalendarX, Check, ChevronDown, Dot, Gauge,
+  Minus, MoreHorizontal, Palette, Plus, Trash2, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { addDays, formatDate, formatDuration, friendlyDate, startOfWeek, todayISO } from "@/lib/date";
-import type { Media, NoteKind, Task } from "@/lib/types";
-import { MEDIA_KIND_LABELS, NOTE_KIND_LABELS } from "@/lib/types";
+import type { Media, Task } from "@/lib/types";
+import { MEDIA_KIND_LABELS } from "@/lib/types";
 import {
   AutoTextarea, Button, Checkbox, IconButton, InlineInput, Input, SectionLabel, Segmented,
 } from "@/components/ui/primitives";
-import { MiniEmpty, Toggle, VisuallyHidden } from "@/components/ui/form";
+import { Toggle, VisuallyHidden } from "@/components/ui/form";
 import {
   ConfirmDialog, MenuItem, MenuSeparator, Popover, Sheet, TintPicker, SheetMaximize,
 } from "@/components/ui/overlays";
-import { noteText } from "@/components/notes/rich-text";
 import { MediaCover } from "./media-cover";
 import { mediaFacetValues } from "./facets";
 import { EpisodeLog } from "./episode-log";
@@ -123,7 +122,6 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
   const logWatch = useStore((s) => s.logWatch);
   const toast = useStore((s) => s.toast);
   const weekStart = useStore((s) => s.profile?.week_start ?? 1);
-  const noteCount = useStore((s) => s.notes.reduce((n, x) => n + (x.media_id === item.id ? 1 : 0), 0));
 
   const today = todayISO();
   const total = Math.max(1, item.total_episodes);
@@ -219,7 +217,6 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
   const notesSummary = [
     item.rating ? `${item.rating} of 5` : null,
     item.notes?.trim() ? "your verdict written" : null,
-    noteCount ? `${noteCount} kept` : null,
   ].filter(Boolean).join(" · ") || "Rate it, and say what stayed with you";
 
   // The film's runtime is already stated, editable, in the header — repeating it
@@ -724,10 +721,10 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
           </Group>
         )}
 
-        {/* ---- Notes: the verdict, and the stars ---- */}
+        {/* ---- The verdict, and the stars ---- */}
         <Group
           storageKey="humoyun.watch.sheet.notes"
-          label="Notes"
+          label="Verdict"
           summary={notesSummary}
         >
           <div className="flex items-center gap-3">
@@ -740,7 +737,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
           <div className="mt-4">
             <p className="mb-1 text-[11.5px] font-medium text-ink-3">Your verdict</p>
             <AutoTextarea
-              aria-label="Notes"
+              aria-label="Verdict"
               value={notes}
               onChange={setNotes}
               onBlur={() => commit("notes", notes.trim() || null)}
@@ -749,8 +746,6 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
               className="text-[13px] text-ink placeholder:text-ink-4"
             />
           </div>
-
-          <MediaNotes item={item} single={single} />
         </Group>
 
         {/* ---- Details ---- */}
@@ -804,11 +799,6 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
         onClose={() => setConfirmDelete(false)}
         onConfirm={() => {
           removeWhere("tasks", (t) => t.media_id === item.id);
-          // What you wrote outlives the title: the notes detach rather than
-          // disappear, so a delete never silently takes them with it.
-          for (const n of useStore.getState().notes) {
-            if (n.media_id === item.id) patch("notes", n.id, { media_id: null });
-          }
           remove("media", item.id);
           toast({
             title: "Deleted",
@@ -817,9 +807,7 @@ function MediaSheetBody({ item, onClose }: { item: Media; onClose: () => void })
           onClose();
         }}
         title={`Delete ${item.title}?`}
-        description={`The title and every watch block it put on your calendar will be removed. This cannot be undone.${
-          noteCount ? ` The ${noteCount === 1 ? "note" : `${noteCount} notes`} you kept stay in Notes.` : ""
-        }`}
+        description="The title and every watch block it put on your calendar will be removed. This cannot be undone."
       />
     </>
   );
@@ -841,259 +829,6 @@ function QuickChip({ children, onClick }: { children: React.ReactNode; onClick: 
   );
 }
 
-// =========================================================
-// The trail a title leaves — the same marginalia the books surface keeps, with
-// the mark that fits the medium: an episode for a series, a minute for a film.
-// Every line lands in the `notes` collection, so it also shows up on the Notes
-// page with this title as its source.
-// =========================================================
-type Marginal = "highlight" | "thought";
-
-const MARGINAL_OPTIONS: { value: Marginal; label: React.ReactNode }[] = [
-  { value: "highlight", label: <span className="inline-flex items-center gap-1.5"><Quote className="size-3" />Quote</span> },
-  { value: "thought", label: <span className="inline-flex items-center gap-1.5"><Lightbulb className="size-3" />Thought</span> },
-];
-
-const NOTE_PREVIEW = 5;
-
-const markLabel = (n: number, single: boolean) => (single ? `${n} min` : `ep. ${n}`);
-const markNoun = (single: boolean) => (single ? "minute" : "episode");
-
-/** The chip states the mark and edits it — one control, not two. */
-function MarkChip({
-  mark, max, single, onChange,
-}: {
-  mark: number | null;
-  max: number;
-  single: boolean;
-  onChange: (next: number | null) => void;
-}) {
-  const [draft, setDraft] = React.useState(mark ?? 1);
-  const [seen, setSeen] = React.useState(mark);
-
-  // The mark can change from the list while this popover is mounted.
-  if (seen !== mark) {
-    setSeen(mark);
-    setDraft(mark ?? 1);
-  }
-
-  return (
-    <Popover
-      align="start"
-      className="w-[184px] p-2"
-      trigger={
-        <button
-          type="button"
-          aria-label={mark == null
-            ? `Add the ${markNoun(single)} this note came from`
-            : `${markLabel(mark, single)}. Change it`}
-          className={cn(
-            "inline-flex h-6 shrink-0 cursor-pointer items-center rounded-full border border-line px-2",
-            "text-[11.5px] tnum transition-colors hover:bg-hover",
-            mark == null ? "text-ink-4" : "text-ink-2",
-          )}
-        >
-          {mark == null ? `no ${markNoun(single)}` : markLabel(mark, single)}
-        </button>
-      }
-    >
-      {(close) => (
-        <div className="space-y-2">
-          <NumberField
-            label={single ? "Minute" : "Episode"}
-            value={draft}
-            min={0}
-            max={Math.max(1, max)}
-            step={1}
-            suffix={single ? "min" : undefined}
-            onChange={setDraft}
-          />
-          <div className="flex gap-1.5">
-            <Button size="sm" variant="primary" className="flex-1" onClick={() => { onChange(draft); close(); }}>
-              Set
-            </Button>
-            {mark != null && (
-              <Button size="sm" variant="ghost" onClick={() => { onChange(null); close(); }}>
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-    </Popover>
-  );
-}
-
-function NoteRow({
-  id, kind, mark, body, max, single, tint,
-}: {
-  id: string;
-  kind: NoteKind;
-  mark: number | null;
-  body: string;
-  max: number;
-  single: boolean;
-  tint: Media["color"];
-}) {
-  const patch = useStore((s) => s.patch);
-  const remove = useStore((s) => s.remove);
-  const [text, setText] = React.useState(body);
-  const [seen, setSeen] = React.useState(body);
-
-  // Another edit of the same note (or a reload) has to show through the draft.
-  if (seen !== body) {
-    setSeen(body);
-    setText(body);
-  }
-
-  const quote = kind === "highlight";
-
-  return (
-    <div className={cn(`tint-${tint}`, "group/note flex gap-2 py-2")}>
-      <span
-        aria-hidden
-        className={cn("mt-[3px] w-[3px] shrink-0 rounded-full", quote ? "bg-[var(--tint)]" : "bg-line-strong")}
-      />
-      <div className="min-w-0 flex-1">
-        <AutoTextarea
-          value={text}
-          onChange={setText}
-          aria-label={NOTE_KIND_LABELS[kind]}
-          onBlur={() => {
-            const next = text.trim();
-            if (!next) { setText(body); return; }
-            if (next !== body) patch("notes", id, { body: next });
-          }}
-          className={cn("text-[13px] text-ink placeholder:text-ink-4", quote && "italic")}
-        />
-        <div className="mt-1 flex items-center gap-1.5">
-          <MarkChip
-            mark={mark}
-            max={max}
-            single={single}
-            onChange={(locator) => patch("notes", id, { locator })}
-          />
-          <span className="text-[11px] text-ink-4">{NOTE_KIND_LABELS[kind]}</span>
-          <IconButton
-            label="Delete this note"
-            tone="danger"
-            className="ml-auto opacity-0 transition-opacity focus-visible:opacity-100 group-hover/note:opacity-100"
-            onClick={() => remove("notes", id)}
-          >
-            <Trash2 />
-          </IconButton>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MediaNotes({ item, single }: { item: Media; single: boolean }) {
-  const stored = useStore((s) => s.notes);
-  const insert = useStore((s) => s.insert);
-
-  const total = Math.max(1, item.total_episodes);
-  const max = single ? Math.max(1, item.runtime_min ?? 600) : total;
-
-  const [kind, setKind] = React.useState<Marginal>("thought");
-  const [mark, setMark] = React.useState(() =>
-    single ? 0 : Math.max(1, Math.min(item.current_episode || 1, total)));
-  const [text, setText] = React.useState("");
-  const [expanded, setExpanded] = React.useState(false);
-
-  const rows = React.useMemo(
-    () => stored
-      .filter((n) => n.media_id === item.id)
-      .sort((a, b) =>
-        (a.locator ?? Number.MAX_SAFE_INTEGER) - (b.locator ?? Number.MAX_SAFE_INTEGER)
-        || a.created_at.localeCompare(b.created_at)),
-    [stored, item.id],
-  );
-
-  const visible = expanded ? rows : rows.slice(0, NOTE_PREVIEW);
-  const canAdd = text.trim().length > 0;
-
-  function add() {
-    const body = text.trim();
-    if (!body) return;
-    insert("notes", { media_id: item.id, kind, locator: mark > 0 ? mark : null, body });
-    setText("");
-  }
-
-  return (
-    <SubGroup
-      storageKey="humoyun.watch.sheet.marginalia"
-      label="Quotes & thoughts"
-      summary={rows.length
-        ? `${rows.length} kept from it`
-        : `Keep a line, with the ${markNoun(single)} it came from`}
-    >
-      <div className="rounded-md border border-line p-2">
-        <div className="flex items-center gap-2">
-          <Segmented<Marginal> size="sm" value={kind} onChange={setKind} options={MARGINAL_OPTIONS} />
-          <div className="ml-auto w-[112px]">
-            <NumberField
-              label={single ? "Minute this note came from" : "Episode this note came from"}
-              value={mark}
-              min={0}
-              max={max}
-              step={1}
-              suffix={single ? "min" : "ep"}
-              onChange={setMark}
-              className="h-7"
-            />
-          </div>
-        </div>
-
-        <AutoTextarea
-          value={text}
-          onChange={setText}
-          minRows={2}
-          aria-label={kind === "highlight" ? "A line worth keeping" : "Your thought"}
-          placeholder={kind === "highlight" ? "The line worth keeping…" : "What did it make you think?"}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add(); }
-          }}
-          className="mt-2 text-[13px] text-ink placeholder:text-ink-4"
-        />
-
-        <div className="mt-1.5 flex items-center gap-2">
-          <Button size="sm" variant="primary" disabled={!canAdd} onClick={add}>
-            <Plus className="size-3.5" />
-            Add
-          </Button>
-          <span className="text-[11px] text-ink-4">⌘↵ saves</span>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <MiniEmpty className="mt-1">Nothing kept from this one yet.</MiniEmpty>
-      ) : (
-        <div className="mt-1 divide-y divide-line">
-          {visible.map((n) => (
-            <NoteRow
-              key={n.id}
-              id={n.id}
-              kind={n.kind}
-              mark={n.locator}
-              body={noteText(n)}
-              max={max}
-              single={single}
-              tint={item.color}
-            />
-          ))}
-          {rows.length > NOTE_PREVIEW && (
-            <div className="pt-1.5">
-              <Button size="sm" variant="ghost" className="w-full" onClick={() => setExpanded((v) => !v)}>
-                {expanded ? "Show fewer" : `Show all ${rows.length}`}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </SubGroup>
-  );
-}
 
 // =========================================================
 // The live before/after for a reschedule, rendered under the plan controls so
