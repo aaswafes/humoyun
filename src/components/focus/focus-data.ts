@@ -1,6 +1,7 @@
 import { addDays, startOfWeek, toISO, todayISO, weekDates } from "@/lib/date";
 import type { FocusSession, Task, UmrCategory } from "@/lib/types";
 import { UMR_CATEGORIES } from "@/lib/types";
+import { splitMinutes } from "@/lib/umr";
 
 // =========================================================
 // Session metadata carried in the `tags` column
@@ -460,21 +461,32 @@ export interface KindBreakdown {
  * starts — so the only sittings that fall out are ones timed from a task row
  * whose task has no kind either. Those are counted separately rather than
  * guessed at, the same rule the Umr page follows.
+ *
+ * A sitting that was two things at once contributes half its minutes to each,
+ * so the column still adds up to the hours actually spent.
  */
-export function kindTotals(groups: DayGroup[], resolve: (s: FocusSession) => UmrCategory | null): KindBreakdown {
+export function kindTotals(
+  groups: DayGroup[],
+  resolve: (s: FocusSession) => UmrCategory[],
+): KindBreakdown {
   const totals = new Map<UmrCategory, KindTotal>();
   let unsetMinutes = 0;
   let setMinutes = 0;
 
   for (const group of groups) {
     for (const view of group.items) {
-      const category = resolve(view.session);
-      if (!category) { unsetMinutes += view.minutes; continue; }
+      const kinds = resolve(view.session);
+      if (!kinds.length) { unsetMinutes += view.minutes; continue; }
       setMinutes += view.minutes;
-      const entry = totals.get(category) ?? { category, minutes: 0, sessions: 0 };
-      entry.minutes += view.minutes;
-      entry.sessions += 1;
-      totals.set(category, entry);
+      // The same even split the Umr ledger uses, from the same helper, so this
+      // panel and the Umr page can never disagree about an hour.
+      const shares = splitMinutes(view.minutes, kinds.length);
+      kinds.forEach((category, i) => {
+        const entry = totals.get(category) ?? { category, minutes: 0, sessions: 0 };
+        entry.minutes += shares[i];
+        entry.sessions += 1;
+        totals.set(category, entry);
+      });
     }
   }
 

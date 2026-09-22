@@ -24,8 +24,10 @@ export function TimerBar() {
   const task = timer.taskId ? tasks.find((t) => t.id === timer.taskId) : null;
   // A timer started on the Focus dial has a kind and often no label at all,
   // so "Focus" would be the only thing the bar ever said.
-  const kind = timer.umr ? UMR_META[timer.umr] : null;
-  const label = task?.title || timer.label || kind?.label || "Focus";
+  const kinds = timer.umrKinds ?? [];
+  const kind = kinds.length ? UMR_META[kinds[0]] : null;
+  const kindWords = kinds.map((c) => UMR_META[c].label).join(" + ");
+  const label = task?.title || timer.label || kindWords || "Focus";
   const overrun = timer.mode === "pomodoro" && seconds >= target;
 
   // Chime once when a pomodoro completes.

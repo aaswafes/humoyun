@@ -249,27 +249,53 @@ export function taskCategory(task: Task, index: UmrIndex): UmrCategory | null {
   return null;
 }
 
-export function sessionCategory(session: FocusSession, index: UmrIndex): UmrCategory | null {
-  // What the sitting says about itself wins. The Focus dial asks for a kind of
-  // living before the clock starts, so this is the usual answer and nothing
-  // downstream has to guess.
-  if (isUmrCategory(session.umr)) return session.umr;
+/**
+ * Every kind a sitting belongs to.
+ *
+ * What the sitting says about itself wins: the Focus dial asks before the clock
+ * starts, so this is the usual answer and nothing downstream has to guess. Only
+ * a sitting that says nothing — one started from a task row — falls back to the
+ * task, its tags and the kind rules, and that fallback can only ever name one.
+ */
+export function sessionCategories(session: FocusSession, index: UmrIndex): UmrCategory[] {
+  const own = (session.umr_kinds ?? []).filter(isUmrCategory);
+  if (own.length) return [...new Set(own)];
 
   // A break is time off, whatever the task under it was.
-  if (session.mode === "break") return "xordiq";
+  if (session.mode === "break") return ["xordiq"];
 
   if (session.task_id) {
     const task = index.taskById.get(session.task_id);
     if (task) {
       const hit = taskCategory(task, index);
-      if (hit) return hit;
+      if (hit) return [hit];
     }
   }
   for (const tag of session.tags) {
     const hit = index.prefs.tagRules[tag.toLowerCase()];
-    if (hit) return hit;
+    if (hit) return [hit];
   }
-  return null;
+  return [];
+}
+
+/** The first of them, for the one or two places that can only draw one. */
+export function sessionCategory(session: FocusSession, index: UmrIndex): UmrCategory | null {
+  return sessionCategories(session, index)[0] ?? null;
+}
+
+/**
+ * Divide `minutes` between `n` shares, losing nothing.
+ *
+ * Plain division leaves a remainder that either vanishes or gets counted twice,
+ * and the whole ledger rests on every minute being counted exactly once. The
+ * remainder goes to the earliest shares, one each, so 25 minutes across two
+ * kinds is 13 and 12 rather than 12.5 twice or 12 and 12.
+ */
+export function splitMinutes(minutes: number, n: number): number[] {
+  if (n <= 0) return [];
+  const base = Math.floor(minutes / n);
+  let rest = minutes - base * n;
+  return Array.from({ length: n }, () => base + (rest-- > 0 ? 1 : 0));
 }
 
 // ---------------------------------------------------------
@@ -344,15 +370,39 @@ export function buildLedger(input: LedgerInput): UmrEntry[] {
     const date = localDay(s.started_at);
     if (!inRange.has(date)) continue;
     const task = s.task_id ? index.taskById.get(s.task_id) : undefined;
-    out.push({
-      id: `fs-${s.id}`,
-      date,
-      category: sessionCategory(s, index),
-      minutes,
-      label: s.label?.trim() || task?.title?.trim() || "Focus",
-      source: "session",
-      sourceId: s.id,
-      startMin: localStartMin(s.started_at),
+    const label = s.label?.trim() || task?.title?.trim() || "Focus";
+    const startMin = localStartMin(s.started_at);
+    const kinds = sessionCategories(s, index);
+
+    if (kinds.length <= 1) {
+      out.push({
+        id: `fs-${s.id}`,
+        date,
+        category: kinds[0] ?? null,
+        minutes,
+        label,
+        source: "session",
+        sourceId: s.id,
+        startMin,
+      });
+      continue;
+    }
+
+    // An hour that was two things at once is half an hour of each. The shares
+    // add back up to the minute, so the day still totals what it should.
+    const shares = splitMinutes(minutes, kinds.length);
+    kinds.forEach((category, i) => {
+      if (shares[i] <= 0) return;
+      out.push({
+        id: `fs-${s.id}-${category}`,
+        date,
+        category,
+        minutes: shares[i],
+        label,
+        source: "session",
+        sourceId: s.id,
+        startMin,
+      });
     });
   }
 

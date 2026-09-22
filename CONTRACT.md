@@ -365,14 +365,29 @@ lives in `profiles.prefs.umr`, so retuning a rule never needs a migration.
 ### The Focus dial asks for a kind, not a task
 
 `/focus` times a **kind of living**, not a goal and not a task:
-`kind-picker.tsx` is the dial's picker and writes `focus_sessions.umr`, with an
-optional free-text label saying *what exactly* (the Umr stats group by it, so
-"Chemistry" and "Qurʼan" stay tellable apart inside Taʼlim).
+`kind-picker.tsx` is the dial's picker and writes `focus_sessions.umr_kinds`,
+with an optional free-text label saying *what exactly* (the Umr stats group by
+it, so "Chemistry" and "Qurʼan" stay tellable apart inside Taʼlim).
 
-- `sessionCategory` reads `session.umr` first and only then falls back to the
-  task, the tags and the kind rules. A sitting started on the dial answers for
-  itself; one started from a task row still inherits, and still credits that
-  task's `actual_min`.
+**More than one kind is allowed, and the minutes SPLIT EVENLY between them.**
+An hour studying with a friend is Taʼlim and Inson both, so it is thirty
+minutes of each. Counting the whole hour to each would let a day total more
+than a day and would let the Dam cap be gamed by ticking Taʼlim beside it —
+the ledger's one invariant is that every minute is counted exactly once.
+`splitMinutes` in `@/lib/umr` does the division and hands the remainder to the
+earliest shares, so nothing is lost: 25 minutes across two kinds is 13 and 12.
+Both the ledger and the Focus "Kinds" panel call it, so they cannot disagree.
+
+Choosing a kind closes the list — a choice should feel like one — and a second
+kind is one more tap on the pill, because the toggle is additive.
+
+- `sessionCategories` reads `session.umr_kinds` first and only then falls back
+  to the task, the tags and the kind rules — and that fallback can only ever
+  name one. A sitting started on the dial answers for itself; one started from
+  a task row still inherits, and still credits that task's `actual_min`.
+- `focus_sessions.umr` (singular) is dead and deliberately not dropped, the
+  same decision `tasks.template_id` made: dropping it would have broken the
+  deployed build for the minute between the migration and the deploy.
 - `subject-picker.tsx` survives for exactly one job — re-attaching a logged
   session to a task in the editor — and no longer speaks `FocusSubject`.
 - Choosing Dam draws `dam-line.tsx` under the dial with the live balance. It

@@ -9,7 +9,7 @@ import { Badge, Button, IconButton, Textarea } from "@/components/ui/primitives"
 import { Field } from "@/components/ui/form";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { SubjectPicker } from "./subject-picker";
-import { CategoryPicker } from "@/components/umr/category-picker";
+import { CategoryMultiPicker } from "@/components/umr/category-picker";
 import { interruptionsOf, normalizeTag, toView, visibleTags } from "./focus-data";
 import {
   deleteSession, reattachSession, setSessionInterruptions, setSessionNote, setSessionTags,
@@ -100,16 +100,19 @@ export function SessionEditor({
 
           {session.mode !== "break" && (
             <Field
-              label="Kind of living"
-              description="Which of the five this hour went to. It is what Umr counts, and it can be corrected here long after the timer stopped."
+              label="Kinds of living"
+              description={
+                (session.umr_kinds ?? []).length > 1
+                  ? "This hour was more than one thing, so its minutes split evenly between them."
+                  : "Which of the five this hour went to. Pick more than one and the minutes split evenly."
+              }
             >
               {() => (
-                <CategoryPicker
+                <CategoryMultiPicker
                   size="sm"
-                  allowNone
-                  value={session.umr}
-                  onChange={(c) => patch("focusSessions", session.id, { umr: c })}
-                  label="Kind of living"
+                  values={session.umr_kinds ?? []}
+                  onChange={(next) => patch("focusSessions", session.id, { umr_kinds: next })}
+                  label="Kinds of living"
                 />
               )}
             </Field>

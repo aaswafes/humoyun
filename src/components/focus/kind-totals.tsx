@@ -5,7 +5,7 @@ import { Hourglass } from "lucide-react";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { formatDuration } from "@/lib/date";
-import { UMR_META, buildUmrIndex, parseUmrPrefs, sessionCategory } from "@/lib/umr";
+import { UMR_META, buildUmrIndex, parseUmrPrefs, sessionCategories } from "@/lib/umr";
 import { Button } from "@/components/ui/primitives";
 import { MiniEmpty } from "@/components/ui/form";
 import { kindTotals, type DayGroup } from "./focus-data";
@@ -38,7 +38,7 @@ export const KindTotals = React.memo(function KindTotals({
   );
 
   const breakdown = React.useMemo(
-    () => kindTotals(groups, (s) => sessionCategory(s, index)),
+    () => kindTotals(groups, (s) => sessionCategories(s, index)),
     [groups, index],
   );
 

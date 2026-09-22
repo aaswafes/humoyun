@@ -71,8 +71,11 @@ export type CalendarView = "day" | "week" | "month" | "agenda";
 export interface TimerState {
   taskId: string | null;
   label: string;
-  /** The kind of living this sitting is. Chosen on the dial before it starts. */
-  umr: UmrCategory | null;
+  /**
+   * The kinds of living this sitting is, chosen on the dial before it starts.
+   * More than one is allowed and the minutes split evenly between them.
+   */
+  umrKinds: UmrCategory[];
   mode: "stopwatch" | "pomodoro";
   startedAt: number | null;   // epoch ms of current run segment
   accumulated: number;        // seconds banked from previous segments
@@ -84,7 +87,7 @@ export interface TimerState {
 const EMPTY_TIMER: TimerState = {
   taskId: null,
   label: "",
-  umr: null,
+  umrKinds: [],
   mode: "stopwatch",
   startedAt: null,
   accumulated: 0,
@@ -237,7 +240,7 @@ interface StoreState extends CollectionState {
 
   // ---- timer ----
   startTimer: (opts?: {
-    taskId?: string | null; label?: string; umr?: UmrCategory | null;
+    taskId?: string | null; label?: string; umrKinds?: UmrCategory[];
     mode?: "stopwatch" | "pomodoro"; targetMinutes?: number;
   }) => void;
   pauseTimer: () => void;
@@ -410,7 +413,7 @@ function defaultsFor(key: CollectionKey, userId: string): Record<string, unknown
         highlight: null, note: null, quran_pages: 0, water: 0, sleep_hours: null, steps: null, data: {},
       };
     case "focusSessions":
-      return { id: base.id, user_id: userId, task_id: null, label: null, umr: null, tags: [], mode: "stopwatch", started_at: nowIso(), ended_at: null, seconds: 0, completed: false, note: null };
+      return { id: base.id, user_id: userId, task_id: null, label: null, umr_kinds: [], tags: [], mode: "stopwatch", started_at: nowIso(), ended_at: null, seconds: 0, completed: false, note: null };
     case "umrLogs":
       return {
         ...base, date: todayISO(), category: "xordiq", minutes: 0, label: null,
@@ -449,8 +452,11 @@ function restoreTimer(): TimerState {
   try {
     const raw = localStorage.getItem(TIMER_KEY);
     if (!raw) return EMPTY_TIMER;
-    const parsed = JSON.parse(raw) as TimerState;
-    return { ...EMPTY_TIMER, ...parsed };
+    const parsed = JSON.parse(raw) as Partial<TimerState>;
+    // A timer persisted by an older build carries a single `umr` string and no
+    // `umrKinds`, and one `.map` on undefined would take the shell down.
+    const kinds = Array.isArray(parsed.umrKinds) ? parsed.umrKinds : [];
+    return { ...EMPTY_TIMER, ...parsed, umrKinds: kinds };
   } catch { return EMPTY_TIMER; }
 }
 
@@ -1297,7 +1303,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const timer: TimerState = {
       taskId: opts.taskId ?? null,
       label: opts.label ?? "",
-      umr: opts.umr ?? null,
+      umrKinds: opts.umrKinds ?? [],
       mode: opts.mode ?? "stopwatch",
       startedAt: Date.now(),
       accumulated: 0,
@@ -1337,7 +1343,7 @@ export const useStore = create<StoreState>((set, get) => ({
       get().insert("focusSessions", {
         task_id: t.taskId,
         label: t.label || null,
-        umr: t.umr,
+        umr_kinds: t.umrKinds,
         mode: t.mode,
         started_at: t.sessionStart ?? nowIso(),
         ended_at: nowIso(),

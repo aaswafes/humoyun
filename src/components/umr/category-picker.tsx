@@ -76,6 +76,64 @@ export function CategoryPicker({
   );
 }
 
+/**
+ * The same five, but any number of them at once.
+ *
+ * Only a focus sitting can be more than one kind — an hour studying with a
+ * friend is Taʼlim and Inson both — and its minutes then split evenly between
+ * them. A task or a habit is one thing, and uses `CategoryPicker` above.
+ */
+export function CategoryMultiPicker({
+  values, onChange, size = "md", className, label = "Kinds of living",
+}: {
+  values: UmrCategory[];
+  onChange: (next: UmrCategory[]) => void;
+  size?: "sm" | "md";
+  className?: string;
+  label?: string;
+}) {
+  const toggle = (c: UmrCategory) => {
+    const next = values.includes(c) ? values.filter((v) => v !== c) : [...values, c];
+    // Kept in the canonical order so two equal selections always read the same.
+    onChange(UMR_CATEGORIES.filter((k) => next.includes(k)));
+  };
+
+  return (
+    <div role="group" aria-label={label} className={cn("flex flex-wrap gap-1", className)}>
+      {UMR_CATEGORIES.map((c) => {
+        const meta = UMR_META[c];
+        const active = values.includes(c);
+        return (
+          <button
+            key={c}
+            type="button"
+            role="checkbox"
+            aria-checked={active}
+            title={`${meta.label} — ${meta.gloss}: ${meta.examples}`}
+            onClick={() => toggle(c)}
+            className={cn(
+              `tint-${meta.tint}`,
+              "inline-flex items-center gap-1.5 rounded-full border cursor-pointer",
+              "transition-colors duration-150 active:scale-[0.97]",
+              size === "sm" ? "h-6 px-2 text-[11.5px]" : "h-7 px-2.5 text-[12.5px]",
+              active
+                ? "border-transparent bg-[var(--tint-soft)] font-medium text-[var(--tint-ink)]"
+                : "border-line text-ink-3 hover:border-line-strong hover:text-ink-2",
+            )}
+          >
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: active ? "var(--tint)" : "var(--ink-4)" }}
+              aria-hidden
+            />
+            {meta.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A small read-only badge, for a row that already has one. */
 export function CategoryTag({
   category, className, size = "md",

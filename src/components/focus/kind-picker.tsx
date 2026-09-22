@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, History, Tag, X } from "lucide-react";
+import { ChevronDown, Tag, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
-import { UMR_CATEGORIES, UMR_META } from "@/lib/umr";
+import { UMR_CATEGORIES, UMR_META, type UmrCategory } from "@/lib/umr";
 import { Popover, MenuItem, MenuSeparator, MenuLabel } from "@/components/ui/overlays";
 import type { FocusSubject } from "./focus-engine";
 
@@ -16,12 +16,38 @@ import type { FocusSubject } from "./focus-engine";
 // Umr can count. A timer started from a task row still credits that task —
 // this is the room where you choose the hour itself.
 //
-// The label is optional and says *what exactly*. It is what the Umr stats
-// group by, so "Chemistry" and "Qurʼan" stay tellable apart inside their kind.
+// More than one can be true at once: an hour studying with a friend is Taʼlim
+// and Inson both. The minutes then SPLIT EVENLY between them. Counting the
+// whole hour to each would let a day total more than a day, and would let the
+// Dam cap be gamed by ticking Taʼlim beside it.
+//
+// Choosing closes the list, because that is what a choice feels like. Picking
+// a second kind is one more tap on the pill, and the toggle is additive.
 // =========================================================
 
 const PILL =
-  "inline-flex h-7 max-w-[320px] items-center gap-1.5 rounded-full border border-line px-2.5 text-[12.5px]";
+  "inline-flex h-7 max-w-[340px] items-center gap-1.5 rounded-full border border-line px-2.5 text-[12.5px]";
+
+/** "Taʼlim + Inson", or the one, or nothing. */
+function kindWords(kinds: UmrCategory[]): string {
+  return kinds.map((c) => UMR_META[c].label).join(" + ");
+}
+
+function Dots({ kinds }: { kinds: UmrCategory[] }) {
+  return (
+    <span className="flex shrink-0 items-center -space-x-0.5">
+      {kinds.map((c) => (
+        <span key={c} className={`tint-${UMR_META[c].tint}`}>
+          <span
+            className="block size-2 rounded-full ring-1 ring-[var(--raised)]"
+            style={{ background: "var(--tint)" }}
+            aria-hidden
+          />
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export function KindPicker({
   value,
@@ -38,42 +64,20 @@ export function KindPicker({
   className?: string;
   "aria-describedby"?: string;
 }) {
-  const sessions = useStore((s) => s.focusSessions);
   const tasks = useStore((s) => s.tasks);
   const [draft, setDraft] = React.useState("");
 
-  const meta = value.umr ? UMR_META[value.umr] : null;
+  const kinds = value.umr;
   const task = value.taskId ? tasks.find((t) => t.id === value.taskId) ?? null : null;
   const shown = task?.title || value.label;
-
-  /**
-   * Labels used before under the same kind, so a subject that comes back every
-   * day is one tap rather than a retype.
-   */
-  const recent = React.useMemo(() => {
-    const seen: string[] = [];
-    for (let i = sessions.length - 1; i >= 0 && seen.length < 5; i--) {
-      const s = sessions[i];
-      const label = (s.label ?? "").trim();
-      if (!label || s.mode === "break") continue;
-      if (value.umr && s.umr && s.umr !== value.umr) continue;
-      if (label.toLowerCase() === value.label.trim().toLowerCase()) continue;
-      if (!seen.some((l) => l.toLowerCase() === label.toLowerCase())) seen.push(label);
-    }
-    return seen;
-  }, [sessions, value.umr, value.label]);
+  const words = kindWords(kinds);
 
   if (locked) {
     return (
-      <span
-        className={cn(meta && `tint-${meta.tint}`, PILL, "text-ink-2", className)}
-        title="The kind is fixed while a session runs"
-      >
-        {meta ? (
-          <span className="size-2 shrink-0 rounded-full" style={{ background: "var(--tint)" }} aria-hidden />
-        ) : null}
+      <span className={cn(PILL, "text-ink-2", className)} title="The kind is fixed while a session runs">
+        {kinds.length > 0 && <Dots kinds={kinds} />}
         <span className="truncate">
-          {meta ? meta.label : "Open focus"}
+          {words || "Open focus"}
           {shown ? <span className="text-ink-3"> · {shown}</span> : null}
         </span>
       </span>
@@ -92,18 +96,15 @@ export function KindPicker({
           aria-describedby={describedBy}
           aria-haspopup="dialog"
           className={cn(
-            meta && `tint-${meta.tint}`,
             PILL,
             "cursor-pointer transition-colors duration-150 hover:bg-hover",
-            meta ? "text-ink" : "text-ink-3 hover:text-ink",
+            kinds.length ? "text-ink" : "text-ink-3 hover:text-ink",
             className,
           )}
         >
-          {meta ? (
-            <span className="size-2 shrink-0 rounded-full" style={{ background: "var(--tint)" }} aria-hidden />
-          ) : null}
-          <span className={cn("min-w-0 flex-1 truncate", !meta && "text-ink-4")}>
-            {meta ? meta.label : "Choose a kind"}
+          {kinds.length > 0 && <Dots kinds={kinds} />}
+          <span className={cn("min-w-0 flex-1 truncate", !kinds.length && "text-ink-4")}>
+            {words || "Choose a kind"}
             {shown ? <span className="text-ink-3"> · {shown}</span> : null}
           </span>
           <ChevronDown className="size-3 shrink-0 text-ink-4" />
@@ -116,14 +117,20 @@ export function KindPicker({
           <div className="px-1 pb-1">
             {UMR_CATEGORIES.map((c) => {
               const m = UMR_META[c];
-              const active = value.umr === c;
+              const active = kinds.includes(c);
               return (
                 <button
                   key={c}
                   type="button"
-                  role="radio"
+                  role="checkbox"
                   aria-checked={active}
-                  onClick={() => onChange({ ...value, umr: c })}
+                  onClick={() => {
+                    // Additive toggle, then close: choosing should feel like
+                    // choosing. A second kind is one more tap on the pill.
+                    const next = active ? kinds.filter((k) => k !== c) : [...kinds, c];
+                    onChange({ ...value, umr: UMR_CATEGORIES.filter((k) => next.includes(k)) });
+                    close();
+                  }}
                   className={cn(
                     `tint-${m.tint}`,
                     "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left cursor-pointer",
@@ -132,10 +139,25 @@ export function KindPicker({
                   )}
                 >
                   <span
-                    className="size-2.5 shrink-0 rounded-full"
-                    style={{ background: "var(--tint)" }}
+                    className={cn(
+                      "grid size-3.5 shrink-0 place-items-center rounded-[5px] border transition-colors",
+                      active ? "border-transparent" : "border-line-strong",
+                    )}
+                    style={active ? { background: "var(--tint)" } : undefined}
                     aria-hidden
-                  />
+                  >
+                    {active && (
+                      <svg viewBox="0 0 10 10" className="size-2.5" fill="none">
+                        <path
+                          d="M2 5.2 4 7.2 8 3"
+                          stroke="var(--raised)"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span
                       className={cn(
@@ -151,6 +173,12 @@ export function KindPicker({
               );
             })}
           </div>
+
+          {kinds.length > 1 && (
+            <p className="px-2.5 pb-1.5 text-[11px] leading-snug text-ink-4">
+              The minutes split evenly — {kinds.length} ways.
+            </p>
+          )}
 
           <MenuSeparator />
 
@@ -174,28 +202,12 @@ export function KindPicker({
             </label>
           </form>
 
-          {recent.length > 0 && (
-            <>
-              <MenuSeparator />
-              <MenuLabel>Recent</MenuLabel>
-              {recent.map((label) => (
-                <MenuItem
-                  key={label}
-                  icon={History}
-                  onClick={() => { onChange({ ...value, taskId: null, label }); close(); }}
-                >
-                  {label}
-                </MenuItem>
-              ))}
-            </>
-          )}
-
-          {(value.umr || value.label || value.taskId) && (
+          {(kinds.length > 0 || value.label || value.taskId) && (
             <>
               <MenuSeparator />
               <MenuItem
                 icon={X}
-                onClick={() => { onChange({ umr: null, taskId: null, label: "" }); close(); }}
+                onClick={() => { onChange({ umr: [], taskId: null, label: "" }); close(); }}
               >
                 Clear
               </MenuItem>

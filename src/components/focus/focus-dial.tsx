@@ -280,7 +280,7 @@ export function FocusDial({
             <KindPicker value={engine.subject} onChange={engine.setSubject} locked={active} />
             {/* The cap earns a line here, where it can still change the choice —
                 not on a stats page read afterwards. */}
-            {engine.subject.umr === "dam" && <DamLine />}
+            {engine.subject.umr.includes("dam") && <DamLine />}
           </>
         )}
       </div>
@@ -301,7 +301,7 @@ export function FocusDial({
 
 /** "Taʼlim · Chemistry", or whichever half of that exists. */
 function kindLine(subject: FocusSubject): string {
-  const kind = subject.umr ? UMR_META[subject.umr].label : "";
+  const kinds = subject.umr.map((c) => UMR_META[c].label).join(" + ");
   const what = subject.label.trim();
-  return [kind, what].filter(Boolean).join(" · ");
+  return [kinds, what].filter(Boolean).join(" · ");
 }

@@ -25,7 +25,8 @@ export type FocusMode = "pomodoro" | "stopwatch";
  * have to land on that task.
  */
 export interface FocusSubject {
-  umr: UmrCategory | null;
+  /** More than one is allowed; the minutes split evenly between them. */
+  umr: UmrCategory[];
   taskId: string | null;
   label: string;
 }
@@ -105,7 +106,7 @@ function liveActive(): boolean {
 }
 
 export interface StartOptions {
-  umr?: UmrCategory | null;
+  umr?: UmrCategory[];
   taskId?: string | null;
   label?: string;
   mode?: FocusMode;
@@ -133,7 +134,7 @@ export function useFocusEngine() {
   const { prefs, presets, preset, setPrefs, selectPreset, savePreset, deletePreset } = useFocusPrefs();
 
   const [room, setRoom] = React.useState<Room>(loadRoom);
-  const [subject, setSubject] = React.useState<FocusSubject>({ umr: null, taskId: null, label: "" });
+  const [subject, setSubject] = React.useState<FocusSubject>({ umr: [], taskId: null, label: "" });
   const [last, setLast] = React.useState<LastBlock | null>(null);
   const [prompt, setPrompt] = React.useState<"none" | "wrap" | "return">("none");
 
@@ -198,7 +199,7 @@ export function useFocusEngine() {
       const before = new Set(useStore.getState().focusSessions.map((s) => s.id));
       const taps = room.interruptions.length;
       const runMode: FocusMode = t.mode === "stopwatch" ? "stopwatch" : "pomodoro";
-      const runSubject: FocusSubject = { umr: t.umr, taskId: t.taskId, label: t.label };
+      const runSubject: FocusSubject = { umr: t.umrKinds, taskId: t.taskId, label: t.label };
 
       stopTimer(true);
 
@@ -291,7 +292,7 @@ export function useFocusEngine() {
       startTimer({
         taskId: next.taskId,
         label: next.label,
-        umr: next.umr,
+        umrKinds: next.umr,
         mode: nextMode,
         targetMinutes: opts.minutes ?? preset.focus,
       });
@@ -456,7 +457,7 @@ export function useFocusEngine() {
     discardWrapped,
 
     /** While a timer runs the store owns the subject; the picker owns it otherwise. */
-    subject: active ? { umr: timer.umr, taskId: timer.taskId, label: timer.label } : subject,
+    subject: active ? { umr: timer.umrKinds, taskId: timer.taskId, label: timer.label } : subject,
     setSubject,
 
     start,

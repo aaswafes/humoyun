@@ -315,11 +315,18 @@ export interface FocusSession {
   task_id: string | null;
   label: string | null;
   /**
-   * The kind of living this sitting was, chosen on the dial before it started.
+   * The kinds of living this sitting was, chosen on the dial before it started.
    * A session says it itself rather than inheriting from a task, because on the
    * Focus page there is no task to inherit from.
+   *
+   * More than one is allowed — an hour studying with a friend is Taʼlim and
+   * Inson both — and the minutes then **split evenly between them**. Counting
+   * the full hour to each would let a day total more than a day and would let
+   * the Dam cap be gamed by ticking Taʼlim beside it.
+   *
+   * Empty means nobody has said, which is not the same as "none".
    */
-  umr: UmrCategory | null;
+  umr_kinds: UmrCategory[];
   tags: string[];
   mode: "stopwatch" | "pomodoro" | "break";
   started_at: string;

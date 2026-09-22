@@ -40,7 +40,7 @@ function Row({
   const { session } = view;
   const task = session.task_id ? tasks.find((t) => t.id === session.task_id) ?? null : null;
   const title = task?.title || session.label || (view.isBreak ? "Break" : "Focus");
-  const kind = session.umr ? UMR_META[session.umr] : null;
+  const kinds = session.umr_kinds ?? [];
   const pomodoro = session.mode === "pomodoro";
   const Icon = view.isBreak ? Coffee : pomodoro ? Timer : Watch;
   const kept = pomodoro && session.completed;
@@ -84,18 +84,21 @@ function Row({
         ) : (
           <span className="block truncate text-[13.5px] text-ink-2">{title}</span>
         )}
-        {(kind || session.note) && (
+        {(kinds.length > 0 || session.note) && (
           <p className="truncate text-[11.5px] leading-snug text-ink-4">
-            {kind && (
-              <span className={`tint-${kind.tint} mr-1.5 inline-flex items-center gap-1 align-middle`}>
+            {kinds.map((c) => (
+              <span
+                key={c}
+                className={`tint-${UMR_META[c].tint} mr-1.5 inline-flex items-center gap-1 align-middle`}
+              >
                 <span
                   className="inline-block size-1.5 rounded-full"
                   style={{ background: "var(--tint)" }}
                   aria-hidden
                 />
-                <span className="text-ink-3">{kind.label}</span>
+                <span className="text-ink-3">{UMR_META[c].label}</span>
               </span>
-            )}
+            ))}
             {session.note}
           </p>
         )}
