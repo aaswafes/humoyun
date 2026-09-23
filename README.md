@@ -8,6 +8,23 @@ Umr divides every recorded minute into five kinds of living — taʼlim, ibodat,
 xordiq, dam, inson — and caps amusement at a share of study. Habits, salah,
 focus timers and a weekly review all feed the same day.
 
+## Schema changes
+
+DDL cannot go through the anon or service-role key — those talk to PostgREST,
+which serves rows and cannot alter a table. Schema changes live in
+`docs/sql/*.sql` and reach the database one of three ways:
+
+1. **The Supabase connector**, when it is connected. Nothing to set up.
+2. **`node scripts/db.mjs docs/sql/<file>.sql`**, which calls the Management
+   API — the same thing the dashboard's SQL editor uses. Needs
+   `SUPABASE_ACCESS_TOKEN` in `.env.local`; check it with
+   `node scripts/db.mjs --check`.
+3. **By hand**, in the dashboard SQL editor.
+
+A personal access token reaches every project on the account, not just this
+one. `.env.local` is gitignored, but treat it like a password and revoke it
+from the dashboard if it ever leaks.
+
 ## Run it
 
 ```bash
