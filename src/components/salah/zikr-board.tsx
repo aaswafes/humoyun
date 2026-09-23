@@ -155,18 +155,20 @@ function GhostTile({ label, onClick }: { label: string; onClick: () => void }) {
  * corrected, rather than a second gesture on a tile whose whole job is to add.
  */
 export function ZikrToday({
-  items, counts, onAdjust,
+  items, counts, onAdjust, emptyLabel = "Nothing recorded today yet.",
 }: {
   items: ZikrItem[];
   counts: ZikrCounts;
   onAdjust: (item: ZikrItem, by: number) => void;
+  /** The board can be pointed at an older day, and then "today" is a lie. */
+  emptyLabel?: string;
 }) {
   const rows = items
     .map((item) => ({ item, count: counts[item.id] ?? 0 }))
     .filter((row) => row.count > 0);
 
   if (rows.length === 0) {
-    return <p className="text-[12.5px] text-ink-4">Nothing recorded today yet.</p>;
+    return <p className="text-[12.5px] text-ink-4">{emptyLabel}</p>;
   }
 
   return (

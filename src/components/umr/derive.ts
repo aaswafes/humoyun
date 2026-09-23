@@ -81,7 +81,7 @@ export function summarise(days: string[], entries: UmrEntry[]): UmrSummary {
   const span = Math.max(1, days.length);
 
   const perDay = ZERO_TOTALS();
-  const share: Record<UmrCategory, number> = { talim: 0, ibodat: 0, xordiq: 0, dam: 0, inson: 0 };
+  const share = Object.fromEntries(UMR_CATEGORIES.map((c) => [c, 0])) as Record<UmrCategory, number>;
   for (const c of UMR_CATEGORIES) {
     perDay[c] = totals[c] / span;
     share[c] = accounted > 0 ? totals[c] / accounted : 0;
@@ -524,6 +524,22 @@ export function buildUmrInsights(input: {
       id: "dam-days",
       tone: discipline.daysOver > span / 3 ? "warn" : "neutral",
       text: `${discipline.daysOver} of ${span} days went over the cap; the longest clean run was ${discipline.bestStreak} ${discipline.bestStreak === 1 ? "day" : "days"}.`,
+    });
+  }
+
+  // ---- the one there is no budget for ----
+  if (summary.totals.isrof > 0) {
+    const perDay = summary.totals.isrof / span;
+    out.push({
+      id: "isrof",
+      tone: "warn",
+      text: `${fmtMin(summary.totals.isrof)} went to Isrof — about ${fmtMin(perDay)} a day, ${Math.round(summary.share.isrof * 100)}% of everything recorded. Unlike Dam it has no budget, because waste is not something you ration.`,
+    });
+  } else if (summary.accounted > 0 && span >= 7) {
+    out.push({
+      id: "isrof-clean",
+      tone: "good",
+      text: `No Isrof recorded in these ${span} days.`,
     });
   }
 

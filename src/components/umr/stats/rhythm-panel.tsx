@@ -3,7 +3,7 @@
 import * as React from "react";
 import { AxisText, Chart, Panel, PanelNote, type TableSpec } from "@/components/stats/chart-kit";
 import { hourLabel } from "@/components/stats/derive";
-import { UMR_CATEGORIES, UMR_META, sumTotals } from "@/lib/umr";
+import { UMR_CATEGORIES, UMR_META, ZERO_TOTALS, sumTotals } from "@/lib/umr";
 import { CategoryLegend } from "../category-bar";
 import { fmtMin, pct, type HourRow, type WeekdayRow } from "../derive";
 import { TintGroup } from "./shared";
@@ -54,7 +54,7 @@ export function RhythmPanel({
   };
 
   const weekTotals = React.useMemo(() => {
-    const t = { talim: 0, ibodat: 0, xordiq: 0, dam: 0, inson: 0 };
+    const t = ZERO_TOTALS();
     for (const r of weekdays) for (const c of UMR_CATEGORIES) t[c] += r.totals[c];
     return t;
   }, [weekdays]);

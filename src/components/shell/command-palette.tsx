@@ -59,7 +59,7 @@ export function CommandPalette() {
       { id: "n-cal", label: "Calendar", group: "Go to", icon: CalendarDays, run: () => go("/calendar") },
       { id: "n-inbox", label: "Inbox", group: "Go to", icon: Inbox, run: () => go("/inbox") },
       { id: "n-projects", label: "Projects", group: "Go to", icon: Boxes, run: () => go("/projects") },
-      { id: "n-umr", label: "Umr", group: "Go to", icon: Hourglass, keywords: "time life talim ibodat xordiq dam inson", run: () => go("/umr") },
+      { id: "n-umr", label: "Umr", group: "Go to", icon: Hourglass, keywords: "time life talim ibodat xordiq dam inson isrof", run: () => go("/umr") },
       { id: "n-books", label: "Books", group: "Go to", icon: BookOpen, run: () => go("/consumption/books") },
       { id: "n-watch", label: "Films & Anime", group: "Go to", icon: Clapperboard, run: () => go("/consumption/films") },
       { id: "n-youtube", label: "YouTube", group: "Go to", icon: MonitorPlay, run: () => go("/consumption/youtube") },

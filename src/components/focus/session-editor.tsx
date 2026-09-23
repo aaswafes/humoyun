@@ -5,14 +5,15 @@ import { Minus, Plus, Trash2, X, Zap } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDuration, formatRange, friendlyDate } from "@/lib/date";
-import { Badge, Button, IconButton, Textarea } from "@/components/ui/primitives";
+import { Badge, Button, IconButton, Input, Textarea } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { SubjectPicker } from "./subject-picker";
 import { CategoryMultiPicker } from "@/components/umr/category-picker";
 import { interruptionsOf, normalizeTag, toView, visibleTags } from "./focus-data";
 import {
-  deleteSession, reattachSession, setSessionInterruptions, setSessionNote, setSessionTags,
+  deleteSession, reattachSession, setSessionInterruptions, setSessionMinutes, setSessionNote,
+  setSessionTags,
 } from "./session-actions";
 
 /**
@@ -98,13 +99,27 @@ export function SessionEditor({
             </span>
           </div>
 
+          <Field
+            label="Length"
+            description="Set it to what actually happened. A timer left running writes hours you did not spend, and the minutes move with it — including off the task it was credited to."
+          >
+            {(wiring) => (
+              <MinutesField
+                id={wiring.id}
+                aria-describedby={wiring["aria-describedby"]}
+                minutes={view.minutes}
+                onCommit={(n) => setSessionMinutes(session.id, n)}
+              />
+            )}
+          </Field>
+
           {session.mode !== "break" && (
             <Field
               label="Kinds of living"
               description={
                 (session.umr_kinds ?? []).length > 1
                   ? "This hour was more than one thing, so its minutes split evenly between them."
-                  : "Which of the five this hour went to. Pick more than one and the minutes split evenly."
+                  : "Which kind this hour went to. Pick more than one and the minutes split evenly."
               }
             >
               {() => (
@@ -267,5 +282,61 @@ export function SessionEditor({
         description={`${formatDuration(view.minutes)} comes off the record${task ? ` and off ${task.title}` : ""}.`}
       />
     </>
+  );
+}
+
+/**
+ * Minutes in, minutes out. Seeded once per session and re-seeded when the
+ * stored value changes underneath it — a correction made from the Umr page
+ * with this dialog open should not be painted stale.
+ */
+function MinutesField({
+  minutes, onCommit, id, "aria-describedby": describedBy,
+}: {
+  minutes: number;
+  onCommit: (next: number) => void;
+  id?: string;
+  "aria-describedby"?: string;
+}) {
+  const [draft, setDraft] = React.useState(String(minutes));
+  const [seen, setSeen] = React.useState(minutes);
+  if (seen !== minutes) {
+    setSeen(minutes);
+    setDraft(String(minutes));
+  }
+
+  const commit = () => {
+    const n = Math.round(Number(draft));
+    if (!Number.isFinite(n) || n < 1) { setDraft(String(minutes)); return; }
+    onCommit(n);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        id={id}
+        aria-describedby={describedBy}
+        aria-label="Length in minutes"
+        inputMode="numeric"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ""))}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+        className="h-8 w-[84px] text-[13px] tnum"
+      />
+      <span className="text-[12.5px] text-ink-4">minutes</span>
+      <div className="ml-auto flex gap-1">
+        {[15, 30, 60].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => { setDraft(String(n)); onCommit(n); }}
+            className="h-7 rounded-md px-2 text-[11.5px] text-ink-3 cursor-pointer tnum transition-colors hover:bg-hover hover:text-ink"
+          >
+            {n}m
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

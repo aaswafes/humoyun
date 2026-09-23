@@ -9,7 +9,7 @@ export type { UmrCategory, UmrLog };
 // =========================================================
 // Umr — a lifetime, counted.
 //
-// Five kinds of living. Every minute this app knows about belongs to one of
+// Six kinds of living. Every minute this app knows about belongs to one of
 // them, and the whole section exists to answer one question honestly: where
 // is the life actually going?
 //
@@ -65,6 +65,12 @@ export const UMR_META: Record<UmrCategory, UmrMeta> = {
     gloss: "People",
     examples: "family, friends, guests, calls, helping someone",
     tint: "violet",
+  },
+  isrof: {
+    label: "Isrof",
+    gloss: "Waste",
+    examples: "the hours you would take back — scrolling you did not choose, waiting you did not need, time that left nothing behind",
+    tint: "red",
   },
 };
 
@@ -509,9 +515,9 @@ export function buildLedger(input: LedgerInput): UmrEntry[] {
 
 export type UmrTotals = Record<UmrCategory, number>;
 
-export const ZERO_TOTALS = (): UmrTotals => ({
-  talim: 0, ibodat: 0, xordiq: 0, dam: 0, inson: 0,
-});
+export const ZERO_TOTALS = (): UmrTotals => Object.fromEntries(
+  UMR_CATEGORIES.map((c) => [c, 0]),
+) as UmrTotals;
 
 export interface UmrDay {
   date: string;

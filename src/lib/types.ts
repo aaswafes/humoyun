@@ -22,12 +22,12 @@ export type TaskKind =
 export type Horizon = "life" | "year" | "quarter" | "month" | "week";
 
 /**
- * The five kinds of living Umr divides time into. Names, colours, rules and
+ * The kinds of living Umr divides time into. Names, colours, rules and
  * every calculation live in `@/lib/umr`; only the column type is here, so a
  * row can name one without dragging the whole module in.
  */
-export type UmrCategory = "talim" | "ibodat" | "xordiq" | "dam" | "inson";
-export const UMR_CATEGORIES: UmrCategory[] = ["talim", "ibodat", "xordiq", "dam", "inson"];
+export type UmrCategory = "talim" | "ibodat" | "xordiq" | "dam" | "inson" | "isrof";
+export const UMR_CATEGORIES: UmrCategory[] = ["talim", "ibodat", "xordiq", "dam", "inson", "isrof"];
 export type PrayerName = "fajr" | "dhuhr" | "asr" | "maghrib" | "isha";
 export type PrayerStatus = "none" | "prayed" | "jamaah" | "late" | "qadha" | "missed";
 

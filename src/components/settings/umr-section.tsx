@@ -86,11 +86,11 @@ export function UmrSection() {
   return (
     <Pane
       title="Umr"
-      description="Five kinds of living, and the rule that keeps one of them in check. These settings decide how the app reads your own records — none of them change a single row, so you can retune them as often as you like."
+      description="Six kinds of living, and the rule that keeps one of them in check. These settings decide how the app reads your own records — none of them change a single row, so you can retune them as often as you like."
     >
       {/* ---- the five ---- */}
       <Group
-        title="The five kinds of living"
+        title="The kinds of living"
         description="These words are fixed; what goes in each one is yours. Where a task or a habit says nothing itself, the rules below answer for it."
       >
         <ul className="divide-y divide-line">

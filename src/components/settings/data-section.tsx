@@ -10,7 +10,7 @@ import { useStore } from "@/lib/store";
 import { SOLO } from "@/lib/local-db";
 import { toISO, todayISO } from "@/lib/date";
 import {
-  PRAYER_NAMES, TABLE_OF,
+  PRAYER_NAMES, TABLE_OF, UMR_CATEGORIES,
   type Accent, type CollectionKey, type Profile,
 } from "@/lib/types";
 import { Badge, Button, Checkbox, Input, Segmented } from "@/components/ui/primitives";
@@ -94,7 +94,7 @@ const VALIDATORS: Record<CollectionKey, (r: AnyRow) => string | null> = {
   reviews: (r) => (ISO_DATE.test(String(r.week_start)) ? null : "week_start is not yyyy-mm-dd"),
   umrLogs: (r) =>
     !ISO_DATE.test(String(r.date)) ? "date is not yyyy-mm-dd"
-      : !oneOf(r.category, ["talim", "ibodat", "xordiq", "dam", "inson"]) ? "unknown category"
+      : !oneOf(r.category, UMR_CATEGORIES as unknown as string[]) ? "unknown category"
         : typeof r.minutes !== "number" ? "minutes is not a number"
           : null,
   tags: (r) => (str(r.name) ? null : "no name"),

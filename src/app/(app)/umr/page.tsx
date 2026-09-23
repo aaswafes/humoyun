@@ -17,6 +17,7 @@ import { QuickLog } from "@/components/umr/quick-log";
 import { UmrTriage } from "@/components/umr/triage";
 import { UmrEntryList } from "@/components/umr/entry-list";
 import { useUmrLedger } from "@/components/umr/use-umr";
+import { SessionEditor } from "@/components/focus/session-editor";
 import { fmtMin, pct } from "@/components/umr/derive";
 
 // =========================================================
@@ -34,6 +35,9 @@ export default function UmrPage() {
 
   const today = todayISO();
   const [date, setDate] = React.useState(today);
+  // A runaway timer is noticed here, so it is corrected here — the same editor
+  // the Focus page opens, hosted on whichever day you are reading.
+  const [editingSession, setEditingSession] = React.useState<string | null>(null);
 
   // The window the Dam budget settles over — one day, or the week so far.
   const { prefs } = useUmrLedger(React.useMemo(() => [date], [date]));
@@ -152,7 +156,7 @@ export default function UmrPage() {
 
               <CategoryLegend totals={day.totals} unassigned={day.unassigned} className="mt-3" />
 
-              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
+              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
                 {UMR_CATEGORIES.map((c) => (
                   <div key={c} className="min-w-0">
                     <p className="truncate text-[11.5px] text-ink-3">{UMR_META[c].label}</p>
@@ -184,6 +188,7 @@ export default function UmrPage() {
               <UmrEntryList
                 entries={dayEntries}
                 hour12={hour12}
+                onEditSession={setEditingSession}
                 className="mt-2"
                 emptyLabel="Nothing recorded on this day. Run a timer, or log it above."
               />
@@ -202,6 +207,8 @@ export default function UmrPage() {
           </div>
         )}
       </PageBody>
+
+      <SessionEditor sessionId={editingSession} onClose={() => setEditingSession(null)} />
     </>
   );
 }

@@ -145,7 +145,7 @@ export default function UmrStatsPage() {
         key: "balance",
         label: "Balance",
         value: balance == null ? "—" : String(Math.round(balance * 100)),
-        hint: "How evenly the five kinds of living shared the recorded time. 100 is an even split; it describes the split rather than judging it.",
+        hint: "How evenly the kinds of living shared the recorded time. 100 is an even split; it describes the split rather than judging it.",
         target: "umr-balance",
         targetLabel: "see the spread",
       },

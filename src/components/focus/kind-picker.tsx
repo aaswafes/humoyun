@@ -12,7 +12,7 @@ import type { FocusSubject } from "./focus-engine";
 // What the dial asks for before the clock starts.
 //
 // Not a task and not a goal: a kind of living. An hour on the Focus page is an
-// hour of your life going somewhere, and the five kinds are the only answer
+// hour of your life going somewhere, and the kinds are the only answer
 // Umr can count. A timer started from a task row still credits that task —
 // this is the room where you choose the hour itself.
 //

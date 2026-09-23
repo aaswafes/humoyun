@@ -46,6 +46,22 @@ export const uid = () =>
 
 const nowIso = () => new Date().toISOString();
 
+/**
+ * Turn a Postgres complaint into something a person can act on.
+ *
+ * The one that actually happens: a kind of living the app knows about but the
+ * database has not been told about yet. A CHECK constraint cannot be widened
+ * from here, so the message has to say where the fix lives instead of printing
+ * "violates check constraint" and leaving it there.
+ */
+function writeFailure(message: string | undefined): string {
+  const text = message ?? "";
+  if (/umr/i.test(text) && /check constraint/i.test(text)) {
+    return "This kind of living is not in the database yet. Run docs/sql/umr-isrof.sql in the Supabase SQL editor once, and it will save from then on.";
+  }
+  return text;
+}
+
 /** Fractional ordering so a drag between two rows never rewrites the list. */
 export function orderBetween(before?: number, after?: number): number {
   if (before == null && after == null) return Date.now();
@@ -677,7 +693,7 @@ export const useStore = create<StoreState>((set, get) => ({
         set((s) => ({
           [key]: (s[key] as { id: string }[]).filter((r) => r.id !== (full as { id: string }).id),
         } as unknown as Partial<StoreState>));
-        get().toast({ title: "Couldn't save", description: error.message, tone: "danger" });
+        get().toast({ title: "Couldn't save", description: writeFailure(error.message), tone: "danger" });
       }
     });
     return full;
@@ -722,7 +738,7 @@ export const useStore = create<StoreState>((set, get) => ({
         set((s) => ({
           [key]: (s[key] as { id: string }[]).map((r) => (r.id === id ? prev : r)),
         } as unknown as Partial<StoreState>));
-        get().toast({ title: "Couldn't update", description: error.message, tone: "danger" });
+        get().toast({ title: "Couldn't update", description: writeFailure(error.message), tone: "danger" });
       }
     });
   },
@@ -744,7 +760,7 @@ export const useStore = create<StoreState>((set, get) => ({
     )).then(({ error }) => {
       if (error) {
         set((s) => ({ [key]: [...(s[key] as unknown[]), prev] } as unknown as Partial<StoreState>));
-        get().toast({ title: "Couldn't delete", description: error.message, tone: "danger" });
+        get().toast({ title: "Couldn't delete", description: writeFailure(error.message), tone: "danger" });
       }
     });
   },
@@ -787,7 +803,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const { data, error } = await supabase.from(TABLE_OF[key])
       .update({ deleted_at: null }).eq("id", id).select().maybeSingle();
     if (error || !data) {
-      get().toast({ title: "Couldn't restore", description: error?.message, tone: "danger" });
+      get().toast({ title: "Couldn't restore", description: writeFailure(error?.message), tone: "danger" });
       return false;
     }
     // Put it back in the store directly; a full re-hydrate would throw away
@@ -805,7 +821,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (SOLO) return false;
     const { error } = await supabase.from(TABLE_OF[key]).delete().eq("id", id);
     if (error) {
-      get().toast({ title: "Couldn't delete", description: error.message, tone: "danger" });
+      get().toast({ title: "Couldn't delete", description: writeFailure(error.message), tone: "danger" });
       return false;
     }
     return true;
@@ -819,7 +835,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const { data, error } = await supabase.from(TABLE_OF[key])
         .delete().not("deleted_at", "is", null).select("id");
       if (error) {
-        get().toast({ title: "Couldn't empty the trash", description: error.message, tone: "danger" });
+        get().toast({ title: "Couldn't empty the trash", description: writeFailure(error.message), tone: "danger" });
         return n;
       }
       n += (data ?? []).length;

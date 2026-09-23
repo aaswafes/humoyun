@@ -14,7 +14,7 @@ export type SessionsTab = "history" | "kinds" | "tags" | "hours" | "months";
 
 export const SESSIONS_TABS: { value: SessionsTab; label: string; title: string }[] = [
   { value: "history", label: "History", title: "Every session, searchable" },
-  { value: "kinds", label: "Kinds", title: "Where the hours went, across the five kinds of living" },
+  { value: "kinds", label: "Kinds", title: "Where the hours went, across the kinds of living" },
   { value: "tags", label: "Tags", title: "Where the hours went by subject" },
   { value: "hours", label: "Time of day", title: "Which hours hold your focus" },
   { value: "months", label: "Six months", title: "One square per day" },

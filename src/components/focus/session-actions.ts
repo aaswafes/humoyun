@@ -68,6 +68,38 @@ export function setSessionInterruptions(sessionId: string, count: number) {
   });
 }
 
+/**
+ * Correct how long a sitting actually was.
+ *
+ * The case this exists for: the timer was left running. You walked away from
+ * an hour of Dam and came back to four, and the ledger now says something that
+ * never happened. Deleting the row would lose the hour that was real, so the
+ * length is editable and the task it was credited to is re-credited by the
+ * difference.
+ *
+ * `ended_at` is moved with it where there is one, so the day timeline does not
+ * keep drawing a block that outlives its own length.
+ */
+export function setSessionMinutes(sessionId: string, minutes: number) {
+  const state = useStore.getState();
+  const session = state.focusSessions.find((s) => s.id === sessionId);
+  if (!session) return;
+
+  const next = Math.max(1, Math.min(24 * 60, Math.round(minutes)));
+  const before = sessionMinutes(session);
+  if (next === before) return;
+
+  creditTask(session.task_id, next - before);
+
+  const seconds = next * 60;
+  const started = Date.parse(session.started_at);
+  const ended = Number.isFinite(started)
+    ? new Date(started + seconds * 1000).toISOString()
+    : session.ended_at;
+
+  state.patch("focusSessions", sessionId, { seconds, ended_at: ended });
+}
+
 /** Delete a session and hand its minutes back to the task it was credited to. */
 export function deleteSession(sessionId: string) {
   const state = useStore.getState();

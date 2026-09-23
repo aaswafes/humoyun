@@ -325,10 +325,25 @@ what they share.
 ## Umr — the time ledger
 
 Umr is a lifetime, counted. Every minute the app knows about belongs to one of
-five kinds of living: **taʼlim** (learning), **ibodat** (worship), **xordiq**
-(restoring yourself), **dam** (amusement) and **inson** (people). The section
-is `/umr` in the Plan group, with its own long stats page at `/umr/stats` in
-Reflect.
+six kinds of living: **taʼlim** (learning), **ibodat** (worship), **xordiq**
+(restoring yourself), **dam** (amusement), **inson** (people) and **isrof**
+(waste). The section is `/umr` in the Plan group, with its own long stats page
+at `/umr/stats` in Reflect.
+
+**Isrof is not Dam.** Dam is amusement you chose and budgeted for; Isrof is
+time that left nothing behind. Keeping them apart is the point — one bucket
+called "not work" would hide the difference. Isrof is deliberately **uncapped**:
+you do not ration waste, you drive it to zero, so it has no ratio and does not
+spend the Dam budget.
+
+**Adding a kind means SQL.** Six CHECK constraints name the allowed words
+(`tasks`, `habits`, `focus_sessions.umr` + `.umr_kinds`, `umr_logs`), and a
+CHECK can only be widened by dropping and re-adding it. `docs/sql/umr-isrof.sql`
+is the worked example. Everything in TypeScript derives from `UMR_CATEGORIES`,
+so a seventh kind is one line there plus one SQL file — never a hand-written
+`{ talim: 0, ibodat: 0, … }` map, which is why `ZERO_TOTALS` builds itself.
+Until the SQL runs, the write fails and `writeFailure` in the store turns the
+constraint violation into a sentence that names the file to run.
 
 **The rule the section exists for.** Dam is capped at a share of taʼlim —
 ten minutes of study buys one minute of games, by default. That cap is the
@@ -396,6 +411,22 @@ kind is one more tap on the pill, because the toggle is additive.
 - A logged sitting is worth **at least one minute** in the ledger. Plain
   rounding dropped anything under thirty seconds, so Focus said "1m logged" and
   Umr said nothing had happened.
+- **A sitting's length is editable**, through `setSessionMinutes`, which moves
+  the minutes off the task it was credited to as well. This exists for the one
+  failure the dial cannot prevent: a timer left running writes hours nobody
+  spent. Deleting the row would lose the part that was real, so the length is
+  correctable and the delete is the second option, not the only one.
+
+### Fixing the record, on any day
+
+`UmrEntryList` gives **every** row a menu, because the place a runaway timer is
+noticed is the Umr day page, not the Focus history — so that is where it has to
+be fixable, and the day arrows reach any date. A sitting offers "Fix the
+length…" (the Focus session editor, hosted by the Umr page) and delete; a
+hand-logged minute offers delete; a task, a prayer, a habit and sleep each open
+the page that owns them rather than pretending this list does. Deleting a
+sitting goes through `deleteSession` so the task it was credited to gets its
+minutes back.
 
 ### Counting a minute exactly once
 
