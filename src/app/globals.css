@@ -173,7 +173,39 @@
 /* =========================================================
    Base
    ========================================================= */
-* { border-color: var(--line); }
+
+/* These sit in the base layer on purpose. Tailwind v4 puts its utilities in a
+   cascade layer, and an unlayered rule beats every layered one no matter how
+   specific — so while these were unlayered, `text-[13px]` on a button, the
+   white of `text-accent-ink`, `border-accent`, `no-scrollbar` and every other
+   utility touching these properties were silently ignored. As defaults they
+   belong underneath the utilities, which is what @layer base says. */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: var(--line); }
+
+  input, textarea, select, button { font: inherit; color: inherit; }
+  input::placeholder, textarea::placeholder { color: var(--ink-4); }
+
+  /* Thin, unobtrusive scrollbars — Apple style */
+  * { scrollbar-width: thin; scrollbar-color: var(--ink-4) transparent; }
+
+  /* Lucide sets stroke-width as a presentation attribute; any CSS beats it, so
+     one rule re-weights every icon in the app — and a `stroke-[3.5]` on a
+     single icon still wins over this. */
+  svg[stroke-width] { stroke-width: var(--icon-stroke, 2); }
+}
+
+/* iOS Safari zooms the whole page into any text field under 16px the moment it
+   is focused, and does not zoom back out. On a touch screen a field is never
+   smaller than that; the desktop keeps the type scale. Unlayered, so it beats
+   the size utilities — that is the point. Divided by the interface scale
+   because the root zoom multiplies it back. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+  textarea, select {
+    font-size: max(calc(16px / var(--ui-scale, 1)), 1em);
+  }
+}
 
 /* Whole-UI zoom. Every size in this app is in px by design, so there is no
    rem ladder to scale — `zoom` is the honest way to make the interface
@@ -204,8 +236,6 @@ body {
 }
 button:focus:not(:focus-visible) { outline: none; }
 
-/* Thin, unobtrusive scrollbars — Apple style */
-* { scrollbar-width: thin; scrollbar-color: var(--ink-4) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -217,13 +247,6 @@ button:focus:not(:focus-visible) { outline: none; }
 *:hover::-webkit-scrollbar-thumb { background: var(--ink-4); background-clip: content-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
-
-/* Lucide sets stroke-width as a presentation attribute; the CSS property
-   beats it, so one rule re-weights every icon in the app. */
-svg[stroke-width] { stroke-width: var(--icon-stroke, 2); }
-
-input, textarea, select, button { font: inherit; color: inherit; }
-input::placeholder, textarea::placeholder { color: var(--ink-4); }
 
 /* =========================================================
    Utilities

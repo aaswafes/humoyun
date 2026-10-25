@@ -129,7 +129,8 @@ export function Checkbox({
           ? "border-transparent text-white"
           : "border-line-strong hover:border-ink-3 hover:bg-hover",
         burst && "anim-check",
-        tint && "tint-holder",
+        // The fill below reads var(--tint), which only a tint class defines.
+        tint && `tint-${tint}`,
         className,
       )}
       style={
