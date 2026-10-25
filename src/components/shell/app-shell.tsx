@@ -13,8 +13,11 @@ import { CommandPalette } from "./command-palette";
 import { QuickAdd, openQuickAdd } from "./quick-add";
 import { TimerBar } from "./timer-bar";
 import { OfflineBar } from "./offline-bar";
+import { TabBar } from "./tab-bar";
+import { MobileNav } from "./mobile-nav";
 import { TaskInspector } from "@/components/tasks/task-inspector";
 import { Spinner } from "@/components/ui/primitives";
+import { cn } from "@/lib/cn";
 
 // Module scope on purpose: React 19 StrictMode mounts the shell twice in dev and
 // a state-based guard is re-created on the second mount, which double-seeded.
@@ -96,6 +99,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener("change", sync);
   }, [profile]);
 
+  // ---- the visible part of the screen ----
+  // iOS Safari raises the keyboard over the page without resizing anything, so
+  // 100dvh still counts the half the keyboard covers. --vvh is what is really
+  // visible; dialogs and menus size themselves by it (globals.css: --vvh-app).
+  React.useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const sync = () => {
+      root.style.setProperty("--vvh", `${Math.round(vv.height)}px`);
+      // To reveal a focused field iOS will scroll the document even though
+      // nothing here makes it scrollable, and it does not always scroll it
+      // back — the shell is left hanging half off the top. Once the keyboard
+      // is down (visual = layout height) the document belongs at 0,0. A
+      // pinch-zoom keeps the visual viewport smaller, so it is never fought.
+      if (vv.height >= window.innerHeight - 1 && (window.scrollY || window.scrollX)) {
+        window.scrollTo(0, 0);
+      }
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+    };
+  }, []);
+
   // ---- global keys ----
   useHotkeys(
     {
@@ -155,14 +186,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh-app overflow-hidden bg-canvas">
-      <Sidebar />
-      {/* data-app-main is what a maximised Sheet measures itself against, so
-          it stops at the sidebar instead of covering it. */}
-      <main data-app-main className="flex min-w-0 flex-1 flex-col">
-        <OfflineBar />
-        {children}
-      </main>
+    // The padding keeps the app clear of the notch in landscape and of the
+    // status bar and home indicator in a standalone web app; in a desktop
+    // window every inset is zero. Below md the tab bar takes the bottom edge
+    // and pads itself; above it, the shell does.
+    <div
+      className={cn(
+        "flex h-dvh-app flex-col overflow-hidden bg-canvas",
+        "pt-[var(--safe-top)] pl-[var(--safe-left)] pr-[var(--safe-right)] md:pb-[var(--safe-bottom)]",
+      )}
+    >
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Sidebar />
+        {/* data-app-main is what a maximised Sheet measures itself against, so
+            it stops at the sidebar instead of covering it. */}
+        <main data-app-main className="flex min-w-0 flex-1 flex-col">
+          <OfflineBar />
+          {children}
+        </main>
+      </div>
+      <TabBar />
+      <MobileNav />
       <CommandPalette />
       <QuickAdd />
       <TaskInspector />

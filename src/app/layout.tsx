@@ -65,6 +65,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Draw edge to edge and let the CSS keep clear of the notch and the home
+  // indicator itself (--safe-* in globals.css). Without `cover` Safari
+  // letterboxes the page in landscape and reports every inset as zero.
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#191919" },

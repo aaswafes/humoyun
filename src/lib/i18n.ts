@@ -50,6 +50,9 @@ const en = {
   "nav.group.community": "Community",
   "nav.pinned": "Pinned",
   "nav.recent": "Recent",
+  "nav.more": "More",
+  "nav.menu": "Menu",
+  "nav.newTask": "New task",
 
   // ---- common actions ----
   "action.new": "New",
@@ -225,6 +228,9 @@ const uz: Partial<Record<MsgKey, string>> = {
   "nav.settings": "Sozlamalar",
   "nav.community": "Jamoalar",
   "nav.search": "Qidiruv",
+  "nav.more": "Yana",
+  "nav.menu": "Menyu",
+  "nav.newTask": "Yangi vazifa",
   "nav.group.plan": "Reja",
   "nav.group.track": "Kuzatuv",
   "nav.group.reflect": "Tahlil",

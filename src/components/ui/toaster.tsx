@@ -21,7 +21,9 @@ export function Toaster() {
   return createPortal(
     <div
       aria-live="polite"
-      className="pointer-events-none fixed bottom-4 left-1/2 z-[200] flex w-[min(92vw,380px)] -translate-x-1/2 flex-col gap-2"
+      // Above the tab bar and the home indicator on a phone (--bottom-inset);
+      // 16px off the edge on a desktop, as before.
+      className="pointer-events-none fixed bottom-[calc(var(--bottom-inset)+16px)] left-1/2 z-[200] flex w-[min(92vw,380px)] -translate-x-1/2 flex-col gap-2"
     >
       {toasts.map((t) => {
         const Icon = ICONS[t.tone ?? "default"];

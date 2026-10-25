@@ -73,7 +73,7 @@ function useResolver() {
   }, [tasks, books, media, projects, goals]);
 }
 
-function RefRow({ item, pinned }: { item: Resolved; pinned: boolean }) {
+function RefRow({ item, pinned, onOpen }: { item: Resolved; pinned: boolean; onOpen?: () => void }) {
   const router = useRouter();
   const openInspector = useStore((s) => s.openInspector);
   const Icon = ICON[item.kind];
@@ -81,6 +81,7 @@ function RefRow({ item, pinned }: { item: Resolved; pinned: boolean }) {
   function open() {
     if (item.href) router.push(item.href);
     else openInspector(item.id);   // a task has no page; it opens in place
+    onOpen?.();
   }
 
   return (
@@ -92,6 +93,7 @@ function RefRow({ item, pinned }: { item: Resolved; pinned: boolean }) {
           "flex h-[30px] w-full items-center gap-2 rounded-md pl-2 pr-7 text-left",
           "text-[13.5px] text-ink-2 cursor-pointer transition-colors duration-120",
           "hover:bg-hover hover:text-ink",
+          "touch:h-11 touch:gap-3 touch:pr-11 touch:text-[15px]",
         )}
       >
         <Icon className="size-4 shrink-0 text-ink-3" />
@@ -107,7 +109,10 @@ function RefRow({ item, pinned }: { item: Resolved; pinned: boolean }) {
           "absolute right-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded",
           "text-ink-4 cursor-pointer transition-[opacity,color] duration-120",
           "hover:bg-active hover:text-ink focus-visible:opacity-100",
-          pinned ? "opacity-100" : "opacity-0 group-hover/r:opacity-100",
+          // Hover is how a mouse finds the pin; a finger has no hover, so on
+          // touch the pin is simply there, at a size a finger can hit.
+          "touch:size-10",
+          pinned ? "opacity-100" : "opacity-0 group-hover/r:opacity-100 touch:opacity-100",
         )}
       >
         {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
@@ -116,7 +121,9 @@ function RefRow({ item, pinned }: { item: Resolved; pinned: boolean }) {
   );
 }
 
-function Group({ label, items, pinned }: { label: string; items: Resolved[]; pinned: boolean }) {
+function Group({
+  label, items, pinned, onOpen,
+}: { label: string; items: Resolved[]; pinned: boolean; onOpen?: () => void }) {
   if (!items.length) return null;
   return (
     <div className="mb-4">
@@ -127,14 +134,14 @@ function Group({ label, items, pinned }: { label: string; items: Resolved[]; pin
       </div>
       <ul className="space-y-px">
         {items.map((item) => (
-          <RefRow key={`${item.kind}:${item.id}`} item={item} pinned={pinned} />
+          <RefRow key={`${item.kind}:${item.id}`} item={item} pinned={pinned} onOpen={onOpen} />
         ))}
       </ul>
     </div>
   );
 }
 
-export function SidebarRecents({ max = 5 }: { max?: number }) {
+export function SidebarRecents({ max = 5, onOpen }: { max?: number; onOpen?: () => void }) {
   const { recent, pinned } = useRecents();
   const resolve = useResolver();
 
@@ -158,8 +165,8 @@ export function SidebarRecents({ max = 5 }: { max?: number }) {
 
   return (
     <>
-      <Group label="Pinned" items={pinnedRows} pinned />
-      <Group label="Recent" items={recentRows} pinned={false} />
+      <Group label="Pinned" items={pinnedRows} pinned onOpen={onOpen} />
+      <Group label="Recent" items={recentRows} pinned={false} onOpen={onOpen} />
     </>
   );
 }

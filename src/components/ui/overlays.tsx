@@ -53,15 +53,22 @@ export function Popover({
     if (!anchor || !panel) return;
     const a = anchor.getBoundingClientRect();
     const p = panel.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    // Clamp to the *visual* viewport. On iOS the keyboard covers the bottom of
+    // the layout viewport without shrinking it, and a pinch-zoom moves the
+    // visible part around inside it; window.inner* knows about neither, so a
+    // menu opened above the keyboard would land underneath it.
+    const vv = window.visualViewport;
+    const vx = vv?.offsetLeft ?? 0;
+    const vy = vv?.offsetTop ?? 0;
+    const vw = vv?.width ?? window.innerWidth;
+    const vh = vv?.height ?? window.innerHeight;
 
     let top = side === "bottom" ? a.bottom + offset : a.top - p.height - offset;
-    if (top + p.height > vh - 8) top = a.top - p.height - offset;
-    if (top < 8) top = Math.min(a.bottom + offset, vh - p.height - 8);
+    if (top + p.height > vy + vh - 8) top = a.top - p.height - offset;
+    if (top < vy + 8) top = Math.max(vy + 8, Math.min(a.bottom + offset, vy + vh - p.height - 8));
 
     let left = align === "start" ? a.left : align === "end" ? a.right - p.width : a.left + a.width / 2 - p.width / 2;
-    left = Math.max(8, Math.min(left, vw - p.width - 8));
+    left = Math.max(vx + 8, Math.min(left, vx + vw - p.width - 8));
 
     setPos({ top, left });
   }, [align, side, offset]);
@@ -70,26 +77,34 @@ export function Popover({
     if (!open) { setPos(null); return; }
     place();
     const onScroll = () => place();
+    const vv = window.visualViewport;
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onScroll);
+    vv?.addEventListener("resize", onScroll);
+    vv?.addEventListener("scroll", onScroll);
     return () => {
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onScroll);
+      vv?.removeEventListener("resize", onScroll);
+      vv?.removeEventListener("scroll", onScroll);
     };
   }, [open, place]);
 
   React.useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
+    // pointerdown, not mousedown: iOS Safari only synthesises mouse events for
+    // a tap on something it considers clickable, so tapping empty page left a
+    // menu hanging open. Pointer events fire for every touch.
+    const onDown = (e: PointerEvent) => {
       if (panelRef.current?.contains(e.target as Node)) return;
       if (anchorRef.current?.contains(e.target as Node)) return;
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
-    document.addEventListener("mousedown", onDown);
+    document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
     };
   }, [open, setOpen]);
@@ -113,6 +128,11 @@ export function Popover({
             // Above Sheet (90) and Modal (100): a popover opened from inside
             // one is always the most recent thing the user asked for.
             "fixed z-[120] min-w-[180px] rounded-xl border border-line bg-raised p-1 shadow-lg anim-pop",
+            // Never wider than the screen. A phone also never gets a menu
+            // taller than what is visible above the keyboard — it scrolls
+            // instead of hanging off the bottom where no finger can reach.
+            "max-w-[calc((100vw-16px)/var(--ui-scale,1))]",
+            "max-md:max-h-[calc(var(--vvh-app)-16px)] max-md:overflow-y-auto max-md:overscroll-contain",
             className,
           )}
         >
@@ -146,6 +166,9 @@ export function MenuItem({
       onClick={onClick}
       className={cn(
         "flex w-full items-center gap-2 rounded-md px-2 py-[6px] text-[13px] text-left cursor-pointer",
+        // A menu row is the whole target, so on a touch screen the row itself
+        // grows to a fingertip instead of borrowing an invisible margin.
+        "touch:py-[11px] touch:text-[15px]",
         "transition-colors duration-100 disabled:opacity-40 disabled:pointer-events-none",
         danger ? "text-danger hover:bg-danger-soft" : "text-ink hover:bg-hover",
         className,
@@ -197,14 +220,30 @@ export function Modal({
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] grid place-items-center p-4">
+    // On a phone the dialog hangs from the top instead of the middle. Nearly
+    // every dialog here opens on a text field, and iOS raises the keyboard
+    // over the bottom half without moving anything: a centred field ends up
+    // underneath it, a top one never does.
+    // One explicit minmax(0,1fr) column: an auto column grows to fit the
+    // dialog's inline width, and then max-w-full has nothing smaller to clamp to.
+    <div
+      className={cn(
+        "fixed inset-0 z-[100] grid grid-cols-[minmax(0,1fr)] place-items-center p-4",
+        "max-md:place-items-start max-md:px-2 max-md:pb-2 max-md:pt-[calc(var(--safe-top)+8px)]",
+      )}
+    >
       <div className="absolute inset-0 bg-scrim anim-fade" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
+        // `width` is the most it may be, not what it must be: an inline 480px
+        // on a 390px phone pushed every dialog off the right-hand edge.
         style={{ width }}
         className={cn(
-          "relative max-h-[86vh] w-full overflow-hidden rounded-2xl border border-line bg-raised shadow-pop anim-pop",
+          "relative max-h-[86vh] w-full max-w-full overflow-hidden rounded-2xl border border-line bg-raised shadow-pop anim-pop",
+          // Bounded by what is visible above the keyboard, and scrollable,
+          // so the end of a long form can still be reached with it up.
+          "max-md:max-h-[calc(var(--vvh-app)-var(--safe-top)-16px)] max-md:overflow-y-auto max-md:overscroll-contain",
           className,
         )}
       >
@@ -214,7 +253,7 @@ export function Modal({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="grid size-6 place-items-center rounded-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
+              className="relative grid size-6 place-items-center rounded-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors touch-hit [--touch-hit:-10px]"
             >
               <X className="size-4" />
             </button>
@@ -256,6 +295,8 @@ export function SheetMaximize({ size = "sm" }: { size?: "sm" | "md" | "lg" }) {
       size={size}
       aria-pressed={view.maximized}
       onClick={view.toggle}
+      // A phone's sheet already fills the screen; there is nothing to toggle.
+      className="max-md:hidden"
     >
       {view.maximized ? <Minimize2 /> : <Maximize2 />}
     </IconButton>
@@ -427,12 +468,19 @@ export function Sheet({
         className={cn(
           "absolute top-0 flex h-full flex-col border-l border-line bg-canvas shadow-pop",
           !maximized && "max-w-[96vw]",
+          // Clear of the status bar and the home indicator in a standalone
+          // app; every inset is zero in a desktop window.
+          "pt-[var(--safe-top)] pb-[var(--safe-bottom)]",
+          // A phone gets the whole screen. A 16px strip of page beside a panel
+          // is not a way back, it is a mis-tap waiting to happen; the sheet's
+          // own close button is. `!` because the remembered width is inline.
+          "max-md:w-full! max-md:max-w-none! max-md:border-l-0 max-md:pl-[var(--safe-left)] max-md:pr-[var(--safe-right)]",
           className,
         )}
       >
         <style>{`@keyframes hm-sheet-in { from { transform: translateX(16px); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
 
-        {/* Nothing to drag when it already fills the page. */}
+        {/* Nothing to drag when it already fills the page — or the screen. */}
         {resizeKey && !maximized && (
           <div
             role="separator"
@@ -451,7 +499,7 @@ export function Sheet({
               if (e.key === "Home") { e.preventDefault(); commit(width); }
             }}
             className={cn(
-              "absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none",
+              "absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none max-md:hidden",
               "before:absolute before:inset-y-0 before:left-[3px] before:w-[2px]",
               "before:bg-accent before:opacity-0 before:transition-opacity before:duration-150",
               "hover:before:opacity-60 focus-visible:outline-none focus-visible:before:opacity-100",
@@ -489,14 +537,14 @@ export function ConfirmDialog({
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="h-8 rounded-md border border-line bg-raised px-3 text-[13px] font-medium text-ink hover:bg-hover cursor-pointer transition-colors"
+            className="h-8 rounded-md border border-line bg-raised px-3 text-[13px] font-medium text-ink hover:bg-hover cursor-pointer transition-colors touch:h-11 touch:flex-1 touch:text-[15px]"
           >
             Cancel
           </button>
           <button
             onClick={() => { onConfirm(); onClose(); }}
             className={cn(
-              "h-8 rounded-md px-3 text-[13px] font-medium cursor-pointer transition-colors",
+              "h-8 rounded-md px-3 text-[13px] font-medium cursor-pointer transition-colors touch:h-11 touch:flex-1 touch:text-[15px]",
               tone === "danger"
                 ? "bg-danger text-white hover:brightness-110"
                 : "bg-accent text-accent-ink hover:bg-accent-hover",
@@ -521,13 +569,13 @@ export function TintPicker({
   allowNone?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap gap-1 p-1">
+    <div className="flex flex-wrap gap-1 p-1 touch:gap-2">
       {allowNone && (
         <button
           onClick={() => onChange(null)}
           aria-label="No colour"
           className={cn(
-            "grid size-6 place-items-center rounded-full border border-line-strong cursor-pointer transition-transform hover:scale-110",
+            "grid size-6 place-items-center rounded-full border border-line-strong cursor-pointer transition-transform hover:scale-110 touch:size-9",
             value === null && "ring-2 ring-accent ring-offset-2 ring-offset-[var(--raised)]",
           )}
         >
@@ -542,7 +590,7 @@ export function TintPicker({
           title={t}
           className={cn(
             `tint-${t}`,
-            "size-6 rounded-full cursor-pointer transition-transform hover:scale-110",
+            "size-6 rounded-full cursor-pointer transition-transform hover:scale-110 touch:size-9",
             value === t && "ring-2 ring-accent ring-offset-2 ring-offset-[var(--raised)]",
           )}
           style={{ background: "var(--tint)" }}

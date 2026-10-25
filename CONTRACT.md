@@ -196,6 +196,10 @@ inspector and timer bar. Pages render content only.
 `src/components/ui/*`, `src/components/shell/*`, `src/proxy.ts`, `src/app/login/*`,
 `src/app/(app)/layout.tsx`, `package.json`.
 
+(The phone pass amended the shell, the kit and globals.css on the owner's
+explicit request — see "Addendum — the phone" at the end. The list still holds
+for feature work.)
+
 If you genuinely need a new shared primitive, put it in your own feature folder and
 export it — do not edit the shared kit.
 
@@ -725,3 +729,110 @@ reader still accepts `custom` and `target`, the names the first build used.
 returns the window *and* the bars that describe it — days for a week or a month,
 months for a year, years for lifetime — so the headline, the breakdown and the
 history can never disagree about which days they counted.
+
+---
+
+# Addendum — the phone (Safari first)
+
+The owner uses Qalamchi on an iPhone, in Safari and as a home-screen app. Every
+surface has to work there as well as it does on the laptop. **Nothing is cut
+for the phone** — the calm-pass rule holds: fold, stack, move into a menu;
+never delete a capability because the screen is small.
+
+## Two axes, never mixed
+
+- **Width decides layout.** Below `md` (768px) is the phone: `max-md:` and `md:`.
+  An iPad is a touch screen with a desktop's room and gets the desktop layout.
+- **The pointer decides affordances.** `touch:` is `(pointer: coarse)`: bigger
+  targets, revealed-on-hover controls made visible, keyboard hints hidden.
+- Both are CSS. No `useMediaQuery`-style hook for layout — the server cannot
+  know the screen, and a JS branch is a hydration mismatch and a flash.
+  Never sniff the user agent.
+
+## The shell (already built — use it, don't rebuild it)
+
+- Below md there is no sidebar column. `TabBar` (`shell/tab-bar.tsx`) sits in
+  the flow at the bottom: Today, Calendar, **+** (quick add), Inbox, More.
+  More opens `MobileNav` (`shell/mobile-nav.tsx`), a drawer that renders the
+  same `SidebarContent`. Its state is `useMobileNav`, not `sidebarOpen` —
+  `sidebarOpen` means "the desktop column is showing" and nothing else.
+- `PageHeader` on a phone is two rows: title + `actions` on the first,
+  `children` (switchers, filters, steppers) on a second row that scrolls
+  sideways. The default **New** button is hidden there; the tab bar's + is it.
+  Custom `actions` must fit beside a 17px title in ~360px — two compact
+  controls at most. Anything more goes into `children` or a `Popover` menu.
+- `PageBody` is `px-4` on a phone. Wide two-column layouts stack below md; a
+  secondary rail goes under the main column or behind a fold, never beside it.
+
+## Tokens
+
+| Token | Use |
+|---|---|
+| `--safe-top/right/bottom/left` | notch, Dynamic Island, home indicator (`viewport-fit=cover`) |
+| `--bottom-inset` | everything the bottom edge loses to the tab bar + home indicator |
+| `--vvh-app` | the height visible **above the iOS keyboard** |
+
+- Anything `fixed` to the bottom sits at `bottom-[calc(var(--bottom-inset)+12px)]`
+  or similar — never a bare `bottom-4`, which lands under the tab bar.
+- iOS never shrinks the layout viewport for the keyboard, so `100dvh` still
+  counts the covered half. Overlays and anything that must stay above the
+  keyboard size by `--vvh-app`. Never `vh` for an overlay: Safari's `vh` is the
+  *large* viewport, taller than what is visible while the toolbar is showing.
+
+## Rules
+
+1. **Text fields are 16px on touch.** globals.css does it, unlayered, because
+   iOS zooms the page into any smaller field and never zooms back. Don't fight
+   it with `!text-[…]`. To keep a bigger size, set it on the field's parent:
+   the rule is `max(16px, 1em)`.
+2. **44px effective hit area on touch.** The kit already does it (`Button`,
+   `IconButton`, `Checkbox`, `Segmented` carry `touch-hit`). A hand-rolled small
+   control in a dense row gets `relative touch-hit` (tune with
+   `[--touch-hit:-8px_0px]`); a row that *is* the target grows instead
+   (`touch:h-11`, `touch:py-[11px]`).
+3. **Hover reveals nothing on a phone.** Tailwind v4's `hover:` only applies
+   where hover exists, so `opacity-0 group-hover:opacity-100` is invisible
+   forever on touch. Every such control also gets `touch:opacity-100`, or moves
+   into the row's menu. `title` and `Tooltip` are not information on touch.
+4. **Every keyboard-only or mouse-only action has a touch path.** Shortcuts,
+   Enter-to-submit, Escape-to-cancel (give the dialog a visible Cancel/Done),
+   double-click (iOS does not deliver it reliably — add a tap or a menu item),
+   right-click. `Kbd` hides itself on touch; the words beside it ("add
+   another") need `touch:hidden` too.
+5. **Drag and drop uses `useAppSensors()`** from `@/components/ui/drag` —
+   mouse by distance, finger by a 220ms hold, keyboard as before. A quick
+   swipe is always a scroll. `touch-none` is banned on anything inside a list
+   that scrolls (it stops the list scrolling under that finger); dnd-kit's
+   TouchSensor already does what iOS needs. Draggable bodies use
+   `DRAG_BODY_CLASS`, which also suppresses the iOS loupe and callout.
+6. **Hand-written pointer gestures** (the time grid, ribbon, resizers) must not
+   steal a scroll: on touch they start from a long press or from a dedicated
+   handle that carries `touch-none` — never from the scrolling surface itself.
+7. **Outside-click is `pointerdown`.** iOS only synthesises mouse events for a
+   tap on something it thinks is clickable; a `mousedown` listener on
+   `document` misses taps on empty page.
+8. **Wide things stack.** Tables, multi-column grids and fixed-width panels
+   become stacked cards or a single column below md. If a grid genuinely has
+   to stay wide (a heatmap, a timeline), it scrolls inside its own
+   `overflow-x-auto overscroll-x-contain` box and the page never widens.
+9. **Overlays already adapt**: `Modal` hangs from the top on a phone (the
+   keyboard covers the middle) and scrolls; `Sheet` fills the screen; `Popover`
+   clamps to the visual viewport and scrolls if taller. Don't re-implement any
+   of that per surface.
+
+## Safari facts that bite
+
+- `Notification` does not exist in a Safari tab — only in an installed web app
+  (iOS 16.4+). Always feature-detect; `@/components/settings/reminders.ts`
+  already does.
+- `navigator.vibrate` and `requestIdleCallback` do not exist in Safari.
+- Lucide's `strokeWidth` prop is overridden by globals.css; weight an icon
+  with a `stroke-[…]` class.
+- globals.css keeps its base rules in `@layer base`. An unlayered rule beats
+  every utility regardless of specificity — add one only when that is the point
+  (focus rings, the 16px touch fields).
+- Home-screen icons are PNGs rendered from `icon.svg`'s mark:
+  `src/app/apple-icon.png` (180) and `public/icon-{192,512}.png`. Change the
+  mark, regenerate all three.
+- `applyAppearance` writes the canvas colour into `<meta name="theme-color">`,
+  so Safari's toolbar follows the app's theme rather than the OS's.

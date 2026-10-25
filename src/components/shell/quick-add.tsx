@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { CalendarDays, Clock, Hash, Flag, Timer as TimerIcon, CornerDownLeft } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { parseTask } from "@/lib/parse";
@@ -24,7 +25,11 @@ export function QuickAdd() {
   const toast = useStore((s) => s.toast);
 
   React.useEffect(() => {
-    const onOpen = () => setOpen(true);
+    // flushSync so the field mounts — and autoFocus runs — inside the tap that
+    // asked for it. iOS only raises the keyboard for a focus() made during a
+    // user gesture; a render that lands a tick later gets a focused field and
+    // no keyboard, which on a phone is no capture at all.
+    const onOpen = () => flushSync(() => setOpen(true));
     window.addEventListener("humoyun:quick-add", onOpen);
     return () => window.removeEventListener("humoyun:quick-add", onOpen);
   }, []);
@@ -77,16 +82,32 @@ export function QuickAdd() {
   return (
     <Modal open={open} onClose={() => { setOpen(false); setValue(""); }} width={560} className="!rounded-2xl">
       <div className="p-4">
-        <input
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); submit(e.shiftKey); }
-          }}
-          placeholder="Read 30 pages tomorrow 9am for 45m #deep !high"
-          className="w-full bg-transparent text-[17px] font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-4"
-        />
+        {/* The 17px lives on the row too: on touch, globals.css sizes a field
+            by max(16px, 1em), and 1em is this. */}
+        <div className="flex items-center gap-2 text-[17px]">
+          <input
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); submit(e.shiftKey); }
+            }}
+            // The return key on a phone keyboard says what it does.
+            enterKeyHint="done"
+            autoComplete="off"
+            placeholder="Read 30 pages tomorrow 9am for 45m #deep !high"
+            className="min-w-0 flex-1 bg-transparent text-[17px] font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-4"
+          />
+          {/* A phone has no ↵ hint to read, so the action it stands for is a button. */}
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={!parsed.title.trim()}
+            className="hidden h-9 shrink-0 rounded-full bg-accent px-4 text-[15px] font-semibold text-accent-ink cursor-pointer transition-opacity disabled:opacity-40 touch:inline-flex touch:items-center"
+          >
+            Add
+          </button>
+        </div>
 
         {chips.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -114,7 +135,7 @@ export function QuickAdd() {
           Try <span className="text-ink-3">tomorrow</span>, <span className="text-ink-3">friday 9am</span>,{" "}
           <span className="text-ink-3">#tag</span>, <span className="text-ink-3">!high</span>
         </span>
-        <span className="ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex items-center gap-1.5 touch:hidden">
           <Kbd>⇧</Kbd><Kbd>↵</Kbd> add another
           <span className="mx-1 text-ink-4">·</span>
           <Kbd><CornerDownLeft className="size-2.5" /></Kbd> add

@@ -31,7 +31,32 @@ interface NavItem {
 const CAL_KEY = "humoyun.sidebar.calendar";
 const GROUPS_KEY = "humoyun.sidebar.groups";
 
+/**
+ * The desktop column. Below md it is not drawn at all — a phone reaches the
+ * same contents through the drawer (`mobile-nav.tsx`), which renders
+ * `SidebarContent` itself. Hidden with CSS rather than a media-query hook so
+ * the server and the first client paint agree, whatever the screen.
+ */
 export function Sidebar() {
+  const sidebarOpen = useStore((s) => s.sidebarOpen);
+  if (!sidebarOpen) return null;
+
+  return (
+    <aside
+      className="flex h-full w-[var(--sidebar-w)] shrink-0 flex-col bg-sunken hairline-r max-md:hidden"
+      aria-label="Primary"
+    >
+      <SidebarContent />
+    </aside>
+  );
+}
+
+/**
+ * Everything the sidebar holds: account, search, navigation, the month and
+ * today's progress. `onNavigate` lets the phone drawer close itself when a
+ * row opens something that is not a route change (a task opens in place).
+ */
+export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { t } = useT();
   // Read in an effect, not a useState initialiser — localStorage does not exist
@@ -56,7 +81,7 @@ export function Sidebar() {
     });
   }, []);
   const {
-    profile, email, tasks, sidebarOpen, selectedDate, setSelectedDate,
+    profile, email, tasks, selectedDate, setSelectedDate,
     setCommandOpen, setTheme, setAccent,
   } = useStore();
 
@@ -138,20 +163,15 @@ export function Sidebar() {
     return best || (pathname === "/" ? "/" : "");
   })();
 
-  if (!sidebarOpen) return null;
-
   return (
-    <aside
-      className="flex h-dvh-app w-[var(--sidebar-w)] shrink-0 flex-col bg-sunken hairline-r"
-      aria-label="Primary"
-    >
+    <>
       {/* ---- account ---- */}
       <div className="px-2.5 pt-2.5">
         <Popover
           align="start"
           className="w-[248px]"
           trigger={
-            <button className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left hover:bg-hover cursor-pointer transition-colors">
+            <button className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left hover:bg-hover cursor-pointer transition-colors touch:py-2.5">
               <div className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-ink text-canvas">
                 <span className="display-serif text-[13px] leading-none">
                   {(profile?.display_name ?? "H").charAt(0).toUpperCase()}
@@ -229,8 +249,10 @@ export function Sidebar() {
       {/* ---- search + new ---- */}
       <div className="flex gap-1.5 px-2.5 py-2">
         <button
-          onClick={() => setCommandOpen(true)}
-          className="flex h-7 flex-1 items-center gap-1.5 rounded-md border border-line bg-raised px-2 text-left text-[12.5px] text-ink-3 hover:border-line-strong cursor-pointer transition-colors"
+          // In the phone drawer, search replaces the drawer: whatever it opens
+          // (a task in the inspector) must not land underneath it.
+          onClick={() => { setCommandOpen(true); onNavigate?.(); }}
+          className="flex h-7 flex-1 items-center gap-1.5 rounded-md border border-line bg-raised px-2 text-left text-[12.5px] text-ink-3 hover:border-line-strong cursor-pointer transition-colors touch:h-10 touch:text-[15px]"
         >
           <Search className="size-3.5" />
           <span className="flex-1">Search</span>
@@ -239,8 +261,8 @@ export function Sidebar() {
       </div>
 
       {/* ---- nav ---- */}
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2">
-        <SidebarRecents />
+      <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-2">
+        <SidebarRecents onOpen={onNavigate} />
 
         {groups.map((group, gi) => (
           <div key={group.id} className={cn(gi > 0 && "mt-4")}>
@@ -256,7 +278,7 @@ export function Sidebar() {
               <ChevronRight
                 className={cn(
                   "size-3 text-ink-4 opacity-0 transition-[transform,opacity] duration-200",
-                  "group-hover/gh:opacity-100 focus-visible:opacity-100",
+                  "group-hover/gh:opacity-100 focus-visible:opacity-100 touch:opacity-100",
                   !collapsed.has(group.id) && "rotate-90",
                 )}
               />
@@ -273,8 +295,10 @@ export function Sidebar() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={onNavigate}
                       className={cn(
                         "group flex h-[30px] items-center gap-2 rounded-md px-2 text-[13.5px] transition-colors duration-120",
+                        "touch:h-11 touch:gap-3 touch:text-[15px]",
                         active
                           ? "bg-active font-medium text-ink"
                           : "text-ink-2 hover:bg-hover hover:text-ink",
@@ -344,7 +368,7 @@ export function Sidebar() {
           <span className="tnum"> of {progress.total}</span> done today
         </p>
       </div>
-    </aside>
+    </>
   );
 }
 

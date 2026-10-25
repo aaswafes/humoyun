@@ -2,6 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* A finger, not a cursor. `touch:` is for what a coarse pointer needs and a
+   mouse does not — bigger targets, controls that hover would have revealed,
+   no keyboard hints. Layout goes by width (`max-md:`), never by this: an iPad
+   is a touch screen with a desktop's room. */
+@custom-variant touch (@media (pointer: coarse));
+
 /* =========================================================
    Qalamchi — design tokens
    Notion's structure, Apple's manners.
@@ -55,6 +61,26 @@
   --sidebar-w: 264px;
   --topbar-h: 52px;
 
+  /* ---- the phone ----
+     The insets exist because the viewport is `viewport-fit=cover`: the notch,
+     the Dynamic Island and the home indicator report how much of the edge
+     they take. Divided by the interface scale for the reason .h-dvh-app is.
+
+     --tabbar-h is the bottom tab bar, which only exists below md.
+     --bottom-inset is everything the bottom edge loses to chrome — anything
+     pinned to the bottom of the screen sits above it.
+
+     --vvh is the *visual* viewport, written by the shell. iOS Safari never
+     shrinks the layout viewport for the keyboard, so 100dvh still includes the
+     half of the screen the keyboard is covering; this does not. */
+  --safe-top:    calc(env(safe-area-inset-top, 0px) / var(--ui-scale, 1));
+  --safe-right:  calc(env(safe-area-inset-right, 0px) / var(--ui-scale, 1));
+  --safe-bottom: calc(env(safe-area-inset-bottom, 0px) / var(--ui-scale, 1));
+  --safe-left:   calc(env(safe-area-inset-left, 0px) / var(--ui-scale, 1));
+  --tabbar-h: 0px;
+  --bottom-inset: calc(var(--tabbar-h) + var(--safe-bottom));
+  --vvh-app: calc(var(--vvh, 100dvh) / var(--ui-scale, 1));
+
   /* ---- customisation ----
      Everything below is rewritten at runtime by lib/customize.ts. The rule
      is that @theme must never see a literal it can inline: a utility built
@@ -73,6 +99,12 @@
 
   --ui-scale: 1;
   --icon-stroke: 2;
+}
+
+/* Tailwind's md, written the way Tailwind writes it, so `max-md:` and this
+   can never disagree about where the phone ends. */
+@media (width < 48rem) {
+  :root { --tabbar-h: 52px; }
 }
 
 .dark {
@@ -214,6 +246,12 @@
 html {
   -webkit-tap-highlight-color: transparent;
   zoom: var(--ui-scale, 1);
+  /* No double-tap zoom: two quick taps on a zikr button or a day arrow are
+     two presses, not a request to magnify. Pinch zoom is untouched. */
+  touch-action: manipulation;
+  /* The shell never scrolls the document, so the only thing a pull at the top
+     edge could do is rubber-band the whole app away from its own chrome. */
+  overscroll-behavior: none;
 }
 
 body {
@@ -277,6 +315,21 @@ button:focus:not(:focus-visible) { outline: none; }
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
+}
+
+/* A fingertip-sized target without a fingertip-sized control. On a coarse
+   pointer an invisible ::after grows the press area past the visible box —
+   8px each side by default, so a 28px icon button answers to 44px, which is
+   Apple's floor. Nothing moves, so dense rows stay dense. The element must be
+   positioned (`relative` is enough); tune with `[--touch-hit:-8px_0px]`. */
+@utility touch-hit {
+  @media (pointer: coarse) {
+    &::after {
+      content: "";
+      position: absolute;
+      inset: var(--touch-hit, -8px);
+    }
+  }
 }
 
 /* Notion-ish serif display for big numerals & dates */

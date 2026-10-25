@@ -55,7 +55,9 @@ export function TimerBar() {
   return (
     <div
       className={cn(
-        "fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2.5 rounded-full px-2 py-1.5 pr-3",
+        // Rides above the tab bar and the home indicator (--bottom-inset).
+        "fixed bottom-[calc(var(--bottom-inset)+20px)] left-1/2 z-50 flex -translate-x-1/2 items-center gap-2.5 rounded-full px-2 py-1.5 pr-3",
+        "max-md:bottom-[calc(var(--bottom-inset)+10px)]",
         "material border border-line shadow-lg anim-slide",
       )}
     >
@@ -91,14 +93,14 @@ export function TimerBar() {
         <button
           onClick={() => (timer.running ? pauseTimer() : resumeTimer())}
           aria-label={timer.running ? "Pause" : "Resume"}
-          className="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
+          className="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-hover hover:text-ink cursor-pointer transition-colors touch:size-9"
         >
           {timer.running ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
         </button>
         <button
           onClick={() => stopTimer(true)}
           aria-label="Stop and log"
-          className="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-danger-soft hover:text-danger cursor-pointer transition-colors"
+          className="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-danger-soft hover:text-danger cursor-pointer transition-colors touch:size-9"
         >
           <Square className="size-3.5" />
         </button>

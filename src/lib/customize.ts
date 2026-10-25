@@ -239,6 +239,16 @@ export function applyAppearance(a: Appearance) {
   for (const [name, px] of RADII) {
     root.style.setProperty(name, `${Math.round(px * a.radius * 10) / 10}px`);
   }
+
+  // Safari paints its toolbar and the status bar from <meta name="theme-color">.
+  // The pair layout.tsx writes follows the OS, and the app's own theme and
+  // palette can disagree with it — a dark app under a white bar. Both tags get
+  // the canvas, so whichever one Safari's media query picks is right.
+  const canvas = getComputedStyle(root).getPropertyValue("--canvas").trim();
+  if (canvas) {
+    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+      .forEach((meta) => meta.setAttribute("content", canvas));
+  }
 }
 
 /**

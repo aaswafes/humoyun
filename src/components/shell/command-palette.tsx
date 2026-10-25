@@ -198,13 +198,30 @@ export function CommandPalette() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
+          enterKeyHint="go"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
           placeholder="Search tasks, books, habits — or run a command"
-          className="h-12 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-4"
+          className="h-12 min-w-0 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-ink-4"
         />
         <Kbd>esc</Kbd>
+        {/* esc is a key a phone does not have. */}
+        <button
+          type="button"
+          onClick={close}
+          className="hidden shrink-0 px-1 text-[15px] font-medium text-accent cursor-pointer touch:block"
+        >
+          Cancel
+        </button>
       </div>
 
-      <div ref={listRef} className="max-h-[52vh] overflow-y-auto p-1.5">
+      {/* On a phone the list ends where the keyboard begins (--vvh-app). */}
+      <div
+        ref={listRef}
+        className="max-h-[52vh] overflow-y-auto overscroll-contain p-1.5 max-md:max-h-[calc(var(--vvh-app)-var(--safe-top)-120px)]"
+      >
         {filtered.length === 0 && (
           <p className="px-3 py-8 text-center text-[13px] text-ink-3">No matches for “{query}”.</p>
         )}
@@ -226,6 +243,7 @@ export function CommandPalette() {
                 onClick={() => c.run()}
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left cursor-pointer transition-colors",
+                  "touch:py-[11px]",
                   active ? "bg-accent-soft" : "hover:bg-hover",
                 )}
               >
@@ -242,8 +260,8 @@ export function CommandPalette() {
       </div>
 
       <div className="flex items-center gap-3 border-t border-line px-3.5 py-2 text-[11px] text-ink-4">
-        <span className="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
-        <span className="flex items-center gap-1"><Kbd>↵</Kbd> open</span>
+        <span className="flex items-center gap-1 touch:hidden"><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
+        <span className="flex items-center gap-1 touch:hidden"><Kbd>↵</Kbd> open</span>
         <span className="ml-auto flex items-center gap-1">
           <ArrowRight className="size-3" /> {filtered.length} results
         </span>

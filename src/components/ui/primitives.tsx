@@ -11,10 +11,14 @@ import type { Tint } from "@/lib/types";
 type ButtonVariant = "primary" | "secondary" | "ghost" | "subtle" | "danger";
 type ButtonSize = "xs" | "sm" | "md" | "lg";
 
+// `relative touch-hit`: on a touch screen the press area reaches 8px past the
+// top and bottom and 4px past the sides, so a 28px button answers to a 44px
+// fingertip without the toolbar it sits in growing at all.
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium " +
+  "relative inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium " +
   "transition-[background-color,color,box-shadow,transform,opacity] duration-150 ease-[var(--ease-out-apple)] " +
-  "cursor-pointer select-none active:scale-[0.975] disabled:pointer-events-none disabled:opacity-40";
+  "cursor-pointer select-none active:scale-[0.975] disabled:pointer-events-none disabled:opacity-40 " +
+  "touch-hit [--touch-hit:-8px_-4px]";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent text-accent-ink hover:bg-accent-hover shadow-[0_1px_2px_rgba(0,0,0,0.08)]",
@@ -72,10 +76,12 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(f
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex items-center justify-center rounded-md cursor-pointer",
+        "relative inline-flex items-center justify-center rounded-md cursor-pointer",
         "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
         "active:scale-[0.94] disabled:pointer-events-none disabled:opacity-40",
-        size === "sm" && "size-6 [&_svg]:size-3.5",
+        // 24 and 28px are mouse sizes; a fingertip gets 44 without the glyph moving.
+        "touch-hit",
+        size === "sm" && "size-6 [&_svg]:size-3.5 [--touch-hit:-10px]",
         size === "md" && "size-7 [&_svg]:size-4",
         size === "lg" && "size-9 [&_svg]:size-[18px]",
         active ? "bg-accent-soft text-accent" : "text-ink-3 hover:text-ink hover:bg-hover",
@@ -124,6 +130,9 @@ export function Checkbox({
         "relative shrink-0 grid place-items-center rounded-[5px] border cursor-pointer",
         "transition-[background-color,border-color,transform] duration-150 ease-[var(--ease-out-apple)]",
         "active:scale-90 disabled:opacity-40 disabled:pointer-events-none",
+        // A 17px box is the most-pressed control in the app; on touch it
+        // answers to ~41px around itself.
+        "touch-hit [--touch-hit:-12px]",
         size === "sm" ? "size-[15px]" : "size-[17px]",
         checked || indeterminate
           ? "border-transparent text-white"
@@ -157,7 +166,9 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
       <input
         ref={ref}
         className={cn(
-          "w-full h-8 px-2.5 rounded-md bg-transparent border border-line text-[13.5px] text-ink",
+          // Taller on touch: the type there is 16px (globals.css keeps iOS
+          // from zooming), and it needs the room.
+          "w-full h-8 px-2.5 rounded-md bg-transparent border border-line text-[13.5px] text-ink touch:h-10",
           "transition-[border-color,box-shadow] duration-150",
           "hover:border-line-strong focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft",
           className,
@@ -271,6 +282,8 @@ export function Segmented<T extends string>({
               // pushes its label onto a second line and overflows the pill.
               "relative inline-flex items-center justify-center rounded-[7px]",
               "font-medium cursor-pointer whitespace-nowrap",
+              // Neighbours touch, so the press area only grows up and down.
+              "touch-hit [--touch-hit:-8px_0px]",
               "transition-[color,background-color,box-shadow] duration-200 ease-[var(--ease-out-apple)]",
               size === "sm" ? "h-6 px-2 text-[12px]" : "h-7 px-2.5 text-[13px]",
               active
@@ -389,6 +402,8 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
       className={cn(
         "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[4px] px-1",
         "bg-hover text-ink-3 text-[10.5px] font-medium font-sans leading-none border border-line",
+        // A keyboard shortcut is noise on a phone that has no keyboard.
+        "touch:hidden",
         className,
       )}
     >
