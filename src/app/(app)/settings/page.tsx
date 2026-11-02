@@ -145,7 +145,7 @@ export default function SettingsPage() {
                   onClick={(e) => selectTab(id, e.detail > 0)}
                   onKeyDown={(e) => onTabKeyDown(e, i)}
                   className={cn(
-                    "flex h-[30px] shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md px-2 text-[13.5px] md:w-full",
+                    "flex h-[30px] shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md px-2 text-[13.5px] md:w-full touch:h-10 touch:px-3",
                     "transition-colors duration-150",
                     active
                       ? "bg-active font-medium text-ink"

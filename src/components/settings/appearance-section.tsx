@@ -258,7 +258,7 @@ export function AppearanceSection() {
                     {...accentRoving(i)}
                     className={cn(
                       `tint-${ACCENT_TINT[a]}`,
-                      "grid size-7 cursor-pointer place-items-center rounded-full",
+                      "grid size-7 cursor-pointer place-items-center rounded-full touch:size-9",
                       "transition-transform duration-200 ease-[var(--ease-out-apple)] hover:scale-110 active:scale-95",
                       active && "ring-2 ring-accent ring-offset-2 ring-offset-[var(--canvas)]",
                     )}

@@ -184,14 +184,16 @@ export function Row({
 }) {
   return (
     <div className={cn("border-b border-line py-4 last:border-b-0", className)}>
-      <div className={cn(!stacked && "flex items-start gap-8")}>
-        <div className="min-w-0 flex-1">
+      <div className={cn(!stacked && "flex items-start gap-8 max-md:flex-wrap max-md:gap-x-6 max-md:gap-y-3")}>
+        {/* On a phone a control that will not fit beside a 13rem label drops
+            under it, instead of squeezing the hint to three words a line. */}
+        <div className={cn("min-w-0 flex-1", !stacked && "max-md:basis-52")}>
           <p className="text-[13.5px] font-medium leading-tight text-ink">{label}</p>
           {hint && (
             <p className="mt-1 max-w-[48ch] text-[12.5px] leading-relaxed text-ink-3">{hint}</p>
           )}
         </div>
-        {children && <div className={cn(stacked ? "mt-3.5" : "shrink-0")}>{children}</div>}
+        {children && <div className={cn(stacked ? "mt-3.5" : "shrink-0 max-md:max-w-full")}>{children}</div>}
       </div>
     </div>
   );

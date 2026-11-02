@@ -107,7 +107,7 @@ export function AppearanceExtras() {
               aria-label={t("appearance.accentCustom")}
               value={customAccent ? a.accent : "#0071e3"}
               onChange={(e) => set({ accent: e.target.value })}
-              className="size-8 shrink-0 cursor-pointer rounded-md border border-line bg-raised p-0.5"
+              className="size-8 shrink-0 cursor-pointer rounded-md border border-line bg-raised p-0.5 touch:size-10"
             />
             {customAccent && (
               <Button variant="ghost" size="sm" onClick={() => set({ accent: "blue" })}>

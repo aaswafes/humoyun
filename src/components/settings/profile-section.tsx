@@ -271,7 +271,7 @@ export function ProfileSection() {
                     aria-label={`Use ${p} as the avatar`}
                     onClick={() => commitAvatar(p)}
                     className={cn(
-                      "grid size-8 cursor-pointer place-items-center rounded-md text-[15px] leading-none",
+                      "grid size-8 cursor-pointer place-items-center rounded-md text-[15px] leading-none touch:size-10",
                       "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)] active:scale-[0.94]",
                       active ? "bg-accent-soft text-accent ring-1 ring-accent-line" : "bg-hover text-ink-2 hover:bg-active",
                     )}
