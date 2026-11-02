@@ -39,9 +39,11 @@ export function TabBar() {
   const elsewhere = !TABS.some((href) => isActive(pathname, href));
 
   return (
+    // No text selection and no iOS link-preview callout on a long press: this
+    // is app chrome, and a held thumb on a tab should do nothing at all.
     <nav
       aria-label={t("nav.menu")}
-      className="shrink-0 material hairline-t pb-[var(--safe-bottom)] md:hidden"
+      className="shrink-0 select-none material hairline-t pb-[var(--safe-bottom)] [-webkit-touch-callout:none] md:hidden"
     >
       <ul className="grid h-[var(--tabbar-h)] grid-cols-5">
         <Tab href="/" label={t("nav.today")} icon={Sun} active={isActive(pathname, "/")} />

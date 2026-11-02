@@ -9,6 +9,23 @@ import { formatClock } from "@/lib/date";
 import { cn } from "@/lib/cn";
 import { Ring } from "@/components/ui/primitives";
 
+// One AudioContext for the life of the page, unlocked by the first tap.
+//
+// iOS Safari only lets audio start inside a user gesture. The chime plays when
+// a pomodoro *ends* — long after any tap — so a context created at that moment
+// is born suspended and the chime never sounds on an iPhone. Created and
+// resumed during the first press instead, it is already running by then.
+let chimeContext: AudioContext | null = null;
+
+function audioContext(): AudioContext | null {
+  if (chimeContext) return chimeContext;
+  const Ctor = window.AudioContext
+    || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctor) return null;
+  try { chimeContext = new Ctor(); } catch { return null; }
+  return chimeContext;
+}
+
 /** Persistent floating pill showing the running focus session. */
 export function TimerBar() {
   const timer = useStore((s) => s.timer);
@@ -30,6 +47,22 @@ export function TimerBar() {
   const label = task?.title || timer.label || kindWords || "Focus";
   const overrun = timer.mode === "pomodoro" && seconds >= target;
 
+  // Unlock audio on the first press anywhere — see audioContext() above. A
+  // touch only counts as a gesture when it *ends* (pointerup / touchend; a
+  // pointerdown might still become a scroll), so those are the events, and
+  // they stay attached until the context actually reports itself running.
+  React.useEffect(() => {
+    const events = ["pointerup", "touchend", "keydown"] as const;
+    const detach = () => events.forEach((name) => window.removeEventListener(name, unlock, true));
+    function unlock() {
+      const ctx = audioContext();
+      if (!ctx) { detach(); return; }
+      ctx.resume().then(() => { if (ctx.state === "running") detach(); }).catch(() => {});
+    }
+    events.forEach((name) => window.addEventListener(name, unlock, true));
+    return detach;
+  }, []);
+
   // Chime once when a pomodoro completes.
   const chimed = React.useRef(false);
   React.useEffect(() => {
@@ -37,7 +70,9 @@ export function TimerBar() {
     if (overrun && !chimed.current) {
       chimed.current = true;
       try {
-        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const ctx = audioContext();
+        if (!ctx) return;
+        void ctx.resume().catch(() => {});
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain); gain.connect(ctx.destination);
