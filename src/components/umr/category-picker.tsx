@@ -22,7 +22,7 @@ export function CategoryPicker({
   label?: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn("flex flex-wrap gap-1", className)}>
+    <div role="radiogroup" aria-label={label} className={cn("flex flex-wrap gap-1 touch:gap-2", className)}>
       {UMR_CATEGORIES.map((c) => {
         const meta = UMR_META[c];
         const active = value === c;
@@ -39,6 +39,8 @@ export function CategoryPicker({
               "inline-flex items-center gap-1.5 rounded-full border cursor-pointer",
               "transition-colors duration-150 active:scale-[0.97]",
               size === "sm" ? "h-6 px-2 text-[11.5px]" : "h-7 px-2.5 text-[12.5px]",
+              // A pill is the whole target; a thumb needs more than 24px of it.
+              "relative touch-hit touch:h-9 touch:px-3 touch:text-[13px] [--touch-hit:-4px_-3px]",
               active
                 ? "border-transparent bg-[var(--tint-soft)] font-medium text-[var(--tint-ink)]"
                 : "border-line text-ink-3 hover:border-line-strong hover:text-ink-2",
@@ -64,6 +66,8 @@ export function CategoryPicker({
           className={cn(
             "inline-flex items-center rounded-full border cursor-pointer transition-colors duration-150",
             size === "sm" ? "h-6 px-2 text-[11.5px]" : "h-7 px-2.5 text-[12.5px]",
+              // A pill is the whole target; a thumb needs more than 24px of it.
+              "relative touch-hit touch:h-9 touch:px-3 touch:text-[13px] [--touch-hit:-4px_-3px]",
             value === null
               ? "border-line-strong bg-hover font-medium text-ink-2"
               : "border-line text-ink-4 hover:text-ink-3",
@@ -99,7 +103,7 @@ export function CategoryMultiPicker({
   };
 
   return (
-    <div role="group" aria-label={label} className={cn("flex flex-wrap gap-1", className)}>
+    <div role="group" aria-label={label} className={cn("flex flex-wrap gap-1 touch:gap-2", className)}>
       {UMR_CATEGORIES.map((c) => {
         const meta = UMR_META[c];
         const active = values.includes(c);
@@ -116,6 +120,8 @@ export function CategoryMultiPicker({
               "inline-flex items-center gap-1.5 rounded-full border cursor-pointer",
               "transition-colors duration-150 active:scale-[0.97]",
               size === "sm" ? "h-6 px-2 text-[11.5px]" : "h-7 px-2.5 text-[12.5px]",
+              // A pill is the whole target; a thumb needs more than 24px of it.
+              "relative touch-hit touch:h-9 touch:px-3 touch:text-[13px] [--touch-hit:-4px_-3px]",
               active
                 ? "border-transparent bg-[var(--tint-soft)] font-medium text-[var(--tint-ink)]"
                 : "border-line text-ink-3 hover:border-line-strong hover:text-ink-2",

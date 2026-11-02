@@ -116,7 +116,8 @@ export function UmrEntryList({
                     <IconButton
                       size="sm"
                       label={`Options for ${e.label}`}
-                      className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/entry:opacity-100"
+                      // Hover is how a mouse finds this menu; on touch it is simply there.
+                      className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/entry:opacity-100 touch:opacity-100"
                     >
                       <MoreHorizontal />
                     </IconButton>

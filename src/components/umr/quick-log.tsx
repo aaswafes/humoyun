@@ -110,7 +110,7 @@ export function QuickLog({
         </Button>
       </form>
 
-      <div className="mt-2 flex flex-wrap gap-1">
+      <div className="mt-2 flex flex-wrap gap-1 touch:gap-2">
         {PRESETS.map((n) => (
           <button
             key={n}
@@ -118,6 +118,7 @@ export function QuickLog({
             onClick={() => submit(n)}
             className={cn(
               "h-6 rounded-md px-2 text-[11.5px] text-ink-3 cursor-pointer tnum",
+              "relative touch-hit touch:h-9 touch:bg-hover touch:px-3 touch:text-[13px] [--touch-hit:-4px_-3px]",
               "transition-colors hover:bg-hover hover:text-ink",
             )}
           >
