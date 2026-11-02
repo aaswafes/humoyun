@@ -44,6 +44,8 @@ function Scale({
                 "h-7 min-w-0 flex-1 cursor-pointer truncate rounded-md px-1 text-[12px]",
                 "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
                 "active:scale-[0.97]",
+                // Five side by side leave no room to grow sideways, so on touch they grow down.
+                "touch:h-11 touch:text-[13px]",
                 active
                   ? "bg-accent-soft font-semibold text-accent"
                   : "bg-hover text-ink-3 hover:bg-active hover:text-ink",

@@ -40,11 +40,21 @@ export function TimeBudget({
           {over > 0 ? `over by ${formatDuration(over)}` : `${formatDuration(left)} left`}
         </span>
         <span className="text-[11.5px] text-ink-4">before {formatTime(dayEnd, hour12)}</span>
-        {spent > 0 && (
-          <span className="text-[11.5px] text-ink-4">· {formatDuration(spent)} already done</span>
-        )}
-        {unestimated > 0 && (
-          <span className="text-[11.5px] text-ink-4">· {unestimated} without an estimate</span>
+        {/* On a phone these two take a line of their own: wrapped in among
+            the rest, the line they started on began with a stray "·". */}
+        {(spent > 0 || unestimated > 0) && (
+          <span className="contents max-md:block max-md:basis-full">
+            {spent > 0 && (
+              <span className="text-[11.5px] text-ink-4">
+                <span className="max-md:hidden">· </span>{formatDuration(spent)} already done
+              </span>
+            )}
+            {unestimated > 0 && (
+              <span className={cn("text-[11.5px] text-ink-4", spent > 0 && "max-md:ml-1")}>
+                <span className={cn(spent === 0 && "max-md:hidden")}>· </span>{unestimated} without an estimate
+              </span>
+            )}
+          </span>
         )}
       </div>
 

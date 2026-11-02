@@ -74,7 +74,7 @@ export function Masthead({ date, now }: { date: string; now: number }) {
     });
 
   return (
-    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 max-md:gap-x-3 max-md:gap-y-3">
       <div className="flex items-end gap-4">
         <span className="display-serif tnum select-none text-[64px] leading-[0.76] text-ink">
           {dayNumber(date)}
@@ -89,9 +89,17 @@ export function Masthead({ date, now }: { date: string; now: number }) {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-end justify-between gap-4 pb-1">
-        <p className="min-w-0 max-w-[46ch] text-[12.5px] leading-snug text-ink-3">{sentence}</p>
-        <CloseDay date={date} now={now} />
+      {/* flex-1 starts from a zero basis, so on a phone this group never wraps:
+          it took whatever the date left over and stood the sentence up one word
+          per line. There it dissolves instead — Close the day stays on the
+          date's row and the sentence takes a full line of its own. */}
+      <div className="flex min-w-0 flex-1 items-end justify-between gap-4 pb-1 max-md:contents">
+        <p className="min-w-0 max-w-[46ch] text-[12.5px] leading-snug text-ink-3 max-md:order-last max-md:max-w-none max-md:basis-full max-md:text-[13px] max-md:text-balance">
+          {sentence}
+        </p>
+        {/* The ghost button's padding hangs into the gutter, so its words line
+            up with the page's right edge — and fit beside the date at 320px. */}
+        <CloseDay date={date} now={now} className="max-md:-mr-2.5 max-md:mb-1" />
       </div>
     </header>
   );

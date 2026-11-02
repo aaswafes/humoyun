@@ -23,7 +23,9 @@ function Cell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-2.5 py-2.5 sm:px-4 sm:first:pl-0 sm:last:pr-0">
+    // A little more room on touch, so a control's grown press area (below)
+    // ends inside its own cell instead of overlapping the next one's.
+    <div className="flex min-w-0 items-start gap-2.5 py-2.5 touch:py-3.5 sm:px-4 sm:first:pl-0 sm:last:pr-0">
       <Icon className="mt-[3px] size-3.5 shrink-0 text-ink-4" />
       <div className="min-w-0 flex-1">
         <VisuallyHidden>{label}</VisuallyHidden>
@@ -96,8 +98,9 @@ function FocusCell({ date }: { date: string }) {
           type="button"
           onClick={() => startTimer({ mode: "pomodoro", targetMinutes: 25, label: "Focus" })}
           className={cn(
-            "mt-0.5 text-[12px] text-ink-3 cursor-pointer rounded-sm",
+            "relative mt-0.5 text-[12px] text-ink-3 cursor-pointer rounded-sm",
             "transition-[color,transform] duration-150 ease-[var(--ease-out-apple)] hover:text-ink active:scale-[0.97]",
+            "touch-hit [--touch-hit:-13px_-8px]",
           )}
         >
           Start 25 minutes
@@ -160,15 +163,18 @@ function NextTaskCell({ date, minutesNow }: { date: string; minutesNow: number }
 
   return (
     <Cell icon={CalendarClock} label="Next up">
+      {/* The truncation lives on the inner span: overflow on the button itself
+          would clip the touch-hit area to the 16px line it is meant to grow. */}
       <button
         type="button"
         onClick={() => openInspector(task.id)}
         className={cn(
-          "block w-full truncate text-left text-[13px] leading-tight text-ink rounded-sm",
+          "relative flex w-full min-w-0 text-left text-[13px] leading-tight text-ink rounded-sm",
           "cursor-pointer transition-opacity duration-150 hover:opacity-70",
+          "touch-hit [--touch-hit:-14px_-4px]",
         )}
       >
-        {task.title || "Untitled"}
+        <span className="min-w-0 truncate">{task.title || "Untitled"}</span>
       </button>
       <p className="mt-0.5 truncate text-[12px] leading-tight text-ink-3 tnum">
         {running ? `ends ${countdown(endsIn)}` : countdown(task.start_min! - minutesNow)}

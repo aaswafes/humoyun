@@ -39,7 +39,8 @@ export function RailCard({
       summary={summary}
       open={open}
       onToggle={toggle}
-      className={cn("py-1.5", className)}
+      // On touch the header row is already a fingertip tall; it needs no more air.
+      className={cn("py-1.5 touch:py-0.5", className)}
       accessory={
         open ? (
           <>
@@ -50,9 +51,9 @@ export function RailCard({
                 aria-label={hrefLabel ?? `Open ${title}`}
                 title={hrefLabel ?? `Open ${title}`}
                 className={cn(
-                  "grid size-7 place-items-center rounded-md text-ink-4 cursor-pointer",
+                  "relative grid size-7 place-items-center rounded-md text-ink-4 cursor-pointer",
                   "transition-[color,background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
-                  "hover:bg-hover hover:text-ink-2 active:scale-[0.94]",
+                  "hover:bg-hover hover:text-ink-2 active:scale-[0.94] touch-hit",
                 )}
               >
                 <ArrowUpRight className="size-3.5" />
@@ -89,9 +90,9 @@ export function RailLink({ href, children }: { href: string; children: React.Rea
     <Link
       href={href}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-md bg-hover px-2.5 text-[12.5px] font-medium text-ink",
+        "relative inline-flex h-7 items-center gap-1.5 rounded-md bg-hover px-2.5 text-[12.5px] font-medium text-ink",
         "cursor-pointer transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
-        "hover:bg-active active:scale-[0.97]",
+        "hover:bg-active active:scale-[0.97] touch-hit [--touch-hit:-8px_-4px]",
       )}
     >
       {children}
@@ -123,6 +124,8 @@ export function RailRow({
         "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left cursor-pointer",
         "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
         "hover:bg-hover active:scale-[0.985]",
+        // The row is the target: a fingertip tall on touch.
+        "touch:min-h-11",
         className,
       )}
     >
@@ -146,6 +149,9 @@ export function RailItem({
       className={cn(
         "group/item flex w-full items-center gap-2.5 rounded-md px-2 py-1.5",
         "transition-colors duration-150 hover:bg-hover",
+        // Tall enough on touch that one row's checkbox press area never
+        // reaches into the next row's.
+        "touch:min-h-11",
         className,
       )}
     >

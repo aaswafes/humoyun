@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor,
-  pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, KeyboardSensor,
+  pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor,
   type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -13,10 +13,11 @@ import { cn } from "@/lib/cn";
 import { useStore, tasksOn } from "@/lib/store";
 import { addDays, formatDuration, formatTime } from "@/lib/date";
 import { prayerTimesFor } from "@/lib/prayer";
-import { PRAYER_LABELS, PRAYER_NAMES, type Task } from "@/lib/types";
+import { PRAYER_LABELS, PRAYER_NAMES, type PrayerName, type Task } from "@/lib/types";
 import { Button } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover } from "@/components/ui/overlays";
 import { VisuallyHidden } from "@/components/ui/form";
+import { DRAG_BODY_CLASS, useAppSensors } from "@/components/ui/drag";
 import { Fold, useFold } from "./fold";
 import { RibbonBlock } from "./ribbon-block";
 import { TimeBudget } from "./time-budget";
@@ -33,6 +34,40 @@ const KEYBOARD_CODES = {
   cancel: ["Escape"],
   end: ["KeyM", "Space", "Enter"],
 };
+const KEYBOARD_OPTIONS = { keyboardCodes: KEYBOARD_CODES };
+
+// Prayer names under the ribbon on a phone are laid out for the narrowest one:
+// 320px less the page gutters, at roughly 6px a character of 10.5px type.
+const PHONE_TRACK_PX = 288;
+const LABEL_CHAR_PX = 6;
+const LABEL_GAP_PX = 6;
+
+type LabelAnchor = "start" | "center" | "end";
+
+/**
+ * Which prayer names fit under a phone-width ribbon, and which way each one
+ * hangs from its tick. Measured against the last name actually shown, so a
+ * name that had to give way never pushes out the one after it. The desktop
+ * keeps its own, roomier rule; this only decides what `max-md` shows.
+ */
+function phonePrayerLabels(times: Record<PrayerName, number>, rangeStart: number, rangeEnd: number) {
+  const span = rangeEnd - rangeStart;
+  const shown = new Map<PrayerName, LabelAnchor>();
+  let lastRight = -Infinity;
+  for (const name of PRAYER_NAMES) {
+    const at = times[name];
+    if (at < rangeStart || at > rangeEnd) continue;
+    const px = ((at - rangeStart) / span) * PHONE_TRACK_PX;
+    const w = PRAYER_LABELS[name].length * LABEL_CHAR_PX;
+    // At either end a centred name would hang off the ribbon, so it hangs inward.
+    const anchor: LabelAnchor = px < w / 2 ? "start" : PHONE_TRACK_PX - px < w / 2 ? "end" : "center";
+    const left = anchor === "start" ? px : anchor === "end" ? px - w : px - w / 2;
+    if (left < lastRight + LABEL_GAP_PX) continue;
+    shown.set(name, anchor);
+    lastRight = left + w;
+  }
+  return shown;
+}
 
 interface Snapshot { id: string; date: string | null; start: number | null; end: number | null; allDay: boolean }
 const snapshotOf = (t: Task): Snapshot =>
@@ -84,9 +119,17 @@ function Chip({
           aria-label={`${task.title || "Untitled"}${estimate ? `, ${formatDuration(estimate)}` : ", no estimate"} — schedule it`}
           className={cn(
             "group/chip inline-flex h-7 max-w-[240px] items-center gap-1.5 rounded-md border border-line bg-raised pl-1.5 pr-2",
-            "text-[12.5px] text-ink cursor-grab touch-none active:cursor-grabbing",
+            // No touch-none: a finger lifts the chip by holding it (the touch
+            // sensor), so a swipe that starts on one still scrolls the page.
+            "text-[12.5px] text-ink",
+            DRAG_BODY_CLASS,
             "transition-[background-color,border-color,transform,opacity] duration-150 ease-[var(--ease-out-apple)]",
             "hover:border-line-strong hover:bg-hover active:scale-[0.97]",
+            // Rows of chips wrap 6px apart, so the chip itself grows on touch
+            // and borrows only 2px above and below.
+            "relative touch:h-10 touch:text-[13px] touch-hit [--touch-hit:-2px_0px]",
+            // A phone already gives most chips a line each; let the title have it.
+            "max-md:max-w-full",
             task.color && `tint-${task.color}`,
             isDragging && "opacity-40",
           )}
@@ -114,7 +157,7 @@ function Chip({
           )}
 
           {slots.length > 0 && (
-            <div className="mt-1 max-h-[188px] overflow-y-auto">
+            <div className="mt-1 max-h-[188px] overflow-y-auto overscroll-contain">
               {slots.map((m) => {
                 const busy = blocked.some((b) => overlaps({ start: m, end: m + length }, b));
                 return (
@@ -141,6 +184,8 @@ function Chip({
                   className={cn(
                     "h-7 cursor-pointer rounded-md px-2 text-[12px] font-medium tnum",
                     "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)] active:scale-[0.95]",
+                    // These wrap 4px apart, so they grow rather than borrow.
+                    "touch:h-11 touch:min-w-11 touch:px-3 touch:text-[13.5px]",
                     active ? "bg-accent-soft text-accent" : "bg-hover text-ink-2 hover:bg-active hover:text-ink",
                   )}
                 >
@@ -181,9 +226,15 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
   // The planner is a tool you reach for, not a thing you read. It rests folded.
   const { open, toggle } = useFold("planOpen", false);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { keyboardCodes: KEYBOARD_CODES }),
+  // The app's mouse and touch sensors (a finger lifts a chip by holding it, so
+  // a swipe stays a scroll), with this strip's own keyboard sensor in place of
+  // the shared one: the chip is also a menu button, and the default Space and
+  // Enter would start a drag instead of opening it.
+  const appSensors = useAppSensors({ distance: 4 });
+  const keyboardSensor = useSensor(KeyboardSensor, KEYBOARD_OPTIONS);
+  const sensors = React.useMemo(
+    () => [...appSensors.filter((s) => s.sensor !== KeyboardSensor), keyboardSensor],
+    [appSensors, keyboardSensor],
   );
 
   const day = React.useMemo(() => tasksOn(tasks, date), [tasks, date]);
@@ -230,6 +281,7 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
   const rangeEnd = endHour * 60;
   const span = rangeEnd - rangeStart;
   const pctOf = (min: number) => ((min - rangeStart) / span) * 100;
+  const phoneLabels = phonePrayerLabels(times, rangeStart, rangeEnd);
 
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const slots = Array.from({ length: (endHour - startHour) * 2 }, (_, i) => rangeStart + i * SLOT_MIN);
@@ -439,7 +491,7 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
                 />
               ))}
               {unscheduled.length > CHIP_LIMIT && (
-                <Button size="xs" variant="ghost" onClick={() => setShowAll((v) => !v)}>
+                <Button size="xs" variant="ghost" onClick={() => setShowAll((v) => !v)} className="[--touch-hit:-10px_-4px]">
                   {showAll ? "Show fewer" : `Show all ${unscheduled.length}`}
                 </Button>
               )}
@@ -454,9 +506,21 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
 
           {/* ---- ribbon ---- */}
           <div className="mt-3">
+            {/* A phone has ~20px an hour — too little for "10a", which used to
+                truncate to "1…". There a long day labels every other hour and
+                lets each label run into the blank slot beside it; the last
+                hour has no slot beside it to run into, so it stays blank. */}
             <div aria-hidden className="flex text-[10.5px] text-ink-4 tnum">
-              {hours.map((h) => (
-                <span key={h} className="min-w-0 flex-1 truncate pl-0.5">{hourLabel(h, hour12)}</span>
+              {hours.map((h, i) => (
+                <span
+                  key={h}
+                  className={cn(
+                    "min-w-0 flex-1 truncate pl-0.5 max-md:overflow-visible max-md:text-clip",
+                    hours.length > 8 && (i % 2 === 1 || i === hours.length - 1) && "max-md:invisible",
+                  )}
+                >
+                  {hourLabel(h, hour12)}
+                </span>
               ))}
             </div>
 
@@ -531,15 +595,30 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
                 if (at < rangeStart || at > rangeEnd) return null;
                 const prev = i > 0 ? times[PRAYER_NAMES[i - 1]] : -9999;
                 const roomy = (at - prev) / span > 0.07;
+                const phone = phoneLabels.get(name);
                 return (
                   <span
                     key={name}
                     title={`${PRAYER_LABELS[name]} ${formatTime(at, hour12)}`}
-                    className="absolute top-0 flex -translate-x-1/2 flex-col items-center gap-px"
+                    className={cn(
+                      "absolute top-0 flex -translate-x-1/2 flex-col items-center gap-px",
+                      phone === "start" && "max-md:translate-x-0 max-md:items-start",
+                      phone === "end" && "max-md:-translate-x-full max-md:items-end",
+                    )}
                     style={{ left: `${pctOf(at)}%` }}
                   >
                     <span className="h-1.5 w-px bg-line-strong" />
-                    {roomy && <span className="text-[10.5px] leading-none text-ink-4">{PRAYER_LABELS[name]}</span>}
+                    {(roomy || phone) && (
+                      <span
+                        className={cn(
+                          "text-[10.5px] leading-none text-ink-4",
+                          !roomy && "md:hidden",
+                          !phone && "max-md:hidden",
+                        )}
+                      >
+                        {PRAYER_LABELS[name]}
+                      </span>
+                    )}
                   </span>
                 );
               })}
@@ -549,9 +628,16 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
 
             <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-snug text-ink-4">
               <Clock className="size-3 shrink-0" aria-hidden />
-              Drag a task onto the ribbon, or press M to pick it up and place it with the arrow keys.
-              Drag either edge of a block to change when it starts or ends — Alt for
-              single minutes, or tab to an edge and use the arrow keys.
+              {/* A finger has no M, no Alt and no arrow keys — it gets its own sentence. */}
+              <span className="touch:hidden">
+                Drag a task onto the ribbon, or press M to pick it up and place it with the arrow keys.
+                Drag either edge of a block to change when it starts or ends — Alt for
+                single minutes, or tab to an edge and use the arrow keys.
+              </span>
+              <span className="hidden touch:inline">
+                Tap a task to pick its time, or hold it and drag it onto the ribbon.
+                Hold either edge of a block to change when it starts or ends.
+              </span>
             </p>
           </div>
 

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { CloudMoon, Sunrise, X } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { useStore, tasksOn } from "@/lib/store";
 import { addDays, friendlyDate } from "@/lib/date";
 import type { Task } from "@/lib/types";
@@ -48,6 +49,36 @@ function subscribe(fn: () => void) {
 // The server has no localStorage, and "" is the honest answer there: nothing
 // has been dismissed, so the strip renders if there is anything to show.
 const serverSnapshot = () => "";
+
+/**
+ * One answer to "what about this one?". With a mouse it is the quiet icon it
+ * always was, named by its tooltip. A finger gets no tooltip — and a sunrise
+ * and a cloud mean nothing on their own — so on touch the word sits beside
+ * the icon and the button grows to a fingertip.
+ */
+function LeftoverAction({
+  label, title, word = title, icon: Icon, onClick,
+}: {
+  label: string;
+  title: string;
+  /** the word shown on touch; defaults to the tooltip */
+  word?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+}) {
+  return (
+    <IconButton
+      label={label}
+      title={title}
+      size="sm"
+      onClick={onClick}
+      className="touch:h-8 touch:w-auto touch:gap-1.5 touch:bg-hover touch:px-2.5 touch:text-ink-2 touch:[--touch-hit:-6px_-2px]"
+    >
+      <Icon />
+      <span className="hidden text-[13px] font-medium touch:inline">{word}</span>
+    </IconButton>
+  );
+}
 
 export function Leftovers({ today }: { today: string }) {
   const tasks = useStore((s) => s.tasks);
@@ -103,13 +134,18 @@ export function Leftovers({ today }: { today: string }) {
       aria-label={`${left.length} unfinished from ${friendlyDate(yesterday)}`}
       className="surface mb-6 overflow-hidden"
     >
-      <header className="flex items-center gap-2 px-3 py-2.5 hairline-b">
-        <h2 className="text-[13px] font-semibold tracking-[-0.008em] text-ink">
+      {/* At 320px the actions do not fit beside the title; they wrap to a
+          line of their own instead of breaking the title in two. */}
+      <header className="flex items-center gap-2 px-3 py-2.5 hairline-b max-md:flex-wrap max-md:gap-y-1">
+        <h2 className="text-[13px] font-semibold tracking-[-0.008em] text-ink max-md:whitespace-nowrap">
           Left from {friendlyDate(yesterday).toLowerCase()}
         </h2>
         <span className="text-[11.5px] tnum text-ink-3">{left.length}</span>
-        <div className="ml-auto flex items-center gap-1">
-          <Button size="xs" variant="ghost" onClick={moveAll}>Move all to today</Button>
+        {/* Wider apart on touch, so the two grown press areas do not overlap. */}
+        <div className="ml-auto flex items-center gap-1 touch:gap-2">
+          <Button size="xs" variant="ghost" onClick={moveAll} className="[--touch-hit:-10px_-4px]">
+            Move all to today
+          </Button>
           <IconButton label="Not now — ask again tomorrow" size="sm" onClick={dismiss}>
             <X />
           </IconButton>
@@ -118,35 +154,37 @@ export function Leftovers({ today }: { today: string }) {
 
       <ul className="flex flex-col">
         {left.map((task) => (
-          <li key={task.id} className="flex items-center gap-2 px-3 py-1.5 hairline-b last:border-b-0">
-            <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+          <li
+            key={task.id}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 hairline-b last:border-b-0",
+              // A phone gives the title its own line and the answers the next.
+              "max-md:flex-wrap max-md:gap-y-2 max-md:py-2.5",
+            )}
+          >
+            <span className="min-w-0 flex-1 truncate text-[13px] text-ink max-md:basis-full max-md:whitespace-normal max-md:[overflow-wrap:anywhere]">
               {task.title || "Untitled"}
             </span>
-            <div className="flex shrink-0 items-center gap-0.5">
-              <IconButton
+            <div className="flex shrink-0 items-center gap-0.5 touch:gap-1.5">
+              <LeftoverAction
                 label={`Move "${task.title || "Untitled"}" to today`}
                 title="Today"
-                size="sm"
+                icon={Sunrise}
                 onClick={() => moveOne(task, "today")}
-              >
-                <Sunrise />
-              </IconButton>
-              <IconButton
+              />
+              <LeftoverAction
                 label={`Move "${task.title || "Untitled"}" to Someday`}
                 title="Someday"
-                size="sm"
+                icon={CloudMoon}
                 onClick={() => moveOne(task, "someday")}
-              >
-                <CloudMoon />
-              </IconButton>
-              <IconButton
+              />
+              <LeftoverAction
                 label={`Drop "${task.title || "Untitled"}"`}
                 title="Drop it"
-                size="sm"
+                word="Drop"
+                icon={X}
                 onClick={() => moveOne(task, "drop")}
-              >
-                <X />
-              </IconButton>
+              />
             </div>
           </li>
         ))}

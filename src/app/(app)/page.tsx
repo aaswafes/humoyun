@@ -64,16 +64,21 @@ export default function TodayPage() {
       {/* One fact in the chrome — the hours and the overdue count have their own homes below. */}
       <PageHeader title="Today" subtitle={open ? `${open} open` : "All clear"} />
 
-      <PageBody wide>
+      {/* On a phone the tasks come straight after the date. The status strip
+          and the rail follow them: on a 390px screen the strip alone is three
+          full rows, and above the tasks it pushed every one of them below the
+          first screen. CSS order, not a second render — the grid dissolves
+          (`contents`) so its two columns can be ordered around the strip. */}
+      <PageBody wide className="max-md:flex max-md:flex-col">
         <Masthead date={today} now={now} />
 
-        <div className="mt-6">
+        <div className="mt-6 max-md:order-2 max-md:mt-10">
           <NowStrip date={today} now={now} />
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-x-10 gap-y-10 min-[1100px]:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="mt-8 grid grid-cols-1 gap-x-10 gap-y-10 min-[1100px]:grid-cols-[minmax(0,1fr)_300px] max-md:contents">
           {/* ---- the day itself: the tasks are the page ---- */}
-          <div className="min-w-0">
+          <div className="min-w-0 max-md:order-1 max-md:mt-8">
             <Leftovers today={today} />
 
             {list.length > 0 && <PlanStrip date={today} minutesNow={minutesNow} />}
@@ -85,7 +90,7 @@ export default function TodayPage() {
                   count={overdue.length}
                   tone="danger"
                   accessory={
-                    <Button size="xs" variant="ghost" onClick={rescheduleOverdue}>
+                    <Button size="xs" variant="ghost" onClick={rescheduleOverdue} className="[--touch-hit:-10px_-4px]">
                       Reschedule all to today
                     </Button>
                   }
@@ -132,7 +137,7 @@ export default function TodayPage() {
               <button
                 type="button"
                 onClick={planTomorrow}
-                className="-mx-2 mt-1 flex w-[calc(100%+1rem)] items-center gap-1.5 rounded-md px-2 py-2 text-left cursor-pointer transition-colors duration-150 ease-[var(--ease-out-apple)] hover:bg-hover"
+                className="-mx-2 mt-1 flex w-[calc(100%+1rem)] items-center gap-1.5 rounded-md px-2 py-2 text-left cursor-pointer transition-colors duration-150 ease-[var(--ease-out-apple)] hover:bg-hover touch:min-h-11"
               >
                 <CalendarPlus className="size-3.5 shrink-0 text-ink-4" />
                 <span className="text-[12.5px] font-medium text-ink-2">Plan tomorrow</span>
@@ -145,7 +150,7 @@ export default function TodayPage() {
           </div>
 
           {/* ---- rail: folded sections on hairlines, not a stack of cards ---- */}
-          <aside className="flex min-w-0 flex-col divide-y divide-line min-[1100px]:hairline-l min-[1100px]:pl-8">
+          <aside className="flex min-w-0 flex-col divide-y divide-line min-[1100px]:hairline-l min-[1100px]:pl-8 max-md:order-3 max-md:mt-8">
             <SalahCard date={today} minutesNow={minutesNow} />
             <HabitsCard date={today} />
             <ReadingCard date={today} />

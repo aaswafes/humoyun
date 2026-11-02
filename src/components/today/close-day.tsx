@@ -28,7 +28,7 @@ function Stat({ value, label }: { value: string; label: string }) {
  * is done or the evening has arrived, and a two-field reflection written to the
  * day log. Reopening is always possible — a closed day is a note, not a lock.
  */
-export function CloseDay({ date, now }: { date: string; now: number }) {
+export function CloseDay({ date, now, className }: { date: string; now: number; className?: string }) {
   const tasks = useStore((s) => s.tasks);
   const habits = useStore((s) => s.habits);
   const habitLogs = useStore((s) => s.habitLogs);
@@ -93,7 +93,7 @@ export function CloseDay({ date, now }: { date: string; now: number }) {
   return (
     <>
       {closedAt ? (
-        <div className="flex items-center gap-1">
+        <div className={cn("flex items-center gap-1", className)}>
           <span className="inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-[12px] text-ink-3 tnum">
             <Check className="size-3.5 text-success" aria-hidden />
             Closed
@@ -105,7 +105,7 @@ export function CloseDay({ date, now }: { date: string; now: number }) {
           </Button>
         </div>
       ) : (
-        <Button size="sm" variant="ghost" className="text-ink-3" onClick={start}>
+        <Button size="sm" variant="ghost" className={cn("text-ink-3", className)} onClick={start}>
           <Moon className="size-3.5" />
           Close the day
         </Button>

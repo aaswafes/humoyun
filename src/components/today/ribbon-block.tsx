@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 import { formatDuration, formatTime } from "@/lib/date";
 import type { Task } from "@/lib/types";
+import { TOUCH_LIFT_DELAY } from "@/components/ui/drag";
 import type { Range } from "./day-math";
 
 // =========================================================
@@ -17,6 +18,13 @@ import type { Range } from "./day-math";
 // The edges are also the reason the block stopped being `aria-hidden`. A thing
 // you can change has to be reachable: each handle is a real slider with the
 // arrow keys wired to the same five minutes the pointer snaps to.
+//
+// A finger has to hold an edge before it moves. On a phone the ribbon gives a
+// block about twenty pixels an hour, so the two grab strips cover most of
+// every block — strips that answered at once (they used to be touch-none)
+// turned any swipe across the ribbon into a resize and stopped the page
+// scrolling under it. Held, the edge is grabbed; swiped, the page scrolls;
+// tapped, the block opens, as tapping the block itself does.
 // =========================================================
 
 /** Nothing on a day plan is usefully shorter than this. */
@@ -30,11 +38,35 @@ const KEY_STEP_BIG = 30;
 /** How wide the grab strip at each end is, in pixels. */
 const HANDLE_W = 9;
 
+/** How far a finger may wander while holding an edge before it counts as a scroll. */
+const HOLD_SLOP = 6;
+
+/**
+ * Below this share of the ribbon (~40px on the narrowest phone) a title shows
+ * as one stray letter, so on a phone the block is just its colour. The Timed
+ * list below says the same thing in full.
+ */
+const PHONE_TITLE_MIN = 12;
+
 const DAY = 24 * 60;
 
 type Side = "start" | "end";
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+// iOS only lets a touchmove listener that is added mid-gesture stop the page
+// scrolling if a non-passive one was already on the window when the finger
+// came down. One shared no-op, held for as long as any block is on screen.
+let gateHolders = 0;
+const noop = () => {};
+function useTouchMoveGate() {
+  React.useEffect(() => {
+    if (gateHolders++ === 0) window.addEventListener("touchmove", noop, { passive: false });
+    return () => {
+      if (--gateHolders === 0) window.removeEventListener("touchmove", noop);
+    };
+  }, []);
+}
 
 export function RibbonBlock({
   task, range, lane, laneH, laneGap, rangeStart, rangeEnd, hour12,
@@ -58,6 +90,19 @@ export function RibbonBlock({
   // The pointer moves faster than React commits, so the value that gets written
   // on pointerup is read from here rather than from state.
   const latest = React.useRef<Range | null>(null);
+  // A finger holding (or already moving) an edge: how to let go of it.
+  const holding = React.useRef<(() => void) | null>(null);
+  // Set when a finger tapped an edge without holding it. The block opens from
+  // the click that follows, not from the pointerup: opened any earlier, the
+  // inspector is already on screen when iOS delivers that click, and it lands
+  // on the inspector's backdrop and closes it again.
+  const tapped = React.useRef(false);
+
+  useTouchMoveGate();
+  React.useEffect(() => {
+    const release = holding;
+    return () => release.current?.();
+  }, []);
 
   const span = rangeEnd - rangeStart;
   const live = draft ?? range;
@@ -74,8 +119,91 @@ export function RibbonBlock({
     if (next.start !== range.start || next.end !== range.end) onCommit(task, next.start, next.end);
   };
 
+  /** The shape an edge drag of `dx` pixels gives the block, snapped. */
+  const reshape = (base: Range, side: Side, dx: number, trackWidth: number, step: number): Range => {
+    const delta = Math.round(((dx / trackWidth) * span) / step) * step;
+    return side === "start"
+      ? { start: clamp(base.start + delta, 0, base.end - MIN_BLOCK), end: base.end }
+      : { start: base.start, end: clamp(base.end + delta, base.start + MIN_BLOCK, DAY) };
+  };
+
+  /**
+   * A finger or a pen: nothing happens until it has held still for the same
+   * beat that lifts a card anywhere else in the app. Moving first is a
+   * scroll and is left alone; lifting first is a tap, and opens the block.
+   */
+  const holdToResize = (e: React.PointerEvent, side: Side) => {
+    if (holding.current || !e.isPrimary) return;
+    e.stopPropagation();
+    const track = trackRef.current;
+    if (!track) return;
+
+    const pointerId = e.pointerId;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const base: Range = { start: range.start, end: range.end };
+    let active = false;
+    let trackWidth = 0;
+    let timer = 0;
+
+    // While an edge is moving the page must hold still under the finger.
+    const pin = (ev: TouchEvent) => { if (active && ev.cancelable) ev.preventDefault(); };
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      if (!active) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > HOLD_SLOP) finish(false);
+        return;
+      }
+      const next = reshape(base, side, ev.clientX - startX, trackWidth, SNAP);
+      latest.current = next;
+      setDraft(next);
+    };
+
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      tapped.current = !active;
+      finish(true);
+    };
+
+    // The browser took the gesture for a scroll: nothing was meant.
+    const cancel = (ev: PointerEvent) => { if (ev.pointerId === pointerId) finish(false); };
+
+    function finish(commit: boolean) {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("touchmove", pin);
+      holding.current = null;
+      if (!active) return;
+      const next = latest.current;
+      setDraft(null);
+      setGrabbing(null);
+      if (commit && next && (next.start !== base.start || next.end !== base.end)) {
+        onCommit(task, next.start, next.end);
+      }
+    }
+
+    timer = window.setTimeout(() => {
+      trackWidth = track.getBoundingClientRect().width;
+      if (!trackWidth) { finish(false); return; }
+      active = true;
+      latest.current = base;
+      setGrabbing(side);
+    }, TOUCH_LIFT_DELAY);
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("touchmove", pin, { passive: false });
+    holding.current = () => finish(false);
+  };
+
   const beginResize = (e: React.PointerEvent, side: Side) => {
     if (e.button !== 0) return;
+    tapped.current = false;
+    if (e.pointerType !== "mouse") { holdToResize(e, side); return; }
     e.preventDefault();
     e.stopPropagation();
     const track = trackRef.current;
@@ -89,12 +217,7 @@ export function RibbonBlock({
     setGrabbing(side);
 
     const move = (ev: PointerEvent) => {
-      const minutes = ((ev.clientX - startX) / width) * span;
-      const step = ev.altKey ? 1 : SNAP;
-      const delta = Math.round(minutes / step) * step;
-      const next: Range = side === "start"
-        ? { start: clamp(base.start + delta, 0, base.end - MIN_BLOCK), end: base.end }
-        : { start: base.start, end: clamp(base.end + delta, base.start + MIN_BLOCK, DAY) };
+      const next = reshape(base, side, ev.clientX - startX, width, ev.altKey ? 1 : SNAP);
       latest.current = next;
       setDraft(next);
     };
@@ -129,13 +252,15 @@ export function RibbonBlock({
       aria-valuenow={side === "start" ? live.start : live.end}
       aria-valuetext={formatTime(side === "start" ? live.start : live.end, hour12)}
       onPointerDown={(e) => beginResize(e, side)}
+      // Only ever true after a finger's tap; a mouse click on an edge still does nothing.
+      onClick={() => { if (tapped.current) { tapped.current = false; onOpen(task); } }}
       onKeyDown={(e) => {
         const step = e.shiftKey ? KEY_STEP_BIG : KEY_STEP;
         if (e.key === "ArrowLeft") { e.preventDefault(); nudge(side, -step); }
         else if (e.key === "ArrowRight") { e.preventDefault(); nudge(side, step); }
       }}
       className={cn(
-        "absolute inset-y-0 z-10 cursor-ew-resize touch-none",
+        "absolute inset-y-0 z-10 cursor-ew-resize",
         // The visible mark is thin; the grab strip around it is not.
         "before:absolute before:inset-y-[2px] before:w-[3px] before:rounded-full",
         "before:bg-[var(--tint-ink)] before:opacity-0 before:transition-opacity before:duration-150",
@@ -154,6 +279,8 @@ export function RibbonBlock({
       title={`${title} · ${clock} · ${formatDuration(length)}`}
       className={cn(
         "group/block absolute rounded-[4px] text-[10.5px] font-medium leading-[14px]",
+        // Holding an edge is exactly the press iOS would spend on the loupe.
+        "touch:select-none touch:[-webkit-touch-callout:none]",
         task.color ? `tint-${task.color}` : "tint-slate",
         done && "opacity-55",
         grabbing && "z-20",
@@ -174,7 +301,9 @@ export function RibbonBlock({
         aria-label={`${title}, ${clock}, ${formatDuration(length)} — open it`}
         className="block size-full cursor-pointer overflow-hidden whitespace-nowrap px-1 text-left"
       >
-        {laneH >= 16 ? title : ""}
+        {laneH >= 16 ? (
+          <span className={cn(width < PHONE_TITLE_MIN && "max-md:hidden")}>{title}</span>
+        ) : ""}
       </button>
 
       {handle("start")}

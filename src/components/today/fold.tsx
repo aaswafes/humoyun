@@ -81,6 +81,10 @@ export function Fold({
           className={cn(
             "group -mx-2 flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left",
             "cursor-pointer transition-colors duration-150 ease-[var(--ease-out-apple)] hover:bg-hover",
+            // The whole row is the target, so on touch the row is a fingertip
+            // tall — and below md it may take a second line (below), so there
+            // its height follows the content.
+            "touch:h-auto touch:min-h-11 max-md:h-auto max-md:py-1.5",
           )}
         >
           <ChevronRight
@@ -92,10 +96,15 @@ export function Fold({
             )}
           />
           {Icon && <Icon className="size-3.5 shrink-0 text-ink-4" />}
-          <span className="shrink-0 text-[12.5px] font-medium text-ink-2">{title}</span>
-          {!open && summary && (
-            <span className="min-w-0 truncate text-[12.5px] text-ink-3 tnum">{summary}</span>
-          )}
+          {/* On a phone a summary that does not fit beside the title drops
+              under it rather than losing its end — "over by 3h" is the part of
+              Plan the day's line that matters, and it is the part cut first. */}
+          <span className="flex min-w-0 items-center gap-1.5 max-md:flex-wrap max-md:gap-y-0">
+            <span className="shrink-0 text-[12.5px] font-medium text-ink-2">{title}</span>
+            {!open && summary && (
+              <span className="min-w-0 truncate text-[12.5px] text-ink-3 tnum max-md:whitespace-normal">{summary}</span>
+            )}
+          </span>
         </button>
         {accessory && <div className="flex shrink-0 items-center gap-1">{accessory}</div>}
       </div>
