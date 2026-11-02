@@ -123,11 +123,21 @@ export function TimesCalendar({ today, hijriOffset }: { today: string; hijriOffs
         {methodLabel} · {config.madhab === "hanafi" ? "Hanafi" : "Shafi'i"} asr · calculated on this device
       </p>
 
-      <div className="mt-3 overflow-x-auto">
+      {/* A month of six times is genuinely a table, so on a phone it scrolls
+          sideways inside its own box — and the Day column stays pinned, or
+          by Isha you no longer know which row is which day. */}
+      <div className="mt-3 overflow-x-auto overscroll-x-contain">
         <table className="w-full min-w-[520px] border-collapse text-[12px]">
           <thead>
             <tr className="hairline-b">
-              <th scope="col" className="py-1.5 pr-2 text-left text-[11px] font-medium text-ink-4">
+              <th
+                scope="col"
+                className={cn(
+                  "py-1.5 pr-2 text-left text-[11px] font-medium text-ink-4",
+                  "max-md:sticky max-md:left-0 max-md:z-[1] max-md:bg-canvas",
+                  "max-md:shadow-[inset_-1px_0_0_var(--line),inset_0_-1px_0_var(--line)]",
+                )}
+              >
                 Day
               </th>
               <th scope="col" className="py-1.5 pr-2 text-left text-[11px] font-medium text-ink-4">
@@ -160,11 +170,23 @@ export function TimesCalendar({ today, hijriOffset }: { today: string; hijriOffs
                     className={cn(
                       "whitespace-nowrap py-1 pr-2 text-left font-medium",
                       isToday ? "text-ink" : row.friday ? "text-ink-2" : "text-ink-3",
+                      // Pinned, the cell needs its own ground; today's row
+                      // tint is laid over it so the highlight stays one band.
+                      "max-md:sticky max-md:left-0 max-md:z-[1] max-md:bg-canvas",
+                      isToday
+                        ? "max-md:shadow-[inset_-1px_0_0_var(--line),inset_0_0_0_999px_var(--selected)]"
+                        : "max-md:shadow-[inset_-1px_0_0_var(--line)]",
                     )}
                   >
                     <span className="tnum">{String(dayNumber(row.date)).padStart(2, "0")}</span>{" "}
                     <span className="text-ink-3">{dayNameOf(weekday(row.date), "short")}</span>
-                    {row.friday && <span className="ml-1 text-[10.5px] text-ink-4">Jumu&rsquo;ah</span>}
+                    {/* Inline it set the pinned column's width for all 31
+                        rows; under the day it costs only the Fridays a line. */}
+                    {row.friday && (
+                      <span className="ml-1 text-[10.5px] text-ink-4 max-md:ml-0 max-md:block max-md:leading-tight">
+                        Jumu&rsquo;ah
+                      </span>
+                    )}
                   </th>
                   <td className="tnum whitespace-nowrap py-1 pr-2 text-left text-[11.5px] text-ink-3">
                     {row.hijri}
@@ -207,6 +229,9 @@ export function TimesCalendar({ today, hijriOffset }: { today: string; hijriOffs
             className={cn(
               "mt-3 h-[320px] w-full resize-none rounded-lg border border-line bg-sunken p-3",
               "font-mono text-[11.5px] leading-relaxed text-ink-2",
+              // Touch fields are 16px (globals.css), at which the aligned
+              // columns wrapped into nonsense; unwrapped, they scroll sideways.
+              "touch:whitespace-pre",
               "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft",
             )}
           />

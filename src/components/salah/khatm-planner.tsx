@@ -24,6 +24,14 @@ const JUZ_PRESETS = [
 ];
 const PAGE_PRESETS = [4, 10, 20, 40];
 
+/**
+ * A phone's dialog is ~265px inside at its narrowest, and four presets at
+ * their desktop padding are ~290px: the last one was cut off. There they span
+ * the row and share it by content, with tighter padding.
+ */
+const FILL_ON_PHONE =
+  "max-md:flex max-md:w-full max-md:[&>button]:flex-auto max-md:[&>button]:px-1.5";
+
 const clampInt = (raw: string, min: number, max: number, fallback: number) => {
   const value = Math.round(Number(raw));
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
@@ -89,7 +97,10 @@ export function KhatmPlanner({
 
   return (
     <Modal open onClose={onClose} title="Plan a khatm" width={480}>
-      <div className="max-h-[74vh] overflow-y-auto p-5">
+      {/* On a phone the Modal already scrolls within what is visible above
+          the keyboard; a second scroller inside it made two nested scrolls,
+          and Safari's vh is the large viewport besides. */}
+      <div className="max-h-[74dvh] overflow-y-auto p-5 max-md:max-h-none max-md:overflow-visible">
         <p className="text-[13px] leading-relaxed text-ink-2">
           A khatm is {KHATM_PAGES} pages, thirty juz. Choose how you want to carve it up and every
           reading day is scheduled as a task carrying its own page range.
@@ -98,7 +109,7 @@ export function KhatmPlanner({
         <div className="mt-5">
           <SectionLabel>Plan by</SectionLabel>
           <Segmented
-            className="mt-2"
+            className={cn("mt-2", FILL_ON_PHONE)}
             value={mode}
             onChange={setMode}
             options={[
@@ -112,6 +123,7 @@ export function KhatmPlanner({
         {mode === "days" && (
           <div className="mt-4 flex flex-wrap items-end gap-2">
             <Segmented
+              className={FILL_ON_PHONE}
               value={daysText}
               onChange={setDaysText}
               options={DAY_PRESETS.map((d) => ({ value: String(d), label: `${d} days` }))}
@@ -121,6 +133,8 @@ export function KhatmPlanner({
                 <Input
                   {...props}
                   type="number"
+                  // The digit pad on iOS, not the full keyboard's number row.
+                  inputMode="numeric"
                   min={1}
                   max={365}
                   value={daysText}
@@ -135,6 +149,7 @@ export function KhatmPlanner({
         {mode === "juz" && (
           <div className="mt-4">
             <Segmented
+              className={FILL_ON_PHONE}
               value={juzText}
               onChange={setJuzText}
               options={JUZ_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
@@ -149,6 +164,7 @@ export function KhatmPlanner({
         {mode === "pages" && (
           <div className="mt-4 flex flex-wrap items-end gap-2">
             <Segmented
+              className={FILL_ON_PHONE}
               value={pagesText}
               onChange={setPagesText}
               options={PAGE_PRESETS.map((p) => ({ value: String(p), label: `${p} pages` }))}
@@ -158,6 +174,7 @@ export function KhatmPlanner({
                 <Input
                   {...props}
                   type="number"
+                  inputMode="numeric"
                   min={1}
                   max={KHATM_PAGES}
                   value={pagesText}
@@ -178,6 +195,7 @@ export function KhatmPlanner({
               <Input
                 {...props}
                 type="number"
+                inputMode="numeric"
                 min={1}
                 max={KHATM_PAGES}
                 value={startPageText}
@@ -202,6 +220,7 @@ export function KhatmPlanner({
                     onClick={() => setSkip(off ? skip.filter((d) => d !== index) : [...skip, index])}
                     className={cn(
                       "h-7 flex-1 cursor-pointer rounded-md border text-[11.5px] font-medium",
+                      "touch:h-10 touch:text-[13px]",
                       "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-apple)]",
                       off
                         ? "border-transparent bg-hover text-ink-4 line-through"

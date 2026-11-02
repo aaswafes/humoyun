@@ -12,7 +12,9 @@ import { qiblaBearing } from "./qibla";
 import { TimesCalendar } from "./times-calendar";
 import type { TimesTriple } from "./windows";
 
-const RAIL = "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
+// minmax(0,1fr) below lg so the times table scrolls inside its own box
+// instead of widening the page to fit it.
+const RAIL = "grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
 
 /**
  * Rhythm — the shape of a week or a month, then what slips and when.

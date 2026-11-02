@@ -271,8 +271,10 @@ function SetModal({
           <ul className="space-y-1.5">
             {entries.map((entry, index) => (
               <li key={index} className="flex items-center gap-2">
+                {/* Level with the count field beside it, which is 40px and
+                    16px type on touch. */}
                 <Select
-                  className="min-w-0 flex-1"
+                  className="min-w-0 flex-1 touch:h-10 touch:text-[15px]"
                   size="sm"
                   value={entry.zikrId}
                   options={options}

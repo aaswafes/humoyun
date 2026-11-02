@@ -44,7 +44,9 @@ export function ZikrBoard({
       {sets.length > 0 && (
         <section>
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Sets</p>
-          <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+          {/* grid-cols-1, not the implicit auto column: auto grows to fit the
+              nowrap make-up line and pushed the tiles out past the card. */}
+          <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {sets.map((set) => (
               <PressTile
                 key={set.id}
@@ -55,7 +57,9 @@ export function ZikrBoard({
                 onPress={() => onPressSet(set)}
               />
             ))}
-            <GhostTile label="Add set" onClick={onAddSet} />
+            {/* Sets stay one to a row on a phone so their make-up reads in
+                full, which leaves this alone in its row — no need for 84px. */}
+            <GhostTile label="Add set" onClick={onAddSet} className="max-sm:min-h-11" />
           </div>
         </section>
       )}
@@ -64,7 +68,9 @@ export function ZikrBoard({
         {sets.length > 0 && (
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">Zikr</p>
         )}
-        <div className={cn("grid gap-2 sm:grid-cols-3", sets.length > 0 && "mt-2.5")}>
+        {/* Two across on a phone: every button stays a big thumb target and
+            the whole board fits on one screen instead of a column to scroll. */}
+        <div className={cn("grid grid-cols-2 gap-2 sm:grid-cols-3", sets.length > 0 && "mt-2.5")}>
           {items.map((item) => (
             <PressTile
               key={item.id}
@@ -117,21 +123,26 @@ function PressTile({
         "flex min-h-[84px] cursor-pointer flex-col justify-between rounded-lg p-3 text-left",
         "transition-transform duration-150 ease-[var(--ease-out-apple)] active:scale-[0.97]",
         "hover:brightness-[0.98] dark:hover:brightness-110",
+        // Pressed over and over by a thumb; a press held a beat too long must
+        // not start a text selection or raise the iOS callout over the board.
+        "touch:select-none touch:[-webkit-touch-callout:none]",
       )}
       style={{ background: "var(--tint-soft)" }}
     >
       <span className="text-[13px] font-medium leading-snug text-ink">{label}</span>
-      <span className="flex items-baseline justify-between gap-2">
+      {/* On a phone a set's make-up drops under its number when the two do
+          not fit side by side, rather than being cut off mid-name. */}
+      <span className="flex items-baseline justify-between gap-2 max-sm:flex-wrap max-sm:gap-y-0.5">
         <span className="tnum text-[17px] font-semibold" style={{ color: "var(--tint-ink)" }}>
           +{groupNumber(amount)}
         </span>
-        {note && <span className="min-w-0 truncate text-[11px] text-ink-3">{note}</span>}
+        {note && <span className="min-w-0 truncate text-[11px] text-ink-3 max-sm:whitespace-normal">{note}</span>}
       </span>
     </button>
   );
 }
 
-function GhostTile({ label, onClick }: { label: string; onClick: () => void }) {
+function GhostTile({ label, onClick, className }: { label: string; onClick: () => void; className?: string }) {
   return (
     <button
       type="button"
@@ -140,6 +151,7 @@ function GhostTile({ label, onClick }: { label: string; onClick: () => void }) {
         "flex min-h-[84px] cursor-pointer items-center justify-center gap-1.5 rounded-lg",
         "border border-dashed border-line text-[12.5px] text-ink-3",
         "transition-colors duration-150 ease-[var(--ease-out-apple)] hover:border-line-strong hover:text-ink-2",
+        className,
       )}
     >
       <Plus aria-hidden className="size-3.5" />
@@ -172,7 +184,9 @@ export function ZikrToday({
   }
 
   return (
-    <ul className="flex flex-wrap gap-1.5">
+    // On touch each minus borrows 10px of press area; chips 6px apart let it
+    // reach the next chip, so a tap on that one's name took 33 off this one.
+    <ul className="flex flex-wrap gap-1.5 touch:gap-2.5">
       {rows.map(({ item, count }) => (
         <li
           key={item.id}

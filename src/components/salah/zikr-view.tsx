@@ -14,7 +14,9 @@ import { buzz, useZikrLog, useZikrPrefs } from "./zikr-prefs";
 import { ZikrLifetime, ZikrReport } from "./zikr-report";
 import { buildZikrStats } from "./zikr-stats";
 
-const RAIL = "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
+// minmax(0,1fr) below lg so the year heatmap scrolls inside its own box
+// instead of widening the page to fit it.
+const RAIL = "grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
 
 /**
  * Zikr.
@@ -68,7 +70,9 @@ export function ZikrView({ today }: { today: string }) {
       <div className="flex flex-col gap-6">
         <section className="surface p-5">
           <header className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-0.5">
+            {/* touch:gap-2.5 is exactly the arrows' borrowed 10px, so on a
+                phone their press areas meet the date's instead of covering it. */}
+            <div className="flex min-w-0 items-center gap-0.5 touch:gap-2.5">
               <IconButton label="Previous day" size="sm" onClick={() => setDate(addDays(date, -1))}>
                 <ChevronLeft />
               </IconButton>
@@ -77,7 +81,8 @@ export function ZikrView({ today }: { today: string }) {
                 onClick={() => setDate(today)}
                 title={isToday ? formatDate(date, { weekday: true }) : "Back to today"}
                 className={cn(
-                  "h-7 rounded-md px-1.5 text-[13.5px] font-medium cursor-pointer transition-colors",
+                  "relative h-7 rounded-md px-1.5 text-[13.5px] font-medium cursor-pointer transition-colors",
+                  "touch-hit [--touch-hit:-8px_0px]",
                   isToday ? "text-ink" : "text-ink hover:bg-hover",
                 )}
               >

@@ -210,7 +210,7 @@ function DayDetail({
   return (
     <div className="anim-fade mt-3 rounded-lg bg-sunken p-3">
       <p className="text-[12px] font-medium text-ink-2">{formatDate(date, { year: true })}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5 touch:gap-2">
         {PRAYER_NAMES.map((name) => {
           const status = statusAt(index, date, name);
           return (
@@ -221,6 +221,7 @@ function DayDetail({
               aria-label={`${PRAYER_LABELS[name]} on ${formatDate(date)}, ${PRAYER_STATE[status].label}. Activate to cycle.`}
               className={cn(
                 "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-line px-2 text-[11.5px]",
+                "touch:h-10 touch:px-3 touch:text-[13px]",
                 "transition-[background-color,border-color,transform] duration-150 ease-[var(--ease-out-apple)]",
                 "hover:border-line-strong active:scale-[0.97]",
               )}

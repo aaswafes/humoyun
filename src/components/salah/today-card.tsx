@@ -161,7 +161,7 @@ export function TodayCard({
           aria-pressed={showSunnah}
           onClick={onToggleSunnah}
           className={cn(
-            "h-7 cursor-pointer rounded-full border px-2.5 text-[11.5px] font-medium",
+            "relative h-7 cursor-pointer rounded-full border px-2.5 text-[11.5px] font-medium touch-hit",
             "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-apple)]",
             showSunnah
               ? "border-transparent bg-selected text-ink"
@@ -206,7 +206,8 @@ export function TodayCard({
                   aria-checked={ticked}
                   onClick={() => toggleNafl(row.def.id)}
                   className={cn(
-                    "flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-1.5 text-left",
+                    // The row is the target, so on touch it grows to a fingertip.
+                    "flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-1.5 text-left touch:min-h-11",
                     "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
                     "hover:bg-hover active:scale-[0.99]",
                   )}
@@ -223,9 +224,14 @@ export function TodayCard({
                   >
                     {ticked ? <Check className="size-3 stroke-[2.75]" /> : <Icon className="size-3" />}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-[12px]">
+                  {/* A phone cannot fit the detail on the name's line; it gets
+                      a line of its own there instead of an ellipsis. */}
+                  <span className="min-w-0 flex-1 truncate text-[12px] max-md:whitespace-normal">
                     <span className={ticked ? "text-ink-2" : "text-ink-3"}>{row.def.label}</span>
-                    <span className="text-ink-4"> · {row.def.rakat} · {row.def.detail}</span>
+                    <span className="text-ink-4"> · {row.def.rakat}</span>
+                    <span className="text-ink-4 max-md:block">
+                      <span className="max-md:hidden"> · </span>{row.def.detail}
+                    </span>
                   </span>
                   <span className="tnum shrink-0 text-[12px] text-ink-4">{formatTime(row.min, hour12)}</span>
                 </button>

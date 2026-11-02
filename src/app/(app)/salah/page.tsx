@@ -26,7 +26,10 @@ const VIEWS: { value: View; label: string; title: string }[] = [
   { value: "zikr", label: "Zikr", title: "The counter, what this hour asks for, and a lifetime of counts" },
 ];
 
-const RAIL = "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
+// The one column below lg is minmax(0,1fr), not the implicit auto: an auto
+// track grows to the widest nowrap line inside it (a sunnah row, the times
+// table), and on a phone that pushed the whole page past the screen edge.
+const RAIL = "grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
 
 export default function SalahPage() {
   const ready = useStore((s) => s.ready);
@@ -71,11 +74,15 @@ export default function SalahPage() {
         title="Salah"
         subtitle={next ? <HeaderStatus open={open} next={next} /> : undefined}
       >
+        {/* The four views are this section's navigation, so on a phone they
+            span the row like an iOS segmented control: thumb-sized, and
+            "Zikr" no longer a 38px sliver at the end. */}
         <Segmented
           size="sm"
           value={view}
           onChange={setView}
           options={VIEWS.map((v) => ({ value: v.value, label: v.label, title: v.title }))}
+          className="max-md:flex max-md:w-full max-md:[&>button]:h-7 max-md:[&>button]:flex-1 max-md:[&>button]:text-[13px] touch:[&>button]:min-w-10"
         />
       </PageHeader>
 

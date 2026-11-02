@@ -168,7 +168,12 @@ export function StatusPicker({
   className?: string;
 }) {
   return (
-    <div role="group" aria-label={`${label} status`} className={cn("flex flex-wrap gap-1", className)}>
+    // Six pills wrapped 2-3-1 on a phone; two even columns read as one control.
+    <div
+      role="group"
+      aria-label={`${label} status`}
+      className={cn("flex flex-wrap gap-1 touch:gap-2 max-sm:grid max-sm:grid-cols-2", className)}
+    >
       {ALL_STATUSES.map((option) => {
         const state = PRAYER_STATE[option];
         const active = option === status;
@@ -181,6 +186,9 @@ export function StatusPicker({
             title={state.meaning}
             className={cn(
               "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border px-2 text-[11.5px] font-medium",
+              // Wrapped pills sit 4px apart, too close to borrow a touch-hit
+              // without it landing on the neighbour, so on touch they grow.
+              "touch:h-10 touch:px-3 touch:text-[13px] max-sm:justify-center max-sm:whitespace-nowrap",
               "transition-[background-color,border-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
               "active:scale-[0.97]",
               active

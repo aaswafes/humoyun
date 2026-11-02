@@ -39,10 +39,14 @@ export function JuzGrid({
         role="group"
         aria-label="Progress by juz"
         aria-describedby={summaryId}
-        className="mt-2 grid grid-cols-10 gap-1"
+        // Ten across is a third of the mushaf per row. A phone has room for
+        // five thumb-sized cells, so a third becomes two rows, and the rows
+        // that open a new third stand a little apart to keep that reading.
+        className="mt-2 grid grid-cols-10 gap-1 max-md:grid-cols-5"
       >
         {cells.map((cell) => {
           const isSelected = cell.juz === selected.juz;
+          const opensThird = cell.juz > 10 && (cell.juz - 1) % 10 < 5;
           return (
             <button
               key={cell.juz}
@@ -51,8 +55,9 @@ export function JuzGrid({
               aria-label={`Juz ${cell.juz}, pages ${cell.from} to ${cell.to}, ${cell.pagesDone} of ${cell.pages} pages read`}
               onClick={() => setPicked(cell.juz)}
               className={cn(
-                "relative grid h-8 cursor-pointer place-items-center overflow-hidden rounded-md bg-hover",
+                "relative grid h-8 cursor-pointer place-items-center overflow-hidden rounded-md bg-hover touch:h-10",
                 "transition-[box-shadow,transform] duration-150 ease-[var(--ease-out-apple)] active:scale-95",
+                opensThird && "max-md:mt-1.5",
                 isSelected && "ring-2 ring-accent-line",
               )}
             >

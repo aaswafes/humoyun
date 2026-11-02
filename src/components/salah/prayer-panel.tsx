@@ -32,7 +32,9 @@ export function TickRow({
       aria-checked={checked}
       onClick={onToggle}
       className={cn(
-        "flex min-h-[28px] w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left",
+        // The row is the target, so on touch it grows rather than borrowing
+        // an invisible margin from the row beneath it.
+        "flex min-h-[28px] w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left touch:min-h-11",
         "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)] active:scale-[0.99]",
         "hover:bg-hover",
         className,

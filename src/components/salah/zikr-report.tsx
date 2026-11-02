@@ -86,9 +86,13 @@ export function ZikrReport({
           onChange={(next) => { setPeriod(next); setOffset(0); setShown(HISTORY_PAGE); }}
           options={PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p] }))}
         />
-        <p className="min-w-0 flex-1 truncate text-[12.5px] text-ink-3">{range.label}</p>
+        {/* Beside four segments and two arrows a phone has ~60px left for the
+            range, so there it takes its own line under the controls. */}
+        <p className="min-w-0 flex-1 truncate text-[12.5px] text-ink-3 max-sm:order-last max-sm:basis-full">
+          {range.label}
+        </p>
         {period !== "all" && (
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 max-sm:ml-auto">
             <IconButton label="Previous" onClick={() => setOffset(offset - 1)}>
               <ChevronLeft />
             </IconButton>
@@ -279,8 +283,19 @@ function Heatmap({
   return (
     <section className="hairline-t mt-6 pt-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">The last year</p>
-      <div className="mt-3 overflow-x-auto pb-1">
-        <div className="flex min-w-[560px] gap-[3px]" role="img" aria-describedby={summaryId}>
+      {/* A year is wider than a phone or an iPad's column, so it scrolls
+          inside its own box. RTL on that box makes the scroll start at the
+          right-hand end — this week, not last November — with the weeks inside
+          still left to right. The strip is exactly as wide as its weeks there
+          (w-max): anything past its right edge would sit on RTL's unscrollable
+          side. The page body's 1120px cap keeps the column narrower than the
+          year, so the strip never ends up right-aligned instead. */}
+      <div className="mt-3 overflow-x-auto overscroll-x-contain pb-1 max-md:[direction:rtl] touch:[direction:rtl]">
+        <div
+          className="flex min-w-[560px] gap-[3px] max-md:w-max max-md:[direction:ltr] touch:w-max touch:[direction:ltr]"
+          role="img"
+          aria-describedby={summaryId}
+        >
           {grid.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-[3px]">
               {week.days.map((day, di) => (

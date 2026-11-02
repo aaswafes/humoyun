@@ -64,8 +64,12 @@ export function MonthGrid({ today }: { today: string }) {
         </IconButton>
       </header>
 
-      <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-[208px_minmax(0,1fr)]">
-        <div className="w-full max-w-[208px]">
+      {/* Stacked on a phone the grid takes the full width, so each square is
+          a thumb's width instead of 37px. An iPad keeps the side-by-side
+          layout but, below lg (where the grid is not squeezed into the rail),
+          gives it 24px more so a square is 41px across. */}
+      <div className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-[208px_minmax(0,1fr)] touch:sm:max-lg:grid-cols-[232px_minmax(0,1fr)]">
+        <div className="w-full max-w-[208px] max-sm:max-w-none touch:sm:max-lg:max-w-[232px]">
           <div className={cn("grid pb-1.5", COLUMNS)}>
             <span />
             {PRAYER_NAMES.map((name) => (
@@ -106,7 +110,9 @@ export function MonthGrid({ today }: { today: string }) {
                       title={`${PRAYER_LABELS[name]} · ${formatDate(day)} · ${PRAYER_STATE[status].label}`}
                       aria-label={`${PRAYER_LABELS[name]} on ${formatDate(day)}, ${PRAYER_STATE[status].label}`}
                       className={cn(
-                        "grid h-7 cursor-pointer place-items-center rounded-md",
+                        // Rows sit flush, so a borrowed touch-hit would land
+                        // on the next day — the square itself grows instead.
+                        "grid h-7 cursor-pointer place-items-center rounded-md touch:h-10",
                         "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
                         "hover:bg-hover active:scale-90 disabled:pointer-events-none",
                       )}
@@ -120,8 +126,10 @@ export function MonthGrid({ today }: { today: string }) {
           })}
         </div>
 
-        {/* One number, then the same month in words. Never both twice over. */}
-        <div className="min-w-0">
+        {/* One number, then the same month in words. Never both twice over.
+            Stacked, it comes first: the month's answer and the legend belong
+            above thirty-one rows of squares, not after them. */}
+        <div className="min-w-0 max-sm:order-first">
           <p className="display-serif tnum text-[32px] leading-none text-ink">
             {rate === null ? "—" : `${rate}%`}
           </p>

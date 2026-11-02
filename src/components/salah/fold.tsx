@@ -115,7 +115,14 @@ export function Fold({
             <span className={cn("font-medium", sub ? "text-[12.5px] text-ink-2" : "text-[13px] text-ink")}>
               {title}
             </span>
-            <span className={cn("min-w-0 truncate", sub ? "text-[11.5px] text-ink-4" : "text-[12px] text-ink-3")}>
+            {/* The summary is what makes a closed fold worth opening; on a
+                phone it wraps rather than losing its last fact to an ellipsis. */}
+            <span
+              className={cn(
+                "min-w-0 truncate max-md:whitespace-normal",
+                sub ? "text-[11.5px] text-ink-4" : "text-[12px] text-ink-3",
+              )}
+            >
               {summary}
             </span>
           </span>
