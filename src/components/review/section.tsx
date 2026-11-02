@@ -135,7 +135,7 @@ export function Fold({
         aria-expanded={open}
         aria-controls={panelId}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left cursor-pointer",
+          "flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left cursor-pointer touch:py-3",
           "transition-colors duration-150 ease-[var(--ease-out-apple)] hover:bg-hover",
         )}
       >

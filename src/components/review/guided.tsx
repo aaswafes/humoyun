@@ -47,7 +47,7 @@ export function Guided({
             aria-current={i === clamped ? "step" : undefined}
             aria-label={`Step ${i + 1} of ${steps.length}: ${s.label}${s.done ? " — done" : ""}`}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium cursor-pointer",
+              "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium touch:h-9 cursor-pointer",
               "transition-[background-color,color] duration-150 ease-[var(--ease-out-apple)]",
               // The accent is spent on the one action and the one selection
               // further down the page, so the current step is marked by fill.

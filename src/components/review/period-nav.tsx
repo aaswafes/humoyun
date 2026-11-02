@@ -42,7 +42,7 @@ export function PeriodNav({
             aria-haspopup="dialog"
             aria-expanded={open}
             className={
-              "inline-flex h-7 min-w-[112px] items-center justify-center gap-1.5 rounded-md px-2 " +
+              "inline-flex h-7 min-w-[112px] items-center justify-center gap-1.5 rounded-md px-2 touch:h-9 " +
               "text-[13px] font-medium text-ink tnum cursor-pointer hover:bg-hover " +
               "transition-colors duration-150"
             }
