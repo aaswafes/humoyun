@@ -75,7 +75,7 @@ export function YoutubeInsights({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
         className={cn(
-          "-mx-1 flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-1 py-2 text-left",
+          "-mx-1 flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-1 py-2 touch:py-3 text-left",
           "transition-colors duration-150 hover:bg-hover",
         )}
       >

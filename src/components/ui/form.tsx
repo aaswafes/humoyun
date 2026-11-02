@@ -123,6 +123,8 @@ export function Select<T extends string>({
             "hover:border-line-strong focus-visible:border-accent disabled:pointer-events-none disabled:opacity-40",
             invalid && "border-danger",
             size === "sm" ? "h-7 text-[12.5px]" : "h-8 text-[13px]",
+            // The one dropdown in the app; on touch it is a thumb-sized field.
+            "touch:h-10 touch:text-[15px]",
             className,
           )}
         >

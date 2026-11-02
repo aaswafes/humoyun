@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor,
-  closestCorners, pointerWithin, useDraggable, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay,
+  closestCorners, pointerWithin, useDraggable, useDroppable,
   type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { useDragBody } from "@/components/ui/drag";
+import { DRAG_BODY_CLASS, useAppSensors, useDragBody } from "@/components/ui/drag";
 
 // =========================================================
 // Dragging a card from one shelf to another.
@@ -60,10 +60,8 @@ export function ShelfDnd({
 }) {
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // Mouse by distance, finger by a short hold (a swipe still scrolls the shelf).
+  const sensors = useAppSensors({ distance: 5, coordinateGetter: sortableKeyboardCoordinates });
 
   const ctx = React.useMemo(() => ({ activeId, enabled }), [activeId, enabled]);
 
@@ -177,7 +175,7 @@ export function ShelfItem({
       ref={setNodeRef}
       {...body}
       className={cn(
-        "group/shelf relative cursor-grab active:cursor-grabbing",
+        "group/shelf relative", DRAG_BODY_CLASS,
         (isDragging || activeId === id) && "opacity-40",
       )}
     >
@@ -193,6 +191,9 @@ export function ShelfItem({
           "border border-line bg-raised text-ink-4 shadow-sm cursor-grab active:cursor-grabbing",
           "opacity-0 transition-opacity duration-150",
           "hover:text-ink-2 focus-visible:opacity-100 group-hover/shelf:opacity-100",
+          // On touch a hold on the card lifts it and the sheet's status menu
+          // re-shelves it; an invisible grip would only swallow taps on the cover.
+          "touch:hidden",
         )}
       >
         <GripVertical className="size-3.5" />

@@ -64,7 +64,7 @@ export function Disclosure({
           aria-expanded={open}
           onClick={() => setOpen(!open)}
           className={cn(
-            "-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1 py-2 text-left",
+            "-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1 py-2 touch:py-3 text-left",
             "transition-colors duration-150 hover:bg-hover",
           )}
         >

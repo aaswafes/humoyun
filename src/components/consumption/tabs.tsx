@@ -67,6 +67,7 @@ export function ConsumptionTabs({ active }: { active: ConsumptionTab }) {
             aria-selected={selected}
             className={cn(
               "group flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] cursor-pointer",
+              "touch:h-9 touch:px-3",
               "transition-colors duration-120",
               selected
                 ? "bg-active font-medium text-ink"

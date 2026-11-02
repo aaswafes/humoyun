@@ -82,7 +82,7 @@ export function YoutubeToolbar({
           aria-label="Search videos and playlists by title, channel, genre, topic or series"
           placeholder="Search title, channel, genre, topic"
           className={cn(
-            "h-8 w-full rounded-md border border-line bg-transparent pl-7 pr-8 text-[13px] text-ink",
+            "h-8 w-full rounded-md border border-line bg-transparent pl-7 pr-8 touch:h-10 text-[13px] text-ink",
             "transition-[border-color,box-shadow] duration-150 placeholder:text-ink-4",
             "hover:border-line-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft",
             "[&::-webkit-search-cancel-button]:appearance-none",
@@ -143,7 +143,7 @@ export function YoutubeToolbar({
                 + "."
               }
               className={cn(
-                "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px] text-ink-2",
+                "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px] touch:h-10 text-ink-2",
                 "transition-colors duration-150 hover:bg-hover hover:text-ink",
               )}
             >

@@ -55,7 +55,7 @@ export function OpenOnYoutube({
       aria-label={label}
       title="Open on YouTube"
       className={cn(
-        "grid size-7 cursor-pointer place-items-center rounded-full bg-raised text-ink-2 shadow-sm",
+        "grid size-7 cursor-pointer place-items-center rounded-full bg-raised text-ink-2 shadow-sm touch:size-9",
         "transition-colors duration-150 hover:bg-hover hover:text-ink active:scale-[0.97]",
         className,
       )}
