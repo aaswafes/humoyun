@@ -59,7 +59,8 @@ export function Fold({
           aria-expanded={open}
           aria-controls={id}
           onClick={onToggle}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md py-1.5 text-left transition-colors duration-150"
+          // The row is the target, so on touch the row grows to a fingertip.
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md py-1.5 text-left transition-colors duration-150 touch:min-h-11"
         >
           <ChevronRight
             aria-hidden

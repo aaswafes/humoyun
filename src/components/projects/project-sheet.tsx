@@ -163,10 +163,17 @@ function ProjectSheetBody({
         </IconButton>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6">
+      {/* overscroll-contain: a fling past the end stops at the sheet instead of
+          rubber-banding the page underneath. A phone's gutter is the page's. */}
+      <div className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain px-5 py-6 max-md:px-4">
         {/* ================= What it is ================= */}
         <div className="space-y-5">
-          <div>
+          {/* On touch the 19px is set here as well as on the field: globals.css
+              sizes every text field max(16px, 1em) there — 1em of the parent —
+              so iOS never zooms, and without it the name shrank to 16px.
+              Touch only: with a mouse the field's own size applies, and a
+              19px parent would just enlarge the line's strut by a pixel. */}
+          <div className="touch:text-[19px]">
             <AutoTextarea
               value={name}
               onChange={setName}
@@ -176,7 +183,9 @@ function ProjectSheetBody({
                 if (next !== project.name) patch("projects", project.id, { name: next });
               }}
               placeholder="Name this project"
-              className="text-[19px] font-semibold leading-[1.28] tracking-[-0.01em] text-ink placeholder:text-ink-4"
+              // On touch, padding the margin gives back: a one-line field
+              // that answers to a 40px fingertip without moving a pixel.
+              className="text-[19px] font-semibold leading-[1.28] tracking-[-0.01em] text-ink placeholder:text-ink-4 touch:-my-2 touch:py-2"
             />
             <FlagLine flags={flags} className="mt-2" />
           </div>
@@ -215,7 +224,7 @@ function ProjectSheetBody({
                 }
               }}
               placeholder="The sentence you will be able to say when this project is finished."
-              className="mt-1 text-[13.5px] text-ink-2 placeholder:text-ink-4"
+              className="mt-1 text-[13.5px] text-ink-2 placeholder:text-ink-4 touch:-mb-2 touch:-mt-1 touch:py-2"
             />
           </div>
 
@@ -275,6 +284,8 @@ function ProjectSheetBody({
               <Select
                 label="Part of"
                 size="sm"
+                // The kit's small trigger is 28px; a thumb needs more.
+                className="touch:h-10"
                 value={project.goal_id ?? ""}
                 options={goalOptions}
                 onChange={(id) => patch("projects", project.id, { goal_id: id || null })}

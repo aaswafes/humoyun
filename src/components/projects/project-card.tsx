@@ -59,13 +59,14 @@ export function IdentityPicker({ project }: { project: Project }) {
   return (
     <Popover
       align="start"
-      className="w-[236px]"
+      // Wider on touch so the icon grid can grow to fingertip squares.
+      className="w-[236px] touch:w-[280px]"
       trigger={
         <button
           type="button"
           aria-label={`Icon and colour for ${project.name || "project"}`}
           title="Icon and colour"
-          className="relative z-[1] -m-1 grid size-6 place-items-center rounded-md p-1 cursor-pointer transition-colors hover:bg-hover"
+          className="relative z-[1] -m-1 grid size-6 place-items-center rounded-md p-1 cursor-pointer transition-colors hover:bg-hover touch-hit [--touch-hit:-10px_-8px]"
         >
           <ProjectDot project={project} />
         </button>
@@ -137,7 +138,7 @@ export function ProjectMenu({
         trigger={
           <button
             aria-label={`Actions for ${project.name || "project"}`}
-            className="relative z-[1] grid size-6 place-items-center rounded-md text-ink-4 cursor-pointer transition-colors hover:bg-hover hover:text-ink-2"
+            className="relative z-[1] grid size-6 place-items-center rounded-md text-ink-4 cursor-pointer transition-colors hover:bg-hover hover:text-ink-2 touch-hit [--touch-hit:-10px_-8px]"
           >
             <Ellipsis className="size-4" />
           </button>
@@ -198,8 +199,16 @@ export interface ProjectCardProps {
   stats: ProjectStats;
   onOpen: (id: string) => void;
   dragHandle?: React.ReactNode;
-  /** pointer-only drag activation, so the card can be grabbed by the card */
-  dragProps?: { onPointerDown?: React.PointerEventHandler<HTMLElement> };
+  /**
+   * Body drag activation from useDragBody, so the card can be grabbed by the
+   * card — onMouseDown + onTouchStart under useAppSensors, onPointerDown
+   * under a PointerSensor.
+   */
+  dragProps?: {
+    onPointerDown?: React.PointerEventHandler<HTMLElement>;
+    onMouseDown?: React.MouseEventHandler<HTMLElement>;
+    onTouchStart?: React.TouchEventHandler<HTMLElement>;
+  };
   dragging?: boolean;
   className?: string;
 }
@@ -256,6 +265,8 @@ export function ProjectCard({
     stats.nextMilestone ? `next: ${stats.nextMilestone.title}` : null,
   ].filter(Boolean).join(" · ");
 
+  const draggable = !!(dragProps?.onPointerDown || dragProps?.onMouseDown || dragProps?.onTouchStart);
+
   return (
     <div
       data-project-card={project.id}
@@ -265,7 +276,9 @@ export function ProjectCard({
         "group/project relative rounded-lg border border-line bg-raised p-3",
         "transition-[background-color,border-color,opacity] duration-200 ease-[var(--ease-out-apple)]",
         "hover:border-line-strong hover:bg-hover focus-within:border-line-strong",
-        dragProps?.onPointerDown && DRAG_BODY_CLASS,
+        // Touch has no hover, so the press itself is the feedback.
+        "touch:active:bg-hover",
+        draggable && DRAG_BODY_CLASS,
         project.status === "dropped" && "opacity-60",
         dragging && "opacity-40",
         className,
@@ -295,9 +308,16 @@ export function ProjectCard({
           <button
             {...DRAG_OK}
             onClick={() => onOpen(project.id)}
+            // Touch never gets this far — the first tap opens the sheet, and
+            // the name is renamed there, in the field at its top.
             onDoubleClick={(e) => { e.preventDefault(); setRenaming(true); }}
             className={cn(
               "min-w-0 flex-1 text-left text-[13.5px] font-medium leading-[1.35] cursor-pointer",
+              // A finger aims at the card, not at one line of text: on touch
+              // the title answers for the whole card. The picker and the menu
+              // sit above it (z-[1]); a long press still lifts the card,
+              // because the title is DRAG_OK.
+              "touch:after:absolute touch:after:inset-0",
               project.name ? "text-ink" : "text-ink-4",
               project.status === "done" && "text-ink-2",
             )}
@@ -306,7 +326,7 @@ export function ProjectCard({
           </button>
         )}
 
-        <span className="opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/project:opacity-100">
+        <span className="opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/project:opacity-100 touch:opacity-100">
           <ProjectMenu project={project} onOpen={onOpen} />
         </span>
       </div>

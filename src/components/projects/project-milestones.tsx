@@ -30,14 +30,16 @@ function DateChip({
   return (
     <Popover
       align="end"
-      className="w-auto p-2"
+      // Left to size itself the calendar is ~180px, seven 23px days; a finger
+      // gets one wide enough for 40px days.
+      className="w-auto p-2 touch:w-[300px]"
       trigger={
         <button
           type="button"
           aria-label={date ? `${label}: ${formatDate(date)}. Change the date` : `${label}: pick a date`}
           className={cn(
-            "inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5",
-            "text-[12px] tnum transition-colors hover:bg-hover",
+            "relative inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5",
+            "text-[12px] tnum transition-colors hover:bg-hover touch-hit",
             date ? (late ? "text-danger" : "text-ink-3") : "text-ink-4",
           )}
         >
@@ -107,7 +109,9 @@ export function ProjectMilestones({
           {ordered.map((task) => (
             <li
               key={task.id}
-              className="group/ms flex items-center gap-2 rounded-md px-1 py-1 hover:bg-hover"
+              // On touch the row is fingertip-tall and the title fills it, so
+              // the line itself is the way into the milestone.
+              className="group/ms flex items-center gap-2 rounded-md px-1 py-1 hover:bg-hover touch:min-h-11 touch:py-0"
             >
               <Checkbox
                 size="sm"
@@ -119,7 +123,7 @@ export function ProjectMilestones({
               <button
                 onClick={() => openInspector(task.id)}
                 className={cn(
-                  "min-w-0 flex-1 truncate text-left text-[13px] cursor-pointer",
+                  "min-w-0 flex-1 truncate text-left text-[13px] cursor-pointer touch:self-stretch",
                   task.status === "done" ? "text-ink-3 line-through decoration-ink-4/60" : "text-ink",
                 )}
               >
@@ -130,7 +134,7 @@ export function ProjectMilestones({
                 label={task.title || "Milestone"}
                 onChange={(iso) => patch("tasks", task.id, { date: iso })}
               />
-              <span className="opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/ms:opacity-100">
+              <span className="opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/ms:opacity-100 touch:opacity-100">
                 <IconButton
                   size="sm"
                   label={`Delete ${task.title || "milestone"}`}
@@ -155,7 +159,8 @@ export function ProjectMilestones({
           }}
           aria-label="New milestone"
           placeholder="Add a milestone"
-          className="h-7 flex-1 text-[13px] text-ink placeholder:text-ink-4"
+          // 16px type on touch (globals.css) needs the taller box.
+          className="h-7 flex-1 text-[13px] text-ink placeholder:text-ink-4 touch:h-10"
         />
         <DateChip date={draftDate} label="New milestone" onChange={setDraftDate} />
         <IconButton size="sm" label="Add milestone" disabled={!draft.trim()} onClick={commit}>

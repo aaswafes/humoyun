@@ -35,15 +35,17 @@ export function ProjectIconPicker({
   value: string | null;
   onChange: (icon: string | null) => void;
 }) {
+  // 28px squares are a mouse's size; on touch they grow to 40 (the popover
+  // that hosts the grid widens to match).
   return (
-    <div className="grid grid-cols-6 gap-0.5 p-1">
+    <div className="grid grid-cols-6 gap-0.5 p-1 touch:gap-1">
       <button
         type="button"
         onClick={() => onChange(null)}
         aria-label="No icon"
         title="No icon"
         className={cn(
-          "grid size-7 place-items-center rounded-md cursor-pointer transition-colors",
+          "grid size-7 place-items-center rounded-md cursor-pointer transition-colors touch:size-10",
           value == null ? "bg-accent-soft text-accent" : "text-ink-4 hover:bg-hover hover:text-ink-2",
         )}
       >
@@ -57,7 +59,7 @@ export function ProjectIconPicker({
           aria-label={name}
           title={name}
           className={cn(
-            "grid size-7 place-items-center rounded-md cursor-pointer transition-colors",
+            "grid size-7 place-items-center rounded-md cursor-pointer transition-colors touch:size-10",
             value === name ? "bg-accent-soft text-accent" : "text-ink-3 hover:bg-hover hover:text-ink",
           )}
         >

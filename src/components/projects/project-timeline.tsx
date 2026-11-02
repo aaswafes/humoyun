@@ -169,7 +169,7 @@ export function ProjectTimeline({
             {milestoneCount > 0 && ` · ${milestoneCount} ${milestoneCount === 1 ? "milestone" : "milestones"}`}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-md:w-full max-md:justify-between">
           <Segmented value={zoom} options={ZOOM_OPTIONS} onChange={setZoom} size="sm" />
           <div className="flex items-center gap-1">
             <IconButton
@@ -191,10 +191,14 @@ export function ProjectTimeline({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[760px] surface overflow-hidden">
+      {/* Below md the name column goes: each project's name sits above its
+          own bar, so the whole period spans the screen and nothing scrolls
+          sideways. A 212px name column beside 760px of months left a phone
+          showing names and January, with every bar off the right edge. */}
+      <div className="overflow-x-auto overscroll-x-contain">
+        <div className="min-w-[760px] surface overflow-hidden max-md:min-w-0">
           <div className="flex hairline-b">
-            <div className="w-[212px] shrink-0 px-3 py-2 hairline-r">
+            <div className="w-[212px] shrink-0 px-3 py-2 hairline-r max-md:hidden">
               <span className="text-[11.5px] font-medium text-ink-4">Project</span>
             </div>
             <div className="relative flex flex-1">
@@ -211,22 +215,38 @@ export function ProjectTimeline({
                   {column.label}
                 </div>
               ))}
-              {zoom === "quarter" && gridlines.map((line) => (
+              {zoom === "quarter" && gridlines.map((line, i) => (
                 <span
                   key={line.key}
-                  className="pointer-events-none absolute bottom-[3px] -translate-x-1/2 text-[10.5px] text-ink-4 tnum"
+                  className={cn(
+                    "pointer-events-none absolute bottom-[3px] -translate-x-1/2 text-[10.5px] text-ink-4 tnum",
+                    // Thirteen labels in a phone's width run together into one
+                    // word; every other week reads, and every gridline stays.
+                    i % 2 === 1 && "max-md:hidden",
+                  )}
                   style={{ left: `${line.left}%` }}
                 >
                   {line.label}
                 </span>
               ))}
               {todayLeft != null && (
-                <span
-                  className="absolute top-1.5 z-[2] -translate-x-1/2 rounded-full bg-accent px-1.5 py-[1px] text-[10.5px] font-medium text-accent-ink"
-                  style={{ left: `${todayLeft}%` }}
-                >
-                  Today
-                </span>
+                <>
+                  {/* Not below md: a phone's month is 30px and the pill would
+                      blot out its own month and half the next. There a dot
+                      above the labels marks today, and the accent line runs
+                      on through the bars. */}
+                  <span
+                    className="absolute top-1.5 z-[2] -translate-x-1/2 rounded-full bg-accent px-1.5 py-[1px] text-[10.5px] font-medium text-accent-ink max-md:hidden"
+                    style={{ left: `${todayLeft}%` }}
+                  >
+                    Today
+                  </span>
+                  <span
+                    aria-hidden
+                    className="absolute top-0.5 hidden size-1.5 -translate-x-1/2 rounded-full bg-accent max-md:block"
+                    style={{ left: `${todayLeft}%` }}
+                  />
+                </>
               )}
             </div>
           </div>
@@ -239,7 +259,7 @@ export function ProjectTimeline({
             />
           ) : (
             <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-[212px] right-0">
+              <div className="pointer-events-none absolute inset-y-0 left-[212px] right-0 max-md:left-0">
                 {gridlines.map((line) => (
                   <div
                     key={line.key}
@@ -267,13 +287,22 @@ export function ProjectTimeline({
                   <div
                     key={bar.project.id}
                     className={cn(
-                      "relative flex items-stretch transition-colors duration-150 hover:bg-hover",
+                      "relative flex items-stretch transition-colors duration-150 hover:bg-hover max-md:flex-col",
                       bar.project.id === openId && "bg-selected",
                     )}
                   >
                     <button
                       onClick={() => onOpen(bar.project.id)}
-                      className="flex w-[212px] shrink-0 cursor-pointer items-center gap-1.5 px-3 py-1.5 text-left hairline-r"
+                      className={cn(
+                        "flex w-[212px] shrink-0 cursor-pointer items-center gap-1.5 px-3 py-1.5 text-left hairline-r",
+                        // Phone: a full-width line over the bar. Opaque, so the
+                        // month lines run through the bars and not the names.
+                        "max-md:w-full max-md:bg-raised max-md:pb-0.5 max-md:pt-2 max-md:shadow-none",
+                        // On touch the name answers for its whole row, track
+                        // and all; the bar itself sits above and opens the same.
+                        // An iPad keeps the side-by-side rows, grown to a fingertip.
+                        "touch:after:absolute touch:after:inset-0 md:touch:py-[11px]",
+                      )}
                     >
                       <ProjectDot project={bar.project} />
                       <span
@@ -287,14 +316,17 @@ export function ProjectTimeline({
                       <span className="shrink-0 text-[11px] text-ink-3 tnum">{pct(bar.progress)}</span>
                     </button>
 
-                    <div className="relative flex-1 py-1.5">
+                    {/* The track is positioned, so it would sit over the name's
+                        stretched press area: on touch a tap on empty track
+                        falls through to it, and only the bar answers itself. */}
+                    <div className="relative flex-1 py-1.5 max-md:h-6 max-md:flex-none max-md:py-0 touch:pointer-events-none">
                       <button
                         onClick={() => onOpen(bar.project.id)}
                         title={`${bar.project.name || "Untitled project"} — ${summary}`}
                         style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
                         className={cn(
                           `tint-${bar.project.color}`,
-                          "absolute top-1/2 h-[17px] -translate-y-1/2 cursor-pointer overflow-hidden rounded-full",
+                          "absolute top-1/2 h-[17px] -translate-y-1/2 cursor-pointer overflow-hidden rounded-full touch:pointer-events-auto",
                           "bg-[var(--tint-soft)] transition-[filter] duration-150",
                           "hover:brightness-95 dark:hover:brightness-110",
                           bar.clippedStart && "rounded-l-[3px]",
@@ -352,7 +384,7 @@ export function ProjectTimeline({
             These have neither their own dates nor a dated task inside them, so they cannot
             overlap with anything. Open one to give it a range.
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 touch:gap-2">
             {undated.map((project) => (
               <button
                 key={project.id}
@@ -360,6 +392,9 @@ export function ProjectTimeline({
                 className={cn(
                   "inline-flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded-full border border-line",
                   "bg-raised px-2.5 py-1 text-[12.5px] text-ink transition-colors duration-150 hover:bg-hover",
+                  // A 36px pill that answers to 42px — 3px past each edge,
+                  // which stays clear of the next row across the 8px gap.
+                  "relative touch:h-9 touch:px-3 touch-hit [--touch-hit:-3px_0px] touch:active:bg-hover",
                 )}
               >
                 <ProjectDot project={project} />

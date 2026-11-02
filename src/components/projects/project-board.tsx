@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners,
-  useDraggable, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, closestCorners, useDraggable, useDroppable,
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
@@ -11,7 +10,7 @@ import { GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Project, ProjectStatus } from "@/lib/types";
 import { IconButton } from "@/components/ui/primitives";
-import { useDragBody } from "@/components/ui/drag";
+import { useAppSensors, useDragBody } from "@/components/ui/drag";
 import { ProjectCard } from "./project-card";
 import { useProjectActions } from "./use-project-actions";
 import {
@@ -45,7 +44,7 @@ function BoardCard({
             {...listeners}
             data-no-drag
             aria-label={`Move ${project.name || "project"} to another status`}
-            className="grid size-5 cursor-grab place-items-center rounded text-ink-4 hover:text-ink-2 active:cursor-grabbing"
+            className="relative grid size-5 cursor-grab place-items-center rounded text-ink-4 hover:text-ink-2 active:cursor-grabbing touch-hit [--touch-hit:-12px]"
           >
             <GripVertical className="size-3.5" />
           </button>
@@ -68,7 +67,7 @@ function BoardColumn({
   const { setNodeRef, isOver } = useDroppable({ id: `${COL}${status}` });
 
   return (
-    <section className="group/col relative w-[250px] shrink-0">
+    <section className="group/col relative w-[250px] shrink-0 max-md:w-full">
       <div className="mb-3 flex items-baseline gap-1.5 px-0.5">
         <h2 className="text-[12.5px] font-medium text-ink-2">{STATUS_LABEL[status]}</h2>
         <span className="text-[11px] text-ink-4 tnum">{projects.length}</span>
@@ -76,7 +75,7 @@ function BoardColumn({
         <IconButton
           label={`New ${STATUS_LABEL[status].toLowerCase()} project`}
           size="sm"
-          className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100"
+          className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100 touch:opacity-100"
           onClick={() => onCreate(status)}
         >
           <Plus />
@@ -126,10 +125,9 @@ export function ProjectBoard({
   const { setStatus } = useProjectActions();
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // Mouse by distance as before, a finger by a short hold — a quick swipe over
+  // the stacked phone board has to stay a scroll.
+  const sensors = useAppSensors({ distance: 5, coordinateGetter: sortableKeyboardCoordinates });
 
   const columns = React.useMemo(() => {
     const map = new Map<ProjectStatus, Project[]>(BOARD_STATUSES.map((s) => [s, []]));
@@ -166,7 +164,12 @@ export function ProjectBoard({
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div className="flex gap-5 overflow-x-auto pb-4 pl-[26px]">
+      {/* Below md the columns stack: four 250px shelves side by side leave a
+          phone one column and a sliver, and a drag between stacked sections
+          is the same up-and-down the thumb already scrolls with. Visible
+          overflow there, or each drop zone's -m-1 lets the board wiggle 4px
+          sideways. */}
+      <div className="flex gap-5 overflow-x-auto overscroll-x-contain pb-4 pl-[26px] max-md:flex-col max-md:gap-8 max-md:overflow-visible">
         {BOARD_STATUSES.map((status) => (
           <BoardColumn
             key={status}
@@ -182,7 +185,9 @@ export function ProjectBoard({
 
       <DragOverlay dropAnimation={null}>
         {dragged && (
-          <div className="w-[250px] rounded-lg border border-line bg-raised px-2.5 py-2 shadow-pop">
+          // The overlay's wrapper is sized to the card that was lifted; on a
+          // phone that card is the screen's width, not a 250px column's.
+          <div className="w-[250px] rounded-lg border border-line bg-raised px-2.5 py-2 shadow-pop max-md:w-full">
             <p className="truncate text-[13.5px] font-medium text-ink">
               {dragged.name || "Untitled project"}
             </p>

@@ -18,20 +18,22 @@ import { useProjectActions } from "@/components/projects/use-project-actions";
 
 type View = "board" | "list" | "timeline";
 
+// The words stay on a phone too: the switcher has the header's second row to
+// itself there, and three bare glyphs are a guessing game for a thumb.
 const VIEW_OPTIONS = [
   {
     value: "board" as const,
-    label: <><Columns3 className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Board</span></>,
+    label: <><Columns3 className="size-3.5" /><span className="ml-1.5">Board</span></>,
     title: "Projects by what stage they are at",
   },
   {
     value: "list" as const,
-    label: <><Rows3 className="size-3.5" /><span className="ml-1.5 hidden sm:inline">List</span></>,
+    label: <><Rows3 className="size-3.5" /><span className="ml-1.5">List</span></>,
     title: "Everything on one screen",
   },
   {
     value: "timeline" as const,
-    label: <><ChartNoAxesGantt className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Timeline</span></>,
+    label: <><ChartNoAxesGantt className="size-3.5" /><span className="ml-1.5">Timeline</span></>,
     title: "Projects across the year",
   },
 ];
@@ -159,10 +161,11 @@ export default function ProjectsPage() {
 }
 
 function BoardSkeleton() {
+  // Stacked below md, like the board it stands in for.
   return (
-    <div className="flex gap-5 overflow-hidden pl-[26px]">
+    <div className="flex gap-5 overflow-hidden pl-[26px] max-md:flex-col max-md:gap-8">
       {[0, 1, 2, 3].map((column) => (
-        <div key={column} className="w-[250px] shrink-0 space-y-2">
+        <div key={column} className="w-[250px] shrink-0 space-y-2 max-md:w-full">
           <Skeleton className="h-3 w-16" />
           {Array.from({ length: 3 - (column % 2) }, (_, i) => (
             <Skeleton key={i} className="h-[92px] w-full rounded-lg" />
