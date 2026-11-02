@@ -34,7 +34,7 @@ export function Fold({
           aria-controls={panelId}
           onClick={() => onOpenChange(!open)}
           className={cn(
-            "-mx-1.5 flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-left",
+            "-mx-1.5 flex min-h-9 min-w-0 flex-1 cursor-pointer touch:min-h-11 items-center gap-2 rounded-md px-1.5 py-1.5 text-left",
             "transition-colors duration-150 ease-[var(--ease-out-apple)] hover:bg-hover",
           )}
         >

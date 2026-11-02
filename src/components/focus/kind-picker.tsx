@@ -26,7 +26,7 @@ import type { FocusSubject } from "./focus-engine";
 // =========================================================
 
 const PILL =
-  "inline-flex h-7 max-w-[340px] items-center gap-1.5 rounded-full border border-line px-2.5 text-[12.5px]";
+  "inline-flex h-7 max-w-[340px] items-center gap-1.5 rounded-full touch:h-10 touch:px-3.5 border border-line px-2.5 text-[12.5px]";
 
 /** "Taʼlim + Inson", or the one, or nothing. */
 function kindWords(kinds: UmrCategory[]): string {
