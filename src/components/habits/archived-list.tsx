@@ -55,7 +55,9 @@ export function ArchivedList({
             key={habit.id}
             className={cn(
               `tint-${habit.color}`,
-              "group/arch flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover",
+              // Its text can run to four lines on a phone; the icon and the
+              // buttons stay with the name instead of floating mid-block.
+              "group/arch flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover max-md:items-start max-md:gap-2",
               i > 0 && "hairline-t",
             )}
           >
@@ -70,17 +72,23 @@ export function ArchivedList({
             <div className="min-w-0 flex-1">
               <button
                 onClick={() => onOpenDetail(habit.id)}
-                className="block max-w-full truncate text-left text-[13.5px] font-medium text-ink-2 hover:text-accent cursor-pointer transition-colors"
+                className={cn(
+                  "block max-w-full text-left text-[13.5px] font-medium text-ink-2 hover:text-accent cursor-pointer transition-colors",
+                  // The span clips, not the button, so the touch-hit ::after survives.
+                  "touch:relative touch-hit [--touch-hit:-10px_-4px]",
+                )}
               >
-                {habit.name}
+                <span className="block truncate">{habit.name}</span>
               </button>
-              <p className="mt-0.5 truncate text-[11.5px] text-ink-4 tnum">
+              {/* A phone gives the record and the reason two lines each rather
+                  than cutting off the part that decides whether it comes back. */}
+              <p className="mt-0.5 truncate text-[11.5px] text-ink-4 tnum max-md:line-clamp-2 max-md:whitespace-normal">
                 {cadenceLabel(habit, weekStart)} · {counts.size} days logged
                 {best > 1 && <> · best run {best}</>}
                 {last && <> · last on {formatDate(last, { weekday: false, year: true })}</>}
               </p>
               {meta.archivedReason && (
-                <p className="mt-1 max-w-[52ch] truncate text-[12px] italic text-ink-4">
+                <p className="mt-1 max-w-[52ch] truncate text-[12px] italic text-ink-4 max-md:line-clamp-2 max-md:whitespace-normal">
                   “{meta.archivedReason}”
                   {meta.archivedAt && (
                     <span className="not-italic text-ink-4"> — {formatDate(meta.archivedAt, { weekday: false, year: true })}</span>
@@ -89,7 +97,8 @@ export function ArchivedList({
               )}
             </div>
 
-            <IconButton label={`Open ${habit.name}`} onClick={() => onOpenDetail(habit.id)}>
+            {/* The name already opens it; on a phone the room goes to the record. */}
+            <IconButton label={`Open ${habit.name}`} onClick={() => onOpenDetail(habit.id)} className="max-md:hidden">
               <PanelRight />
             </IconButton>
             <Button size="sm" onClick={() => restore(habit)}>
@@ -99,7 +108,7 @@ export function ArchivedList({
             <IconButton
               label={`Delete ${habit.name} forever`}
               tone="danger"
-              className="transition-opacity md:opacity-0 md:focus-visible:opacity-100 md:group-hover/arch:opacity-100"
+              className="transition-opacity md:opacity-0 md:focus-visible:opacity-100 md:group-hover/arch:opacity-100 touch:opacity-100"
               onClick={() => onDelete(habit)}
             >
               <Trash2 />

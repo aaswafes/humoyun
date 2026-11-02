@@ -93,7 +93,9 @@ export function HabitsSummary({
         />
       </div>
 
-      <div className="mt-6 flex items-center gap-2.5">
+      {/* `relative` anchors the VisuallyHidden summary; loose, it escapes the
+          page's scroller and makes the whole document scrollable on iOS. */}
+      <div className="relative mt-6 flex items-center gap-2.5">
         <span className="shrink-0 text-[11px] text-ink-4">Last 14 days</span>
         <div
           role="img"

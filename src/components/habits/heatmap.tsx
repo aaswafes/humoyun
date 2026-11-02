@@ -212,7 +212,10 @@ export function Heatmap({
                       role="gridcell"
                       aria-label={`${formatDate(date, { year: true })}: ${describe(date)}`}
                       aria-selected={isCursor}
-                      onMouseEnter={() => setHover(i)}
+                      // A mouse only. iOS sends a tap through the mouse events
+                      // first, and a tooltip appearing on that mouseover reads
+                      // to Safari as a hover menu — it then swallows the click.
+                      onPointerEnter={(e) => { if (e.pointerType === "mouse") setHover(i); }}
                       onClick={() => { if (clickable) { setCursor(i); onToggle(date); } }}
                       className={cn(
                         "rounded-[3px] transition-[opacity,transform] duration-150 ease-[var(--ease-out-apple)]",

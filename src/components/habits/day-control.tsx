@@ -30,6 +30,10 @@ export function DayControl({
   const complete = count >= target;
   const when = isToday(date) ? "today" : formatDate(date, { weekday: false });
   const box = size === "sm" ? "h-7" : "h-8";
+  // A pill is wide enough already; on touch it only needs height, and
+  // growing it sideways would reach into the row's menu button. Positioned
+  // on touch only: a positioned pill costs Chromium its subpixel text.
+  const reach = "touch:relative touch-hit [--touch-hit:-8px_0px]";
 
   if (skipped) {
     return (
@@ -39,6 +43,7 @@ export function DayControl({
         aria-label={`${habit.name} is a rest day ${when}. Undo the rest day.`}
         className={cn(
           box,
+          reach,
           "inline-flex items-center gap-1.5 rounded-full border border-dashed border-line-strong px-2.5",
           "text-[12px] font-medium text-ink-3 cursor-pointer transition-colors duration-150",
           "hover:border-ink-3 hover:text-ink-2 active:scale-[0.97]",
@@ -61,6 +66,7 @@ export function DayControl({
         onClick={() => onCount(complete ? 0 : 1)}
         className={cn(
           box,
+          reach,
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 cursor-pointer",
           "text-[12px] font-medium transition-[background-color,border-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
           "active:scale-[0.97]",
@@ -143,9 +149,12 @@ function StepButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "grid h-full w-7 shrink-0 place-items-center text-ink-3 cursor-pointer",
+        "grid h-full w-7 shrink-0 place-items-center text-ink-3 cursor-pointer touch:relative",
         "transition-colors duration-150 hover:bg-hover hover:text-ink",
         "disabled:pointer-events-none disabled:opacity-30",
+        // 28px wide is a mouse size. On touch each end answers 6px further
+        // out — into the count between them and past the pill's own edge.
+        "touch-hit [--touch-hit:-8px_-6px]",
         side === "left" ? "rounded-l-full" : "rounded-r-full",
       )}
     >

@@ -68,6 +68,8 @@ export function ArchiveDialog({
                 onClick={() => setReason(reason === preset ? "" : preset)}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11.5px] cursor-pointer transition-colors duration-150",
+                  // One tap fills the box, so on touch each reason is a real target.
+                  "touch:min-h-10 touch:px-3.5 touch:py-2 touch:text-left touch:text-[13px]",
                   reason === preset
                     ? "border-accent-line bg-accent-soft text-accent"
                     : "border-line text-ink-3 hover:border-line-strong hover:text-ink-2",

@@ -65,12 +65,16 @@ export function Fold({
         className={cn(
           "group/fold -mx-1.5 flex w-[calc(100%+12px)] items-center gap-2 rounded-md px-1.5 py-1.5",
           "text-left cursor-pointer transition-colors duration-150 hover:bg-hover",
+          // A fingertip-tall row on touch. On a phone the summary may take a
+          // second line rather than lose the number at its end, so the row
+          // aligns to its first line instead of centring on both.
+          "touch:py-3 max-md:items-start",
         )}
       >
         <ChevronRight
           aria-hidden
           className={cn(
-            "size-3.5 shrink-0 text-ink-4 transition-transform duration-200 ease-[var(--ease-out-apple)]",
+            "size-3.5 shrink-0 text-ink-4 transition-transform duration-200 ease-[var(--ease-out-apple)] max-md:mt-[3px]",
             open && "rotate-90",
           )}
         />
@@ -78,7 +82,9 @@ export function Fold({
           {label}
         </span>
         {summary != null && (
-          <span className="min-w-0 truncate text-[12px] text-ink-4 tnum">{summary}</span>
+          <span className="min-w-0 truncate text-[12px] text-ink-4 tnum max-md:mt-px max-md:line-clamp-2 max-md:whitespace-normal">
+            {summary}
+          </span>
         )}
       </button>
 

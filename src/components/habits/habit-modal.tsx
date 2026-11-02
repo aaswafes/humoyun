@@ -104,7 +104,10 @@ export function HabitModal({
 
   return (
     <Modal open onClose={onClose} title={habit ? "Edit habit" : "New habit"} width={480}>
-      <div className="max-h-[62vh] overflow-y-auto px-4 py-4">
+      {/* On a phone the form scrolls inside whatever is visible above the
+          keyboard, less the title bar and the footer, so Create stays in reach
+          with the keyboard up. dvh, not vh: Safari's vh counts the toolbar. */}
+      <div className="max-h-[62dvh] overflow-y-auto overscroll-contain px-4 py-4 max-md:max-h-[calc(var(--vvh-app)-var(--safe-top)-120px)]">
         <Field label="Name" required error={submitted ? nameError : null}>
           {(props) => (
             <div className={cn(`tint-${color}`, "flex items-center gap-3")}>
@@ -134,7 +137,8 @@ export function HabitModal({
         </Group>
 
         <Group label="Icon">
-          <div className="grid grid-cols-8 gap-1">
+          {/* Six across on a phone, so each icon can fill a fingertip-sized cell. */}
+          <div className="grid grid-cols-8 gap-1 max-md:grid-cols-6">
             {HABIT_ICONS.map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -144,7 +148,7 @@ export function HabitModal({
                 aria-pressed={icon === key}
                 title={label}
                 className={cn(
-                  "grid size-8 place-items-center rounded-md cursor-pointer transition-colors duration-150",
+                  "grid size-8 place-items-center rounded-md cursor-pointer transition-colors duration-150 touch:h-11 touch:w-full",
                   icon === key ? "bg-accent-soft text-accent" : "text-ink-3 hover:bg-hover hover:text-ink",
                 )}
               >
@@ -183,7 +187,7 @@ export function HabitModal({
                       aria-pressed={on}
                       onClick={() => setDays((prev) => (on ? prev.filter((d) => d !== day) : [...prev, day]))}
                       className={cn(
-                        "h-8 flex-1 rounded-md text-[12px] font-medium cursor-pointer transition-colors duration-150",
+                        "h-8 flex-1 rounded-md text-[12px] font-medium cursor-pointer transition-colors duration-150 touch:h-10",
                         on ? "bg-accent text-accent-ink" : "bg-hover text-ink-2 hover:bg-active",
                         submitted && daysError && "ring-1 ring-danger",
                       )}
@@ -224,7 +228,8 @@ export function HabitModal({
         </Group>
 
         <Group label="Stacking" hint="Where it lands in the day">
-          <div className="grid grid-cols-4 gap-1">
+          {/* Four across needs ~72px each; the narrowest phones get two rows. */}
+          <div className="grid grid-cols-4 gap-1 max-[360px]:grid-cols-2">
             {SLOTS.map((choice) => {
               const Icon = SLOT_ICON[choice];
               const on = slot === choice;
@@ -236,7 +241,7 @@ export function HabitModal({
                   title={SLOT_HINT[choice]}
                   onClick={() => setSlot(choice)}
                   className={cn(
-                    "flex h-8 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium",
+                    "flex h-8 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium touch:h-10",
                     "cursor-pointer transition-colors duration-150",
                     on ? "bg-accent text-accent-ink" : "bg-hover text-ink-2 hover:bg-active",
                   )}
@@ -264,13 +269,17 @@ export function HabitModal({
                   // Chaining moves it into the anchor's part of the day.
                   if (id) setSlot(metaOf(id).slot);
                 }}
+                // As tall as the text fields beside it on touch.
+                className="touch:h-10"
               />
             )}
           </Field>
         </Group>
       </div>
 
-      <div className="flex items-center gap-2 border-t border-line px-4 py-3">
+      {/* A phone has no room for the problem beside four buttons; it takes
+          its own line above them. */}
+      <div className="flex items-center gap-2 border-t border-line px-4 py-3 max-md:flex-wrap">
         {habit && (
           <Button variant="ghost" size="sm" onClick={() => { onArchive(habit); onClose(); }}>
             <Archive className="size-3.5" />
@@ -279,7 +288,7 @@ export function HabitModal({
         )}
         <div className="flex-1" />
         {submitted && blocker && (
-          <p id={problemId} role="alert" className="text-[11.5px] text-danger">{blocker}</p>
+          <p id={problemId} role="alert" className="text-[11.5px] text-danger max-md:order-first max-md:basis-full">{blocker}</p>
         )}
         <Button size="sm" onClick={onClose}>Cancel</Button>
         <Button
@@ -311,7 +320,8 @@ function Group({
   return (
     <div className="mt-5" role="group" aria-labelledby={id}>
       <div className="mb-2 flex items-baseline gap-2">
-        <span id={id} className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+        {/* The label never wraps on a narrow phone; its hint does instead. */}
+        <span id={id} className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 max-md:shrink-0">
           {label}
         </span>
         {hint && <span className="text-[11.5px] text-ink-4">{hint}</span>}
@@ -332,13 +342,14 @@ function Stepper({
 }) {
   const step = (delta: number) => onChange(Math.max(min, Math.min(max, value + delta)));
   return (
-    <div className="inline-flex h-8 shrink-0 items-center rounded-md border border-line">
+    // On touch it matches the 40px text field beside it, and so do its ends.
+    <div className="inline-flex h-8 shrink-0 items-center rounded-md border border-line touch:h-10">
       <button
         type="button"
         aria-label={`Decrease ${label.toLowerCase()}`}
         disabled={value <= min}
         onClick={() => step(-1)}
-        className="grid h-full w-8 place-items-center rounded-l-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-40"
+        className="grid h-full w-8 place-items-center rounded-l-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-40 touch:relative touch:w-10 touch-hit [--touch-hit:-4px_0px]"
       >
         <Minus className="size-3.5" />
       </button>
@@ -348,7 +359,7 @@ function Stepper({
         aria-label={`Increase ${label.toLowerCase()}`}
         disabled={value >= max}
         onClick={() => step(1)}
-        className="grid h-full w-8 place-items-center rounded-r-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-40"
+        className="grid h-full w-8 place-items-center rounded-r-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-40 touch:relative touch:w-10 touch-hit [--touch-hit:-4px_0px]"
       >
         <Plus className="size-3.5" />
       </button>

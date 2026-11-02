@@ -1,10 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  DndContext, closestCenter, PointerSensor, KeyboardSensor,
-  useSensor, useSensors, type DragEndEvent,
-} from "@dnd-kit/core";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext, sortableKeyboardCoordinates, useSortable,
   verticalListSortingStrategy, arrayMove,
@@ -13,7 +10,7 @@ import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifi
 import { CSS } from "@dnd-kit/utilities";
 import { Flame, GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { DRAG_BODY_CLASS, useDragBody } from "@/components/ui/drag";
+import { DRAG_BODY_CLASS, useAppSensors, useDragBody } from "@/components/ui/drag";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/date";
 import type { Habit, HabitLog } from "@/lib/types";
@@ -84,10 +81,7 @@ export default function HabitsPage() {
   for (const habit of active) usedSlots.add(slotFor(habit));
   const grouped = usedSlots.size > 1;
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useAppSensors({ distance: 4, coordinateGetter: sortableKeyboardCoordinates });
 
   /**
    * One path for every reorder — drag, or the Move up / Move down items that
@@ -420,7 +414,7 @@ function SortableHabit({
           data-no-drag
           aria-label="Reorder habit — hold space, then use the arrow keys"
           title="Drag to reorder"
-          className="grid size-7 cursor-grab place-items-center rounded-md text-ink-4 hover:bg-hover hover:text-ink-2 active:cursor-grabbing"
+          className="grid size-7 cursor-grab place-items-center rounded-md text-ink-4 hover:bg-hover hover:text-ink-2 active:cursor-grabbing touch:relative touch-hit"
         >
           <GripVertical className="size-3.5" />
         </button>,

@@ -223,7 +223,8 @@ function SheetBody({
               onBlur={rename}
               aria-label="Habit name"
               placeholder="Name this habit"
-              className="text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-ink placeholder:text-ink-4"
+              // Fingertip-tall on touch; the negative margin keeps the title where it was.
+              className="text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-ink placeholder:text-ink-4 touch:-my-2.5 touch:py-2.5"
             />
           </div>
           <p className="mt-1 pl-11 text-[12.5px] text-ink-4">
@@ -383,7 +384,8 @@ function SheetBody({
           panelClassName="space-y-3"
         >
           <div>
-            <div role="group" aria-label="Time of day" className="grid grid-cols-4 gap-1">
+            {/* Four across needs ~72px each; the narrowest phones get two rows. */}
+            <div role="group" aria-label="Time of day" className="grid grid-cols-4 gap-1 max-[360px]:grid-cols-2">
               {SLOTS.map((slot) => {
                 const Icon = SLOT_ICON[slot];
                 const on = row.slot === slot;
@@ -396,7 +398,7 @@ function SheetBody({
                     title={after ? `Follows ${after.name}` : SLOT_HINT[slot]}
                     onClick={() => setSlot(slot)}
                     className={cn(
-                      "flex h-8 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium",
+                      "flex h-8 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium touch:h-10",
                       "cursor-pointer transition-colors duration-150",
                       "disabled:pointer-events-none disabled:opacity-40",
                       on ? "bg-accent text-accent-ink" : "bg-hover text-ink-2 hover:bg-active",
@@ -432,7 +434,8 @@ function SheetBody({
                   value={row.after ?? NO_LINK}
                   options={stackOptions}
                   onChange={(id) => setAfter(id || null)}
-                  className="flex-1"
+                  // As tall as the Cue field below it on touch.
+                  className="flex-1 touch:h-10"
                 />
                 {after && (
                   <IconButton label={`Unstack from ${after.name}`} onClick={() => setAfter(null)}>
@@ -582,7 +585,9 @@ function YearSection({
         </p>
       </div>
 
-      <div className="overflow-x-auto pb-1">
+      {/* A year never fits a phone; it scrolls in its own box, and a fling at
+          either end stops here instead of dragging the sheet sideways. */}
+      <div className="overflow-x-auto overscroll-x-contain pb-1">
         <Heatmap
           habit={habit}
           counts={counts}
@@ -670,7 +675,7 @@ function Timeline({
               const isOpen = editing === entry.date;
 
               return (
-                <li key={entry.date} className="rounded-md px-2 py-1.5 transition-colors hover:bg-hover">
+                <li key={entry.date} className="rounded-md px-2 py-1.5 transition-colors hover:bg-hover touch:py-2">
                   <div className="flex items-baseline gap-2">
                     <span className="w-[86px] shrink-0 text-[12px] text-ink-3 tnum">
                       {formatDate(entry.date, { year: yearOf(entry.date) !== yearOf(today) })}
@@ -682,27 +687,28 @@ function Timeline({
                     <button
                       onClick={() => { setEditing(isOpen ? null : entry.date); setDraft(text); }}
                       aria-expanded={isOpen}
-                      className="shrink-0 text-[11.5px] text-ink-4 hover:text-accent cursor-pointer transition-colors"
+                      className="shrink-0 text-[11.5px] text-ink-4 hover:text-accent cursor-pointer transition-colors touch:relative touch-hit [--touch-hit:-12px_-8px]"
                     >
                       {text ? "Edit note" : "Add note"}
                     </button>
                   </div>
 
                   {isOpen ? (
-                    <div className="mt-1.5 rounded-md bg-sunken px-2.5 py-1.5">
+                    // On touch the padding is the field's own, so the whole box takes the tap.
+                    <div className="mt-1.5 rounded-md bg-sunken px-2.5 py-1.5 touch:p-0">
                       <AutoTextarea
                         value={draft}
                         onChange={setDraft}
                         autoFocus
                         aria-label={`Note for ${formatDate(entry.date, { year: true })}`}
                         placeholder={isSkip ? "Why the rest day?" : "How did it go?"}
-                        className="text-[12.5px] text-ink placeholder:text-ink-4"
+                        className="text-[12.5px] text-ink placeholder:text-ink-4 touch:px-2.5 touch:py-2"
                         onKeyDown={(e) => {
                           if (e.key === "Escape") setEditing(null);
                           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commit(entry);
                         }}
                       />
-                      <div className="mt-1.5 flex justify-end gap-1.5">
+                      <div className="mt-1.5 flex justify-end gap-1.5 touch:mt-0 touch:px-2.5 touch:pb-2">
                         <Button size="xs" variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
                         <Button size="xs" variant="primary" onClick={() => commit(entry)}>Save note</Button>
                       </div>

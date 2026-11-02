@@ -59,7 +59,7 @@ export function TodayStrip({
       {due.length === 0 ? (
         <button
           onClick={onCreate}
-          className="mt-2 -ml-2 flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] text-ink-3 hover:bg-hover hover:text-ink-2 cursor-pointer transition-colors"
+          className="mt-2 -ml-2 flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] max-md:text-left text-ink-3 hover:bg-hover hover:text-ink-2 cursor-pointer transition-colors touch:min-h-11"
         >
           <Plus className="size-4" />
           {habits.length
@@ -121,7 +121,7 @@ export function TodayStrip({
             <button
               key={habit.id}
               onClick={() => onSkip(habit.id, date, null)}
-              className="rounded-full border border-dashed border-line px-2 py-0.5 text-ink-3 hover:border-line-strong hover:text-ink-2 cursor-pointer transition-colors"
+              className="rounded-full border border-dashed border-line px-2 py-0.5 text-ink-3 hover:border-line-strong hover:text-ink-2 cursor-pointer transition-colors touch:min-h-10 touch:px-3 touch:text-[13px]"
             >
               {habit.name} · undo
             </button>
@@ -185,7 +185,13 @@ function HabitPill({
     <div
       className={cn(
         `tint-${habit.color}`,
-        "group relative flex h-9 items-stretch overflow-hidden rounded-full border transition-colors duration-200",
+        // max-w-full: a long name truncates inside the pill instead of
+        // pushing it past the edge of the screen.
+        "group relative flex h-9 max-w-full items-stretch overflow-hidden rounded-full border transition-colors duration-200",
+        // The most-pressed control on the page: on touch both halves are a
+        // full fingertip tall. It grows for real — overflow-hidden would clip
+        // an invisible touch-hit, and the clip is what keeps the fill round.
+        "touch:h-11",
         complete ? "border-[var(--tint)]" : "border-line hover:border-[var(--tint)]",
       )}
     >
@@ -204,7 +210,7 @@ function HabitPill({
             : `${habit.name}, ${count} of ${target} today. Log one.`
         }
         className={cn(
-          "relative flex items-center gap-1.5 pl-2.5 pr-2 cursor-pointer",
+          "relative flex min-w-0 items-center gap-1.5 pl-2.5 pr-2 cursor-pointer touch:pl-3.5 touch:pr-2.5",
           "transition-transform duration-200 ease-[var(--ease-out-apple)] active:scale-[0.97]",
         )}
       >
@@ -213,10 +219,12 @@ function HabitPill({
           name={habit.icon}
           className={cn("size-4 shrink-0 transition-colors duration-150", count > 0 ? "text-[var(--tint)]" : "text-ink-3")}
         />
-        <span className={cn("text-[13px] font-medium", complete ? "text-[var(--tint-ink)]" : "text-ink")}>
+        {/* Clipped only where it can run out of room — the clip also shaves
+            a glyph's overhang, which the desktop has no reason to pay. */}
+        <span className={cn("text-[13px] font-medium max-md:min-w-0 max-md:truncate", complete ? "text-[var(--tint-ink)]" : "text-ink")}>
           {habit.name}
         </span>
-        {target > 1 && <span className="text-[11.5px] text-ink-4 tnum">{count}/{target}</span>}
+        {target > 1 && <span className="shrink-0 text-[11.5px] text-ink-4 tnum">{count}/{target}</span>}
         {complete && <Check className="size-3.5 shrink-0 stroke-[2.5] text-[var(--tint)] anim-pop" />}
       </button>
 
@@ -227,7 +235,7 @@ function HabitPill({
           <button
             aria-label={`${habit.name} options`}
             title={`${habit.name} options`}
-            className="relative grid w-7 shrink-0 place-items-center border-l border-line text-ink-4 hover:bg-hover hover:text-ink-2 cursor-pointer transition-colors"
+            className="relative grid w-7 shrink-0 place-items-center border-l border-line text-ink-4 hover:bg-hover hover:text-ink-2 cursor-pointer transition-colors touch:w-11"
           >
             <MoreHorizontal className="size-3.5" />
           </button>

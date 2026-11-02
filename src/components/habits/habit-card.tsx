@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  Archive, ArrowDown, ArrowUp, ChevronDown, CornerDownRight, Flame, Link2Off,
+  Archive, ArrowDown, ArrowUp, ChevronDown, ChevronUp, CornerDownRight, Flame, Link2Off,
   MessageSquarePlus, Moon, MoreHorizontal, Pencil, PanelRight, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -78,21 +78,25 @@ export function HabitCard({
 
   return (
     <div className={cn(`tint-${habit.color}`, "group/habit rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover")}>
-      <div className="flex items-center gap-3">
+      {/* A phone keeps the grip, the name, today's control and the menu on the
+          line; the streak moves into the summary and the week into the menu. */}
+      <div className="flex items-center gap-3 max-md:gap-2">
         {/* Hover-revealed on a pointer, always there on touch, where there is
             no hover to reveal them with. */}
-        <div className="flex w-7 shrink-0 justify-center transition-opacity duration-150 md:opacity-0 md:focus-within:opacity-100 md:group-hover/habit:opacity-100">
+        <div className="flex w-7 shrink-0 justify-center transition-opacity duration-150 md:opacity-0 md:focus-within:opacity-100 md:group-hover/habit:opacity-100 touch:opacity-100">
           {dragHandle}
         </div>
 
-        <div className="flex min-w-[180px] flex-1 items-center gap-2.5">
+        <div className="flex min-w-[180px] flex-1 items-center gap-2.5 max-md:min-w-0">
           {stackedAfter && (
             <Tooltip content={`Right after ${stackedAfter.name}`}>
               <CornerDownRight className="size-3.5 shrink-0 text-ink-4" aria-hidden />
             </Tooltip>
           )}
+          {/* Decoration only. On the narrowest phones its 38px are what keep
+              the name on one line, so it steps aside there. */}
           <span
-            className="grid size-7 shrink-0 place-items-center rounded-md"
+            className="grid size-7 shrink-0 place-items-center rounded-md max-[360px]:hidden"
             style={{ background: "var(--tint-soft)" }}
             aria-hidden
           >
@@ -103,9 +107,15 @@ export function HabitCard({
               <button
                 {...DRAG_OK}
                 onClick={() => onOpenDetail(habit.id)}
-                className="max-w-full truncate text-left text-[13.5px] font-medium text-ink hover:text-accent cursor-pointer transition-colors"
+                className={cn(
+                  "min-w-0 max-w-full text-left text-[13.5px] font-medium text-ink hover:text-accent cursor-pointer transition-colors",
+                  // The clipping lives on the span: an overflow-hidden button
+                  // would clip the ::after that gives it a fingertip's height.
+                  "touch:relative touch-hit [--touch-hit:-10px_-4px]",
+                )}
               >
-                {habit.name}
+                {/* A phone wraps a long name onto a second line rather than cutting it off. */}
+                <span className="block truncate max-md:line-clamp-2 max-md:whitespace-normal">{habit.name}</span>
               </button>
               {/* A stacked habit already says where it sits, by naming what it follows. */}
               {!stackedAfter && meta.slot !== "anytime" && (
@@ -114,13 +124,29 @@ export function HabitCard({
                 </Tooltip>
               )}
             </div>
-            <p className="mt-0.5 truncate text-[11.5px] text-ink-4">{summary}</p>
+            {/* `relative` holds the phone's VisuallyHidden below. Unanchored, it
+                escapes the page's scroller to the root and stretches the
+                document, which iOS then scrolls — dragging the shell with it. */}
+            <p className="mt-0.5 truncate text-[11.5px] text-ink-4 max-md:relative">
+              {/* No room for the streak column on a phone, so the run leads this line. */}
+              <span className="md:hidden">
+                <Flame
+                  className={cn("mr-0.5 inline-block size-3 align-[-2px]", lit ? "text-[var(--tint)]" : "text-ink-4")}
+                  fill={lit ? "currentColor" : "none"}
+                  aria-hidden
+                />
+                <span className={cn("tnum", lit ? "text-ink-2" : "text-ink-3")}>{streak}</span>
+                <VisuallyHidden>{" scheduled days in a row"}</VisuallyHidden>
+                <span aria-hidden>{" · "}</span>
+              </span>
+              {summary}
+            </p>
           </div>
         </div>
 
         {/* The last twenty weeks sit behind the row rather than beside it:
             texture at rest, a full-contrast grid the moment you reach for it. */}
-        <div className="hidden shrink-0 opacity-50 transition-opacity duration-200 ease-[var(--ease-out-apple)] focus-within:opacity-100 group-hover/habit:opacity-100 xl:block">
+        <div className="hidden shrink-0 opacity-50 transition-opacity duration-200 ease-[var(--ease-out-apple)] focus-within:opacity-100 group-hover/habit:opacity-100 touch:opacity-100 xl:block">
           <Heatmap
             habit={habit}
             counts={counts}
@@ -134,7 +160,10 @@ export function HabitCard({
           />
         </div>
 
-        <Tooltip content={streak === 1 ? "1 scheduled day in a row" : `${streak} scheduled days in a row`}>
+        <Tooltip
+          content={streak === 1 ? "1 scheduled day in a row" : `${streak} scheduled days in a row`}
+          className="max-md:hidden"
+        >
           <span className="flex w-[40px] items-center justify-end gap-1 text-[12.5px] tnum">
             <Flame
               className={cn("size-3.5 shrink-0", lit ? "text-[var(--tint)]" : "text-ink-4")}
@@ -157,17 +186,20 @@ export function HabitCard({
           className="w-[92px] justify-center"
         />
 
-        <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-150 md:opacity-0 md:focus-within:opacity-100 md:group-hover/habit:opacity-100">
+        <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-150 md:opacity-0 md:focus-within:opacity-100 md:group-hover/habit:opacity-100 touch:opacity-100">
+          {/* On a phone these two cost the name its room: the week opens from
+              the menu, and the name itself already opens the details. */}
           <IconButton
             label={expanded ? "Hide this week" : "Show this week"}
             aria-expanded={expanded}
             aria-controls={panelId}
             active={expanded}
             onClick={() => onExpand(expanded ? null : habit.id)}
+            className="max-md:hidden"
           >
             <ChevronDown className={cn("transition-transform duration-200", expanded && "rotate-180")} />
           </IconButton>
-          <IconButton label={`Open ${habit.name}`} onClick={() => onOpenDetail(habit.id)}>
+          <IconButton label={`Open ${habit.name}`} onClick={() => onOpenDetail(habit.id)} className="max-md:hidden">
             <PanelRight />
           </IconButton>
           <Popover
@@ -179,6 +211,13 @@ export function HabitCard({
               <>
                 <MenuItem icon={PanelRight} onClick={() => { onOpenDetail(habit.id); close(); }}>
                   Open details
+                </MenuItem>
+                <MenuItem
+                  icon={expanded ? ChevronUp : ChevronDown}
+                  className="md:hidden"
+                  onClick={() => { onExpand(expanded ? null : habit.id); close(); }}
+                >
+                  {expanded ? "Hide this week" : "Show this week"}
                 </MenuItem>
                 <MenuItem icon={Pencil} onClick={() => { onEdit(habit); close(); }}>Edit habit</MenuItem>
                 <MenuItem
@@ -263,11 +302,15 @@ function WeekPanel({
 
   return (
     <div
-      className="mb-1 ml-10 mr-2 mt-3"
+      // On a phone it lines up with the icon (the grip column is narrower
+      // there) and the days spread across the row instead of huddling left.
+      // Narrower than 360 the icon is gone and the days take the full row;
+      // `!` because Tailwind emits max-[360px] before max-md, which would win.
+      className="mb-1 ml-10 mr-2 mt-3 max-md:ml-9 max-md:mr-0 max-[360px]:ml-0!"
       style={{ animation: "hm-slide-up 200ms var(--ease-out-apple) both" }}
     >
       <div className="flex flex-wrap items-start gap-x-8 gap-y-5">
-        <div>
+        <div className="max-md:w-full">
           <div className="mb-2 flex items-baseline gap-2">
             <p className="text-[11.5px] font-medium text-ink-3">This week</p>
             {quota && (
@@ -282,7 +325,7 @@ function WeekPanel({
               const label = dayNameOf((weekStart + i) % 7, "min");
               const locked = day.date > today;
               return (
-                <div key={day.date} className="flex w-9 flex-col items-center gap-1">
+                <div key={day.date} className="flex w-9 flex-col items-center gap-1 max-md:w-auto max-md:min-w-0 max-md:flex-1">
                   <span className={cn("text-[10.5px] font-medium", day.date === today ? "text-ink-3" : "text-ink-4")}>
                     {label}
                   </span>
@@ -292,7 +335,10 @@ function WeekPanel({
                     onClick={() => setCount(habit.id, day.date, state === "done" ? 0 : Math.max(1, habit.target_count))}
                     aria-label={`${formatDate(day.date)} · ${DAY_STATE_LABEL[state]}. ${state === "done" ? "Clear" : "Mark done"}.`}
                     className={cn(
-                      "grid h-8 w-full place-items-center rounded-md text-[11.5px] font-medium tnum",
+                      "grid h-8 w-full place-items-center rounded-md text-[11.5px] font-medium tnum touch:h-10",
+                      // Seven across leaves a narrow phone ~38px a day; each
+                      // also answers in half the gap on either side.
+                      "touch:relative touch-hit [--touch-hit:0px_-2px]",
                       "transition-[background-color,box-shadow,transform] duration-150 ease-[var(--ease-out-apple)]",
                       locked
                         ? "cursor-default text-ink-4"
@@ -336,7 +382,9 @@ function WeekPanel({
             </Button>
           </div>
 
-          <div className="rounded-md bg-sunken px-2.5 py-2">
+          {/* On touch the padding moves into the field, so a tap anywhere on
+              the box lands in it instead of on the box around it. */}
+          <div className="rounded-md bg-sunken px-2.5 py-2 touch:p-0">
             <AutoTextarea
               value={note}
               onChange={setNoteDraft}
@@ -345,7 +393,7 @@ function WeekPanel({
                 if (next !== (todayLog?.note ?? "")) setNote(habit.id, today, next || null);
               }}
               placeholder="What made it easy or hard today?"
-              className="text-[12.5px] text-ink placeholder:text-ink-4"
+              className="text-[12.5px] text-ink placeholder:text-ink-4 touch:px-2.5 touch:py-2"
             />
           </div>
 
@@ -360,7 +408,7 @@ function WeekPanel({
               <li>
                 <button
                   onClick={() => onOpenDetail(habit.id)}
-                  className="inline-flex items-center gap-1 text-[11.5px] text-ink-4 hover:text-accent cursor-pointer transition-colors"
+                  className="inline-flex items-center gap-1 text-[11.5px] text-ink-4 hover:text-accent cursor-pointer transition-colors touch:relative touch-hit [--touch-hit:-12px_-6px]"
                 >
                   <MessageSquarePlus className="size-3" />
                   All notes and history
