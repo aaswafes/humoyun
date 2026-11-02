@@ -39,7 +39,7 @@ export function Fold({
           aria-expanded={shown}
           className={cn(
             "-mx-1.5 flex min-h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left",
-            "cursor-pointer transition-colors duration-150 hover:bg-hover",
+            "cursor-pointer transition-colors duration-150 hover:bg-hover touch:min-h-11",
           )}
         >
           <ChevronRight

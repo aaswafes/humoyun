@@ -47,6 +47,7 @@ function TabLabel({
 function InboxSurface() {
   const { t } = useT();
   const tasks = useStore((s) => s.tasks);
+  const timerUp = useStore((s) => s.timer.running || s.timer.accumulated > 0);
   const {
     tab, setTab, filters, selecting, setSelecting, message, legendOpen, setLegendOpen,
   } = useTriage();
@@ -107,13 +108,21 @@ function InboxSurface() {
       <PageHeader
         title="Inbox"
         subtitle={subtitle}
+        // Five tabs and the actions fill a narrow header — an iPad beside its
+        // sidebar — and everything used to shrink at once: the title down to
+        // "I…", the select button to half a button. Now only the subtitle
+        // gives way. A wide header never shrinks anything, so it is unchanged.
+        className="[&_h1]:shrink-0"
         actions={
           <>
+            {/* A legend of keys is nothing to a finger, the same reason Kbd
+                hides itself on touch. The "?" key still opens it. */}
             <IconButton
               label="Keyboard shortcuts"
               title="Keyboard shortcuts — press ?"
               active={legendOpen}
               onClick={() => setLegendOpen(!legendOpen)}
+              className="shrink-0 touch:hidden"
             >
               <CircleHelp />
             </IconButton>
@@ -121,10 +130,12 @@ function InboxSurface() {
               label={selecting ? "Leave select mode" : "Select tasks"}
               active={selecting}
               onClick={() => setSelecting(!selecting)}
+              className="shrink-0"
             >
               <ListChecks />
             </IconButton>
-            <Button variant="primary" size="sm" onClick={openQuickAdd}>
+            {/* The tab bar's + is the phone's New, as on every other page. */}
+            <Button variant="primary" size="sm" onClick={openQuickAdd} className="shrink-0 max-md:hidden">
               <Plus className="size-3.5" />
               New
             </Button>
@@ -134,6 +145,8 @@ function InboxSurface() {
         <Segmented<TriageTab>
           value={tab}
           onChange={setTab}
+          // "All" is 36px of word; a fingertip gets 44 of tab.
+          className="touch:[&>button]:min-w-11"
           options={[
             { value: "inbox", label: <TabLabel text={t("nav.inbox")} count={inboxCount} /> },
             {
@@ -149,7 +162,14 @@ function InboxSurface() {
       </PageHeader>
 
       <PageBody wide>
-        <div className="mx-auto w-full max-w-[1120px]">
+        {/* On a phone the bulk panel docks over the bottom of the list, so
+            the list gets that much room to scroll its last rows clear of it. */}
+        <div
+          className={cn(
+            "mx-auto w-full max-w-[1120px]",
+            selecting && (timerUp ? "max-md:pb-40" : "max-md:pb-28"),
+          )}
+        >
           <TriageDnd>
             <ControlRow searchRef={searchRef} />
 
@@ -184,7 +204,12 @@ function InboxSurface() {
       </div>
 
       <Modal open={legendOpen} onClose={() => setLegendOpen(false)} title="Keyboard triage" width={600}>
-        <div className="max-h-[70vh] overflow-y-auto p-5">
+        {/* dvh, not vh: Safari's vh is the tall viewport, taller than what
+            shows with its toolbar up. A phone's dialog is bounded by what sits
+            above the keyboard; this takes off its 49px title bar and 2px of
+            border, so the title and its close button stay put while the
+            list scrolls. */}
+        <div className="max-h-[70dvh] overflow-y-auto overscroll-contain p-5 max-md:max-h-[calc(var(--vvh-app)-var(--safe-top)-16px-52px)]">
           <p className="mb-5 text-[12.5px] leading-relaxed text-ink-3">
             Every key acts on the selection when there is one, and on the row under the cursor
             otherwise. Nothing here is destructive without an undo.

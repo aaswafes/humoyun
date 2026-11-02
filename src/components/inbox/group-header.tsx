@@ -51,7 +51,8 @@ export function DayHeader({
         <button
           onClick={onToggle}
           aria-expanded={!collapsed}
-          className="-my-1 flex min-w-0 items-center gap-2.5 rounded-md py-1 pr-1 text-left cursor-pointer hover:bg-hover transition-colors"
+          // 30px of header; a fingertip reaches 8px past it, up and down.
+          className="relative -my-1 flex min-w-0 items-center gap-2.5 rounded-md py-1 pr-1 text-left cursor-pointer hover:bg-hover transition-colors touch-hit [--touch-hit:-8px_0px]"
         >
           <ChevronRight
             aria-hidden
@@ -153,7 +154,7 @@ export function CollapsibleHeader({
       <button
         onClick={onToggle}
         aria-expanded={open}
-        className="-my-1 -ml-1 flex min-w-0 items-center gap-1.5 rounded-md py-1 pl-1 pr-1.5 text-left cursor-pointer hover:bg-hover transition-colors"
+        className="relative -my-1 -ml-1 flex min-w-0 items-center gap-1.5 rounded-md py-1 pl-1 pr-1.5 text-left cursor-pointer hover:bg-hover transition-colors touch-hit [--touch-hit:-8px_0px]"
       >
         <ChevronRight
           aria-hidden

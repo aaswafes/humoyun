@@ -34,6 +34,15 @@ export function InboxView() {
   // control row; the choice itself still lives here, in the list it orders.
   const { selecting, announce, inboxSort: sort } = useTriage();
 
+  // A mouse lands in the composer ready to type. On a touch screen focusing
+  // it raises no keyboard — iOS only does that inside a tap — but it does
+  // scroll the page down to the field, so the Inbox opened scrolled past its
+  // own first rows. Read once on mount: this surface never renders on the
+  // server (the shell waits for the store), so there is nothing to mismatch.
+  const [composerFocus] = React.useState(
+    () => typeof window === "undefined" || !window.matchMedia?.("(pointer: coarse)").matches,
+  );
+
   const items = React.useMemo(() => sortInbox(inboxTasks(tasks), sort), [tasks, sort]);
   const order = React.useMemo(() => items.map((t) => t.id), [items]);
   useRegisterRows(order);
@@ -105,7 +114,12 @@ export function InboxView() {
 
       {!selecting && (
         <div className="mt-4 pt-3 hairline-t">
-          <InlineComposer autoFocus date={null} placeholder="Capture a task" />
+          <InlineComposer
+            autoFocus={composerFocus}
+            date={null}
+            placeholder="Capture a task"
+            className="touch:py-3"
+          />
         </div>
       )}
     </div>

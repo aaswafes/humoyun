@@ -25,6 +25,9 @@ const LABELS = {
   group: (g: GroupKey) => GROUP_LABELS[g],
 };
 
+/** A view's pin / rename / move / delete, at fingertip size on a touch screen. */
+const ACTION_TOUCH = "touch:size-10 touch:active:bg-active";
+
 /**
  * Saved views, folded into one dropdown.
  *
@@ -101,7 +104,10 @@ export function ViewsMenu() {
 
     return (
       <div key={view.id} className="group/view rounded-md px-1 py-0.5 hover:bg-hover">
-        <div className="flex items-center gap-0.5">
+        {/* One wrapping row. With a mouse the actions ride beside the name and
+            appear on hover; a finger has no hover, so on touch they are always
+            shown, fingertip-sized, on a line of their own under the summary. */}
+        <div className="flex flex-wrap items-center gap-x-0.5">
           <button
             type="button"
             onClick={() => apply(view)}
@@ -109,6 +115,9 @@ export function ViewsMenu() {
             title={describeFilters(view.filters, LABELS)}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-left text-[13px] cursor-pointer",
+              // The name keeps its summary line close; the press area reaches
+              // down over that line instead, so name and summary are one target.
+              "touch:relative touch:pb-0.5 touch:pt-2.5 touch:text-[15px] touch-hit [--touch-hit:0px_0px_-16px_0px]",
               isActive ? "text-accent" : "text-ink hover:text-ink",
             )}
           >
@@ -118,7 +127,7 @@ export function ViewsMenu() {
             <span className="truncate">{view.name}</span>
           </button>
 
-          <span className="flex shrink-0 items-center opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/view:opacity-100">
+          <span className="flex shrink-0 items-center opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/view:opacity-100 touch:order-last touch:basis-full touch:gap-1 touch:pb-1 touch:pl-[18px] touch:opacity-100">
             <button
               type="button"
               onClick={() => updateView(view.id, { pinned: !view.pinned })}
@@ -126,6 +135,7 @@ export function ViewsMenu() {
               title={view.pinned ? "Unpin" : "Keep at the top"}
               className={cn(
                 "grid size-7 place-items-center rounded-md cursor-pointer transition-colors",
+                ACTION_TOUCH,
                 view.pinned ? "text-ink-2 hover:bg-active" : "text-ink-4 hover:bg-active hover:text-ink-2",
               )}
             >
@@ -135,7 +145,7 @@ export function ViewsMenu() {
               type="button"
               onClick={() => startRename(view)}
               aria-label={`Rename ${view.name}`}
-              className="grid size-7 place-items-center rounded-md text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors"
+              className={cn("grid size-7 place-items-center rounded-md text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors", ACTION_TOUCH)}
             >
               <Pencil className="size-3.5" />
             </button>
@@ -144,7 +154,7 @@ export function ViewsMenu() {
               disabled={index === 0}
               onClick={() => reorderView(view.id, -1)}
               aria-label={`Move ${view.name} up`}
-              className="grid size-7 place-items-center rounded-md text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-30"
+              className={cn("grid size-7 place-items-center rounded-md text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-30", ACTION_TOUCH)}
             >
               <ArrowUp className="size-3.5" />
             </button>
@@ -153,7 +163,7 @@ export function ViewsMenu() {
               disabled={index === views.length - 1}
               onClick={() => reorderView(view.id, 1)}
               aria-label={`Move ${view.name} down`}
-              className="grid size-7 place-items-center rounded-md text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-30"
+              className={cn("grid size-7 place-items-center rounded-md text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors disabled:pointer-events-none disabled:opacity-30", ACTION_TOUCH)}
             >
               <ArrowDown className="size-3.5" />
             </button>
@@ -169,16 +179,17 @@ export function ViewsMenu() {
                 });
               }}
               aria-label={`Delete ${view.name}`}
-              className="grid size-7 place-items-center rounded-md text-ink-4 hover:bg-danger-soft hover:text-danger cursor-pointer transition-colors"
+              className={cn("grid size-7 place-items-center rounded-md text-ink-4 hover:bg-danger-soft hover:text-danger cursor-pointer transition-colors", ACTION_TOUCH)}
             >
               <Trash2 className="size-3.5" />
             </button>
           </span>
+
+          <p className="basis-full truncate px-1 pb-1 pl-[22px] text-[11px] text-ink-4">
+            {view.tab === "all" ? "" : `${view.tab} · `}
+            {describeFilters(view.filters, LABELS)}
+          </p>
         </div>
-        <p className="truncate px-1 pb-1 pl-[22px] text-[11px] text-ink-4">
-          {view.tab === "all" ? "" : `${view.tab} · `}
-          {describeFilters(view.filters, LABELS)}
-        </p>
       </div>
     );
   }
@@ -192,7 +203,8 @@ export function ViewsMenu() {
           type="button"
           aria-label={active ? `Saved views — ${active.name} applied` : "Saved views"}
           className={cn(
-            "inline-flex h-7 max-w-[180px] shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] cursor-pointer",
+            "relative inline-flex h-7 max-w-[180px] shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] cursor-pointer",
+            "touch-hit [--touch-hit:-8px_0px]",
             "transition-colors duration-150 ease-[var(--ease-out-apple)]",
             active ? "text-ink font-medium hover:bg-hover" : "text-ink-3 hover:bg-hover hover:text-ink",
           )}
@@ -248,6 +260,8 @@ export function ViewsMenu() {
                 size="xs"
                 disabled={!newName.trim()}
                 onClick={() => persist(close)}
+                // Level with the field, which is 40px tall on touch.
+                className="touch:h-10 touch:px-3 touch:text-[13px]"
               >
                 Save
               </Button>

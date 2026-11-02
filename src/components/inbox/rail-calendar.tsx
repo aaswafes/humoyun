@@ -62,7 +62,7 @@ export function RailCalendar({
           const isToday = iso === today;
           const n = counts?.get(iso) ?? 0;
           return (
-            <DateDropZone key={iso} iso={iso} className="grid place-items-center">
+            <DateDropZone key={iso} iso={iso} slot="month" className="grid place-items-center">
               {({ isOver, active }) => (
                 <button
                   type="button"
@@ -70,7 +70,11 @@ export function RailCalendar({
                   aria-label={`Move to ${formatDate(iso, { year: true })}${n ? `, ${n} open` : ""}`}
                   title={formatDate(iso)}
                   className={cn(
+                    // 28px under a cursor, up to 40px under a finger — never
+                    // wider than its column, which the 256px desktop rail
+                    // (on a big touch screen) makes narrower than that.
                     "relative grid size-7 place-items-center rounded-md text-[12.5px] tnum cursor-pointer",
+                    "touch:h-10 touch:w-full touch:max-w-10 touch:text-[13.5px]",
                     "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
                     "active:scale-[0.92]",
                     !inMonth && "text-ink-4",

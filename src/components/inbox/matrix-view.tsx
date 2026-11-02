@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { ChevronRight } from "lucide-react";
 import type { Task } from "@/lib/types";
 import { cn } from "@/lib/cn";
 import { todayISO, addDays } from "@/lib/date";
 import { MiniEmpty } from "@/components/ui/form";
 import { useT, type MsgKey } from "@/lib/i18n";
 import { TriageRow } from "./triage-dnd";
+import { useDisclosure } from "./use-disclosure";
 
 // =========================================================
 // The Eisenhower matrix.
@@ -73,31 +75,73 @@ export function MatrixView({ tasks, order }: { tasks: Task[]; order: string[] })
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      {QUADRANTS.map((q) => {
-        const items = groups[q.key];
-        const title = t(q.titleKey);
-        const hint = t(q.hintKey);
-        return (
-          <section
-            key={q.key}
-            aria-label={`${title} — ${hint}, ${items.length}`}
-            className="surface min-w-0 overflow-hidden"
-          >
-            <header className="flex items-baseline gap-2 px-3 py-2.5 hairline-b">
-              <span className={cn("h-3.5 w-[3px] shrink-0 rounded-full", STRIPE[q.tone])} aria-hidden />
-              <h3 className="text-[13px] font-semibold tracking-[-0.008em] text-ink">{title}</h3>
-              <span className="text-[11.5px] text-ink-3">{hint}</span>
-              <span className="ml-auto text-[11.5px] tnum text-ink-3">{items.length}</span>
-            </header>
-
-            <div className="px-1 py-1">
-              {items.length === 0
-                ? <MiniEmpty>{t("matrix.nothing")}</MiniEmpty>
-                : items.map((task) => <TriageRow key={task.id} task={task} order={order} />)}
-            </div>
-          </section>
-        );
-      })}
+      {QUADRANTS.map((q) => (
+        <QuadrantCard
+          key={q.key}
+          spec={q}
+          title={t(q.titleKey)}
+          hint={t(q.hintKey)}
+          empty={t("matrix.nothing")}
+          items={groups[q.key]}
+          order={order}
+        />
+      ))}
     </div>
+  );
+}
+
+/**
+ * One quadrant. On a phone the four stack into one column, and the first can
+ * hold a hundred rows — the other three were a long scroll away. So below md
+ * each folds behind its header (title, hint, count: the summary a fold owes),
+ * "Do first" open by default, and remembers. The desktop grid shows all four
+ * in full, always: the toggle and the chevron do not exist there.
+ */
+function QuadrantCard({
+  spec, title, hint, empty, items, order,
+}: {
+  spec: QuadrantSpec;
+  title: string;
+  hint: string;
+  empty: string;
+  items: Task[];
+  order: string[];
+}) {
+  const [open, setOpen] = useDisclosure(`matrix.${spec.key}`, spec.key === "do");
+
+  return (
+    <section
+      aria-label={`${title} — ${hint}, ${items.length}`}
+      className="surface min-w-0 overflow-hidden"
+    >
+      <header className={cn("relative flex items-baseline gap-2 px-3 py-2.5 hairline-b max-md:py-3", !open && "max-md:shadow-none")}>
+        <span className={cn("h-3.5 w-[3px] shrink-0 rounded-full", STRIPE[spec.tone])} aria-hidden />
+        <h3 className="text-[13px] font-semibold tracking-[-0.008em] text-ink">{title}</h3>
+        <span className="text-[11.5px] text-ink-3 max-md:min-w-0 max-md:truncate">{hint}</span>
+        <span className="ml-auto text-[11.5px] tnum text-ink-3">{items.length}</span>
+        <ChevronRight
+          aria-hidden
+          className={cn(
+            "hidden size-3.5 shrink-0 self-center text-ink-4 transition-transform duration-200 ease-[var(--ease-out-apple)] max-md:block",
+            open && "rotate-90",
+          )}
+        />
+        {/* The whole header is the fold's button on a phone; it carries no
+            other control, so nothing interactive ends up nested in it. */}
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label={`${title}, ${items.length} ${items.length === 1 ? "task" : "tasks"}`}
+          className="absolute inset-0 hidden cursor-pointer rounded-t-lg transition-colors duration-150 active:bg-hover max-md:block"
+        />
+      </header>
+
+      <div className={cn("px-1 py-1", !open && "max-md:hidden")}>
+        {items.length === 0
+          ? <MiniEmpty>{empty}</MiniEmpty>
+          : items.map((task) => <TriageRow key={task.id} task={task} order={order} />)}
+      </div>
+    </section>
   );
 }

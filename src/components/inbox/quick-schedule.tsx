@@ -61,6 +61,10 @@ function PresetButton({
         "h-7 shrink-0 rounded-md px-2 text-[11.5px] font-medium text-ink-3 cursor-pointer",
         "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
         "hover:bg-active hover:text-ink active:scale-[0.97]",
+        // Hover-revealed, yet always taking ~200px of the row: on a phone that
+        // left a title ten letters wide. The calendar menu beside them carries
+        // every one of these, so the narrow screen and the finger use that.
+        "max-md:hidden touch:hidden",
       )}
     >
       {children}

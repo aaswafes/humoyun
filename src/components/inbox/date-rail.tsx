@@ -54,7 +54,14 @@ export function DateRail() {
 
   function send(iso: string | null) {
     if (!armed) {
-      toast({ title: "Pick a task first", description: "Click a row, or press J to step into the list." });
+      // A finger has no J key and no cursor row; select mode is its way in.
+      const touch = window.matchMedia?.("(pointer: coarse)").matches;
+      toast({
+        title: "Pick a task first",
+        description: touch
+          ? "Tap the select button at the top, then tap the tasks to send."
+          : "Click a row, or press J to step into the list.",
+      });
       return;
     }
     actions.moveToDate(targetIds, iso);
@@ -77,7 +84,7 @@ export function DateRail() {
           {presets.map((p) => {
             const n = p.iso ? counts.get(p.iso) ?? 0 : inboxCount;
             return (
-              <DateDropZone key={p.key} iso={p.iso} className="rounded-md">
+              <DateDropZone key={p.key} iso={p.iso} slot={p.key} className="rounded-md">
                 {({ isOver, active }) => (
                   <button
                     type="button"
@@ -88,7 +95,7 @@ export function DateRail() {
                         : "Pick a task first — click a row or press J"
                     }
                     className={cn(
-                      "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[12.5px] cursor-pointer",
+                      "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[12.5px] cursor-pointer touch:h-11 touch:text-[13.5px]",
                       "transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out-apple)]",
                       "active:scale-[0.985]",
                       isOver

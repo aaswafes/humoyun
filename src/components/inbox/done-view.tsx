@@ -182,7 +182,9 @@ export function DoneView({ onSeeUpcoming }: { onSeeUpcoming: () => void }) {
         label="Progress"
         summary={`${stats.current} this week · ${stats.streak}-day streak · ${all.length} all time`}
       >
-        <div className="flex flex-wrap gap-x-6 gap-y-5">
+        {/* Four across a phone left each label one word per line; two by two
+            gives every stat a readable line. */}
+        <div className="flex flex-wrap gap-x-6 gap-y-5 max-md:grid max-md:grid-cols-2">
           <Stat
             label="This week"
             value={stats.current}
@@ -288,14 +290,18 @@ export function DoneView({ onSeeUpcoming }: { onSeeUpcoming: () => void }) {
                       showDate
                       disabled
                       trailing={
+                        // Shown on every row on touch (nothing hovers there),
+                        // so it shrinks to its icon: a column of "Restore"
+                        // words down the archive would outshout the tasks.
                         <Button
                           variant="ghost"
                           size="xs"
                           onClick={() => actions.setDone([task.id], false)}
                           title={`Reopen ${task.title || "Untitled"}`}
+                          className="touch:size-7 touch:px-0 touch:[--touch-hit:-8px]"
                         >
                           <RotateCcw aria-hidden className="size-3.5" />
-                          Restore
+                          <span className="max-md:sr-only touch:sr-only">Restore</span>
                         </Button>
                       }
                     />

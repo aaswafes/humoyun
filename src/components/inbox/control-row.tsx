@@ -48,10 +48,19 @@ function SearchBox({
 }) {
   const { filters, patchFilters } = useTriage();
   return (
-    <div className="relative min-w-[150px] max-w-[300px] flex-1">
+    // A phone gives the search its own line, first, at full width: squeezed
+    // between the other controls it showed half its placeholder.
+    <div className="relative min-w-[150px] max-w-[300px] flex-1 max-md:order-first max-md:max-w-none max-md:basis-full">
       <Search aria-hidden className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-ink-4" />
       <Input
         ref={inputRef}
+        // The iOS keyboard's return key reads "search" here. The results are
+        // already live, so on a touch screen pressing it puts the keyboard
+        // away; a desktop's Enter keeps doing nothing, as before.
+        enterKeyHint="search"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && window.matchMedia?.("(pointer: coarse)").matches) e.currentTarget.blur();
+        }}
         value={filters.q}
         onChange={(e) => patchFilters({ q: e.target.value })}
         placeholder={placeholder}
@@ -63,7 +72,7 @@ function SearchBox({
           type="button"
           onClick={() => patchFilters({ q: "" })}
           aria-label="Clear search"
-          className="absolute right-1.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-sm text-ink-4 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
+          className="absolute right-1.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-sm text-ink-4 hover:bg-hover hover:text-ink cursor-pointer transition-colors touch-hit [--touch-hit:-10px]"
         >
           <X className="size-3" />
         </button>
@@ -102,7 +111,8 @@ function FiltersMenu() {
           type="button"
           aria-label={n ? `Filters, ${n} active` : "Filters"}
           className={cn(
-            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] cursor-pointer",
+            "relative inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] cursor-pointer",
+            "touch-hit [--touch-hit:-8px_0px]",
             "transition-colors duration-150 ease-[var(--ease-out-apple)]",
             n ? "bg-accent-soft text-accent font-medium" : "text-ink-3 hover:bg-hover hover:text-ink",
           )}
@@ -246,6 +256,7 @@ function LayoutToggle() {
       value={layout}
       onChange={setLayout}
       size="sm"
+      className="touch:[&>button]:min-w-11"
       options={[
         { value: "list", label: "List" },
         { value: "matrix", label: "Matrix", title: "Urgent against important" },
@@ -294,7 +305,12 @@ export function ControlRow({
             setSelected(rows, true);
             announce(`Selected all ${rows.length} tasks`);
           }}
-          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
+          className={cn(
+            "relative inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors",
+            "touch-hit [--touch-hit:-8px_0px]",
+            // On touch the select panel carries its own Select all; one is enough.
+            selecting && "touch:hidden",
+          )}
         >
           <ListChecks aria-hidden className="size-3.5" />
           Select all
@@ -315,7 +331,7 @@ export function ControlRow({
           label="Order"
           size="sm"
           align="end"
-          className="w-[126px]"
+          className="relative w-[126px] touch-hit [--touch-hit:-8px_0px]"
           options={INBOX_SORTS.map((key) => ({ value: key, label: INBOX_SORT_LABELS[key] }))}
         />
       )}

@@ -122,7 +122,8 @@ export function EditorRow({ task, showDate }: { task: Task; showDate?: boolean }
           className="min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-4"
           placeholder="Task name — try “friday 9am #deep !high”"
         />
-        <span className="hidden shrink-0 items-center gap-1 text-[11px] text-ink-4 sm:inline-flex">
+        {/* Kbd hides itself on touch; the words between the keys go with it. */}
+        <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-4 max-sm:hidden touch:hidden">
           <Kbd>↵</Kbd> save
           <Kbd>⇥</Kbd> next
           <Kbd>esc</Kbd>

@@ -130,7 +130,7 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
                   onClick={() => setOverdueOpen((v) => !v)}
                   aria-expanded={overdueOpen}
                   aria-label={overdueOpen ? "Collapse overdue" : "Expand overdue"}
-                  className="grid size-7 place-items-center rounded-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
+                  className="relative grid size-7 place-items-center rounded-md text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors touch-hit"
                 >
                   <ChevronDown
                     aria-hidden
@@ -158,7 +158,7 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
         const done = items.filter((t) => t.status === "done").length;
         return (
           <section key={iso} aria-label={`${friendlyDate(iso)}, ${items.length} tasks`} className="mb-6">
-            <DateDropZone iso={iso}>
+            <DateDropZone iso={iso} slot="day">
               {({ isOver }) => (
                 <DayHeader
                   iso={iso}
@@ -182,10 +182,12 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
                   />
                 ))}
                 {!selecting && (
+                  // Half-faded until hovered — and a finger never hovers, so on
+                  // touch it is simply there, still quiet in its placeholder grey.
                   <InlineComposer
                     date={iso}
                     placeholder={`Add to ${friendlyDate(iso)}`}
-                    className="mt-1 opacity-50 transition-opacity hover:opacity-100 focus-within:opacity-100"
+                    className="mt-1 opacity-50 transition-opacity hover:opacity-100 focus-within:opacity-100 touch:py-3 touch:opacity-100"
                   />
                 )}
               </>
@@ -204,7 +206,7 @@ export function UpcomingView({ onSeeAll }: { onSeeAll: () => void }) {
         {beyond.length > 0 && (
           <button
             onClick={onSeeAll}
-            className="group/beyond ml-auto flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors duration-150"
+            className="group/beyond relative ml-auto flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors duration-150 touch-hit [--touch-hit:-8px_0px]"
           >
             <span className="tnum">{beyond.length}</span>
             <span>scheduled after {formatDate(horizonEnd, { weekday: false })}</span>

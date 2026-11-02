@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, CheckCheck, ChevronDown, CloudMoon, Copy, CornerDownRight, Flag, MoreHorizontal, RotateCcw, Shapes, Tag as TagIcon, Trash2, X } from "lucide-react";
+import { CalendarClock, CheckCheck, ChevronDown, CloudMoon, Copy, CornerDownRight, Flag, ListChecks, MoreHorizontal, RotateCcw, Shapes, Tag as TagIcon, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { formatDate, friendlyDate, todayISO } from "@/lib/date";
 import { PRIORITY_LABELS, type Tint } from "@/lib/types";
-import { IconButton, Input, Kbd } from "@/components/ui/primitives";
+import { Button, IconButton, Input, Kbd } from "@/components/ui/primitives";
 import { Popover, MenuItem, MenuLabel, MenuSeparator, ConfirmDialog } from "@/components/ui/overlays";
 import { MiniCalendar } from "@/components/ui/mini-calendar";
 import { useTriage } from "./triage-context";
@@ -69,18 +69,52 @@ function BarButton({
         "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium text-ink-2 cursor-pointer",
         "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
         "hover:bg-hover hover:text-ink active:scale-[0.97]",
+        // A phone toolbar: icon over word, one fifth of the bar each, the
+        // whole cell the target. The chevron is a desktop nicety with no room.
+        "max-md:row-start-2 max-md:h-auto max-md:min-w-0 max-md:flex-col max-md:gap-1 max-md:rounded-xl",
+        "max-md:px-0.5 max-md:py-1.5 max-md:text-[11px] max-md:active:bg-hover",
       )}
     >
-      <Icon aria-hidden className="size-3.5" />
+      <Icon aria-hidden className="size-3.5 max-md:size-[18px]" />
       {children}
-      <ChevronDown aria-hidden className="size-3 opacity-50" />
+      <ChevronDown aria-hidden className="size-3 opacity-50 max-md:hidden" />
     </button>
   );
 }
 
-/** Floating bar that appears while rows are selected. Sits above the focus timer pill. */
+/**
+ * The touch path to "select everything shown", which the keyboard reaches
+ * with ⌘A and a mouse with shift-click. Only a touch screen draws it; the
+ * desktop bar is unchanged.
+ */
+function SelectAllButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative hidden h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium text-ink-2 cursor-pointer",
+        "transition-[background-color,color,transform] duration-150 ease-[var(--ease-out-apple)]",
+        "hover:bg-hover hover:text-ink active:scale-[0.97] active:bg-hover",
+        "touch:inline-flex touch-hit [--touch-hit:-8px_0px] max-md:h-9 max-md:px-2 max-md:text-[13px]",
+      )}
+    >
+      {/* A 320px phone fits the count and the words, not the icon too. */}
+      <ListChecks aria-hidden className="size-3.5 max-md:hidden" />
+      Select all
+    </button>
+  );
+}
+
+/**
+ * Floating bar that appears while rows are selected. Sits above the focus timer pill.
+ *
+ * On a phone it is a docked panel above the tab bar rather than a pill: seven
+ * controls never fit across 390px, so the count and the two quick verbs take
+ * the top row and the five menus share the bottom one as a toolbar.
+ */
 export function BulkBar() {
-  const { ids, count, clear, selecting, setSelecting } = useTriage();
+  const { ids, count, clear, selecting, setSelecting, rows, isSelected, setSelected, announce } = useTriage();
   const actions = useTriageActions();
   const tasks = useStore((s) => s.tasks);
   const tagRows = useStore((s) => s.tags);
@@ -127,24 +161,48 @@ export function BulkBar() {
 
   if (!selecting) return null;
 
+  const canSelectMore = rows.some((id) => !isSelected(id));
+  function selectAll() {
+    setSelected(rows, true);
+    announce(`Selected all ${rows.length} tasks`);
+  }
+
+  function addDraftTag() {
+    const tag = draftTag.trim().replace(/^#/, "");
+    if (!tag) return;
+    actions.setTag(ids, tag, true);
+    setDraftTag("");
+  }
+
   const shell = cn(
     "fixed left-1/2 z-[60] flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-1 rounded-full border border-line px-1.5 py-1.5 pl-3",
     "material shadow-lg anim-slide",
-    timerActive ? "bottom-[74px]" : "bottom-5",
+    // --bottom-inset is 0 on a desktop, so the pill sits where it always has;
+    // on a phone it clears the tab bar and the home indicator instead of
+    // landing on top of them, and clears the focus pill when that is up.
+    timerActive
+      ? "bottom-[calc(var(--bottom-inset)+74px)] max-md:bottom-[calc(var(--bottom-inset)+66px)]"
+      : "bottom-[calc(var(--bottom-inset)+20px)] max-md:bottom-[calc(var(--bottom-inset)+12px)]",
+    "max-md:left-3 max-md:right-3 max-md:max-w-none max-md:translate-x-0 max-md:rounded-2xl max-md:p-2",
   );
+
+  // The panel's icon buttons grow with it: 36px on a phone, 24px in the pill.
+  const phoneIcon = "max-md:size-9 max-md:[&_svg]:size-[18px]";
 
   // Select mode with nothing picked yet still needs to announce itself and offer a way out.
   if (!count) {
     return (
       <div className={shell}>
-        <span aria-live="polite" aria-atomic="true" className="whitespace-nowrap text-[12.5px] text-ink-2">
+        <span aria-live="polite" aria-atomic="true" className="whitespace-nowrap text-[12.5px] text-ink-2 max-md:min-w-0 max-md:flex-1 max-md:truncate max-md:pl-1.5 max-md:text-[13px]">
           Select tasks
-          <span className="ml-1 hidden text-ink-4 sm:inline">
+          {/* Mouse and keyboard words, so no phone and no finger gets them. */}
+          <span className="ml-1 text-ink-4 max-sm:hidden touch:hidden">
             — shift-click for a range, or <Kbd>X</Kbd> on the cursor row
           </span>
         </span>
+        {canSelectMore && <SelectAllButton onClick={selectAll} />}
         <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-line" />
-        <IconButton label="Leave select mode" size="sm" onClick={() => setSelecting(false)}>
+        <IconButton label="Leave select mode" size="sm" className={phoneIcon} onClick={() => setSelecting(false)}>
           <X />
         </IconButton>
       </div>
@@ -158,19 +216,24 @@ export function BulkBar() {
         role="toolbar"
         aria-orientation="horizontal"
         aria-label={`Bulk actions for ${count} selected ${noun}`}
-        className={shell}
+        className={cn(shell, "max-md:grid max-md:grid-cols-5 max-md:gap-x-1 max-md:gap-y-1.5")}
         onKeyDown={roving.onKeyDown}
         onFocus={roving.onFocus}
       >
-        <span
-          aria-live="polite"
-          aria-atomic="true"
-          className="mr-1 whitespace-nowrap text-[12.5px] font-medium text-ink"
-        >
-          <span className="tnum">{count}</span> selected
-        </span>
+        {/* `contents` on a desktop, so the pill lays out exactly as it did; on a
+            phone this is the top row's left half: the count and Select all. */}
+        <div className="contents max-md:col-span-3 max-md:row-start-1 max-md:flex max-md:min-w-0 max-md:items-center max-md:gap-1">
+          <span
+            aria-live="polite"
+            aria-atomic="true"
+            className="mr-1 whitespace-nowrap text-[12.5px] font-medium text-ink max-md:mr-0 max-md:pl-1.5 max-md:text-[13px]"
+          >
+            <span className="tnum">{count}</span> selected
+          </span>
+          {canSelectMore && <SelectAllButton onClick={selectAll} />}
+        </div>
 
-        <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-line" />
+        <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-line max-md:hidden" />
 
         <Popover
           side="top"
@@ -250,21 +313,28 @@ export function BulkBar() {
               );
             })}
             {allTags.length > 0 && <MenuSeparator />}
-            <div className="px-1 pb-1 pt-0.5">
+            <div className="flex items-center gap-1.5 px-1 pb-1 pt-0.5">
               <Input
                 value={draftTag}
                 onChange={(e) => setDraftTag(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key !== "Enter") return;
-                  const tag = draftTag.trim().replace(/^#/, "");
-                  if (!tag) return;
-                  actions.setTag(ids, tag, true);
-                  setDraftTag("");
+                  addDraftTag();
                 }}
                 placeholder="New tag, then ↵"
                 aria-label="Add a new tag to the selection"
                 className="h-7 text-[12.5px]"
               />
+              {/* Return is the keyboard's way to add it; a finger gets a button. */}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!draftTag.trim().replace(/^#/, "")}
+                onClick={addDraftTag}
+                className="hidden shrink-0 touch:inline-flex touch:h-10"
+              >
+                Add
+              </Button>
             </div>
           </>
         </Popover>
@@ -351,7 +421,7 @@ export function BulkBar() {
           )}
         </Popover>
 
-        <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-line" />
+        <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-line max-md:hidden" />
 
         <IconButton
           data-roving
@@ -359,10 +429,17 @@ export function BulkBar() {
           size="sm"
           tone="danger"
           onClick={() => setConfirming(true)}
+          className={cn(phoneIcon, "max-md:col-start-4 max-md:row-start-1 max-md:justify-self-center")}
         >
           <Trash2 />
         </IconButton>
-        <IconButton data-roving label="Clear selection" size="sm" onClick={clear}>
+        <IconButton
+          data-roving
+          label="Clear selection"
+          size="sm"
+          onClick={clear}
+          className={cn(phoneIcon, "max-md:col-start-5 max-md:row-start-1 max-md:justify-self-center")}
+        >
           <X />
         </IconButton>
       </div>

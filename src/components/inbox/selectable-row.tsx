@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Task } from "@/lib/types";
+import type { useDragBody } from "@/components/ui/drag";
 import { TaskRow } from "@/components/tasks/task-row";
 import { useTriage } from "./triage-context";
 import { TaskGlance } from "./task-glance";
@@ -33,8 +34,12 @@ export function SelectableRow({
   trailing?: React.ReactNode;
   dragHandle?: React.ReactNode;
   dense?: boolean;
-  /** pointer-only drag activation, so the row body can be grabbed in select mode */
-  dragProps?: { onPointerDown?: React.PointerEventHandler<HTMLElement> };
+  /**
+   * Pointer-only drag activation, so the row body can be grabbed in select
+   * mode: `onMouseDown` + `onTouchStart` from useAppSensors (a finger lifts
+   * the row by holding it), `onPointerDown` from a plain PointerSensor.
+   */
+  dragProps?: ReturnType<typeof useDragBody>;
 }) {
   const { selecting, isSelected, toggle, cursorId, setCursor, editingId, announce } = useTriage();
   const selected = isSelected(task.id);
@@ -93,7 +98,15 @@ export function SelectableRow({
           <TaskRow task={task} showDate={showDate} dragHandle={handle} dragProps={dragProps} />
         </div>
         {trailing && (
-          <div className="shrink-0 opacity-0 transition-opacity duration-150 ease-[var(--ease-out-apple)] focus-within:opacity-100 group-hover/inbox:opacity-100">
+          <div
+            className={cn(
+              "shrink-0 opacity-0 transition-opacity duration-150 ease-[var(--ease-out-apple)] focus-within:opacity-100 group-hover/inbox:opacity-100",
+              // Revealed by hover, so a touch screen — which has none — shows it
+              // always, on the title's line (TaskRow's touch padding is 10px,
+              // its line 20px) beside the row's own "…", not adrift mid-row.
+              "touch:mt-2.5 touch:flex touch:h-5 touch:items-center touch:self-start touch:opacity-100",
+            )}
+          >
             {trailing}
           </div>
         )}
@@ -114,7 +127,8 @@ export function SelectableRow({
       )}
 
       {dragHandle && (
-        <div className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100">
+        // A phone's gutter is 16px, so the grip moves in to stay on screen.
+        <div className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100 max-md:-left-4">
           {dragHandle}
         </div>
       )}
@@ -126,8 +140,12 @@ export function SelectableRow({
         tabIndex={tabbable ? 0 : -1}
         data-triage-row={task.id}
         onPointerDown={dragProps?.onPointerDown}
-        // shift-click would otherwise paint a text selection across the list
-        onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
+        onTouchStart={dragProps?.onTouchStart}
+        onMouseDown={(e) => {
+          dragProps?.onMouseDown?.(e);
+          // shift-click would otherwise paint a text selection across the list
+          if (e.shiftKey) e.preventDefault();
+        }}
         onClick={(e) => {
           toggle(task.id, { shift: e.shiftKey, order });
           setCursor(task.id);
@@ -140,6 +158,9 @@ export function SelectableRow({
         className={cn(
           "flex min-w-0 flex-1 select-none items-start gap-2 rounded-md px-1.5 text-left cursor-pointer",
           "transition-colors duration-150 ease-[var(--ease-out-apple)]",
+          // The whole row is the target, so on touch the row itself grows to
+          // a fingertip; holding it lifts it, so no iOS callout either.
+          "touch:py-[7px] touch:[-webkit-touch-callout:none]",
           selected ? "bg-selected" : isCursor ? "bg-hover" : "hover:bg-hover",
         )}
       >
