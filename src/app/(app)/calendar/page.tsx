@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor, pointerWithin,
+  DndContext, DragOverlay, pointerWithin,
   closestCenter, rectIntersection, type CollisionDetection,
-  useSensor, useSensors,
   type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
@@ -21,6 +20,7 @@ import { useHotkeys } from "@/hooks/use-hotkeys";
 import type { CalendarView } from "@/lib/store";
 import { Button, IconButton, Segmented } from "@/components/ui/primitives";
 import { MenuItem, MenuLabel, MenuSeparator, Popover } from "@/components/ui/overlays";
+import { useAppSensors } from "@/components/ui/drag";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { DndBoundary } from "@/components/tasks/task-list";
 import { openQuickAdd } from "@/components/shell/quick-add";
@@ -30,7 +30,7 @@ import { DayView } from "@/components/calendar/day-view";
 import { AgendaView } from "@/components/calendar/agenda-view";
 import { YearView } from "@/components/calendar/year-view";
 import { DayPeek } from "@/components/calendar/day-peek";
-import { RightRail } from "@/components/calendar/right-rail";
+import { RailSheet, RightRail } from "@/components/calendar/right-rail";
 import { ChipBody, DENSITIES, type ChipDensity } from "@/components/calendar/task-chip";
 import { useStickyChoice, useStickyFlag } from "@/components/calendar/view-prefs";
 import {
@@ -100,6 +100,9 @@ export default function CalendarPage() {
   const [weekNums, setWeekNums] = useStickyFlag(WEEKNUM_KEY, false);
   const [railOpen, setRailOpen] = useStickyFlag(RAIL_KEY, false);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
+  // The phone's rail is a sheet over the calendar, so it is never remembered
+  // open: a sheet that reappeared on every visit would hide the calendar.
+  const [shelvesOpen, setShelvesOpen] = React.useState(false);
 
   const [peekDate, setPeekDate] = React.useState<string | null>(null);
   const [active, setActive] = React.useState<DragPayload | null>(null);
@@ -111,12 +114,10 @@ export default function CalendarPage() {
   const [yearFrom, setYearFrom] = React.useState<CalendarView | null>(null);
   const view: PageView = yearFrom !== null && yearFrom === storeView ? "year" : storeView;
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    // Without this, every drag on this surface — task chips, books and titles
-    // from the rail — is mouse-only, and the drag handles still take a tab stop.
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // Mouse by distance, a finger by a short hold, the keyboard as before. The
+  // keyboard half is why every drag here — chips, rows, rail cards — is not
+  // mouse-only; the hold is why a swipe across the month is always a scroll.
+  const sensors = useAppSensors({ distance: 6, coordinateGetter: sortableKeyboardCoordinates });
 
   // ---- navigation ----
   const step = React.useCallback((dir: 1 | -1) => {
@@ -270,6 +271,8 @@ export default function CalendarPage() {
     setOverDate(null);
   }
 
+  const onToday = anchor === todayISO();
+
   return (
     <>
       <PageHeader
@@ -277,6 +280,16 @@ export default function CalendarPage() {
         subtitle={subtitle}
         actions={
           <div className="flex items-center gap-1 pl-2">
+            {/* A phone's second row only has room for the arrows and the
+                views, so Today moves up beside the date it resets. */}
+            <Button
+              size="sm"
+              onClick={goToday}
+              className={cn("md:hidden", onToday && "text-ink-3")}
+            >
+              Today
+            </Button>
+
             <Popover
               align="end"
               className="w-[236px]"
@@ -294,7 +307,9 @@ export default function CalendarPage() {
               }
             >
               {view === "month" && (
-                <>
+                // The phone's month draws dots, not chips, so how many chips
+                // fit a day is a question only the laptop's grid asks.
+                <div className="max-md:hidden">
                   <MenuLabel>Chips per day</MenuLabel>
                   {DENSITY_ROWS.map((row) => (
                     <MenuItem
@@ -308,7 +323,7 @@ export default function CalendarPage() {
                     </MenuItem>
                   ))}
                   <MenuSeparator />
-                </>
+                </div>
               )}
 
               <MenuLabel>Show</MenuLabel>
@@ -322,24 +337,37 @@ export default function CalendarPage() {
                 </MenuItem>
               )}
               {view !== "year" && (
-                <MenuItem
-                  icon={PanelRight}
-                  checked={railOpen}
-                  onClick={() => setRailOpen(!railOpen)}
-                >
-                  Books &amp; shelves
-                </MenuItem>
+                <>
+                  <MenuItem
+                    icon={PanelRight}
+                    checked={railOpen}
+                    onClick={() => setRailOpen(!railOpen)}
+                    className="max-md:hidden"
+                  >
+                    Books &amp; shelves
+                  </MenuItem>
+                  {/* The phone's rail is a sheet, so this opens it rather than
+                      pinning a column beside a grid that has no room for one. */}
+                  <MenuItem
+                    icon={PanelRight}
+                    onClick={() => { setOptionsOpen(false); setShelvesOpen(true); }}
+                    className="md:hidden"
+                  >
+                    Books &amp; shelves
+                  </MenuItem>
+                </>
               )}
 
               {view === "month" && (
-                <p className="border-t border-line px-2 pb-1 pt-1.5 text-[11.5px] leading-snug text-ink-4">
+                <p className="border-t border-line px-2 pb-1 pt-1.5 text-[11.5px] leading-snug text-ink-4 touch:hidden">
                   Click a day to peek, double-click to open it, drag across days
                   to select a span.
                 </p>
               )}
             </Popover>
 
-            <Button variant="primary" size="sm" onClick={openQuickAdd}>
+            {/* The tab bar's + is the phone's New. */}
+            <Button variant="primary" size="sm" onClick={openQuickAdd} className="max-md:hidden">
               <Plus className="size-3.5" />
               New
             </Button>
@@ -348,12 +376,12 @@ export default function CalendarPage() {
       >
         {/* Three clusters, not one long row: where you are, what you are looking
             at, and what you can do about it. */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 max-md:gap-2">
           <div className="flex items-center gap-0.5">
             <Button
               size="sm"
               onClick={goToday}
-              className={cn("mr-1", anchor === todayISO() && "text-ink-3")}
+              className={cn("mr-1 max-md:hidden", onToday && "text-ink-3")}
             >
               Today
             </Button>
@@ -365,11 +393,31 @@ export default function CalendarPage() {
             </IconButton>
           </div>
 
-          <Segmented value={view} options={VIEW_OPTIONS} onChange={changeView} />
+          {/* A little narrower on a phone, so all five views fit an SE. */}
+          <Segmented
+            value={view}
+            options={VIEW_OPTIONS}
+            onChange={changeView}
+            className="max-md:[&>button]:px-2"
+          />
         </div>
       </PageHeader>
 
-      <PageBody wide className={view === "year" ? undefined : "flex h-full min-h-[540px] gap-5"}>
+      <PageBody
+        wide
+        className={
+          view === "year"
+            ? undefined
+            : cn(
+              "flex h-full min-h-[540px] gap-5",
+              // A phone has no 540px to promise; a grid that fills the screen
+              // fills what there is. The month instead becomes one page — a
+              // short grid with the chosen day's list under it.
+              "max-md:min-h-0 max-md:py-3",
+              view === "month" && "max-md:block max-md:h-auto",
+            )
+        }
+      >
         {view === "year" ? (
           <YearView
             anchor={anchor}
@@ -402,6 +450,7 @@ export default function CalendarPage() {
                 preview={preview}
                 onPeek={setPeekDate}
                 onOpenDay={openDay}
+                onOpenShelves={() => setShelvesOpen(true)}
               />
             )}
             {view === "week" && (
@@ -448,6 +497,8 @@ export default function CalendarPage() {
       {view === "month" && peekDate && (
         <DayPeek date={peekDate} onClose={() => setPeekDate(null)} />
       )}
+
+      <RailSheet date={anchor} open={shelvesOpen} onClose={() => setShelvesOpen(false)} />
     </>
   );
 }

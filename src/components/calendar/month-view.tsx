@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { ChevronsLeft, ChevronsRight, Plus, X } from "lucide-react";
+import {
+  ArrowUpRight, BookOpen, Check, ChevronsLeft, ChevronsRight, Plus, X,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
-  addDays, dayNumber, daysBetween, formatDate, isSameMonth, monthGrid, monthName,
+  addDays, dayName, dayNumber, daysBetween, formatDate, isSameMonth, monthGrid, monthName,
   todayISO, weekNumber, weekday, weekdayHeaders,
 } from "@/lib/date";
 import { parseTask } from "@/lib/parse";
@@ -16,6 +18,8 @@ import { Popover } from "@/components/ui/overlays";
 import { VisuallyHidden } from "@/components/ui/form";
 import { bucketByDate, type DropPreview } from "./calendar-utils";
 import { CHIP_METRICS, TaskChip, type ChipDensity } from "./task-chip";
+import { DayDetail, usePushUnfinished } from "./day-peek";
+import { useShelfCounts } from "./right-rail";
 
 // =========================================================
 // Density
@@ -265,7 +269,8 @@ function DayCell({
   const counted = tasks.filter((t) => t.status !== "dropped");
   const done = counted.filter((t) => t.status === "done").length;
   const total = counted.length;
-  const unfinished = counted.filter((t) => t.status !== "done").length;
+  const open = counted.filter((t) => t.status !== "done");
+  const unfinished = open.length;
   const stale = date < todayISO() && unfinished > 0;
   const weekend = weekday(date) === 0 || weekday(date) === 6;
   const firstOfMonth = date.slice(8) === "01";
@@ -285,6 +290,9 @@ function DayCell({
       onPointerEnter={() => onPointerEnterCell(date)}
       className={cn(
         "group/cell relative flex min-h-0 min-w-0 flex-col border-b border-l border-line",
+        // A phone's row is a day number and a line of dots; the hairline
+        // between rows is all the grid it needs.
+        "max-md:min-h-[52px] max-md:border-l-0",
         "transition-colors duration-150",
         // Weekends used to carry their own wash too, which made the month read
         // as a checkerboard before it read as a calendar. The day number and
@@ -317,12 +325,12 @@ function DayCell({
       />
 
       {/* Content column — transparent to the pointer except its own controls. */}
-      <div className="pointer-events-none relative flex min-h-0 flex-1 flex-col p-1">
-        <div className="flex items-center gap-1" style={{ height: HEADER_H }}>
+      <div className="pointer-events-none relative flex min-h-0 flex-1 flex-col p-1 max-md:overflow-hidden max-md:px-0">
+        <div className="flex items-center gap-1 max-md:justify-center" style={{ height: HEADER_H }}>
           <span
             className={cn(
               "grid h-6 min-w-6 place-items-center rounded-full px-1 leading-none display-serif tnum",
-              "text-[22px] transition-colors duration-150",
+              "text-[22px] transition-colors duration-150 max-md:h-[30px] max-md:min-w-[30px]",
               isToday
                 ? "bg-accent text-accent-ink"
                 : inMonth
@@ -333,8 +341,10 @@ function DayCell({
             {dayNumber(date)}
           </span>
 
+          {/* The rest of this row is the laptop's: a phone's cell is a number
+              wide, its month is in the title and its dots say what is open. */}
           {firstOfMonth && !isToday && (
-            <span className="text-[11px] font-medium text-ink-3">
+            <span className="text-[11px] font-medium text-ink-3 max-md:hidden">
               {monthName(date, true)}
             </span>
           )}
@@ -345,11 +355,13 @@ function DayCell({
             <span
               aria-hidden
               title={`${unfinished} still open on a day that has passed`}
-              className="size-1.5 shrink-0 rounded-full bg-ink-4"
+              className="size-1.5 shrink-0 rounded-full bg-ink-4 max-md:hidden"
             />
           )}
 
           {total > 0 && (
+            // Hover-revealed, so a touch screen never sees it — there a tap on
+            // the day opens its detail, which has its own add field.
             <button
               type="button"
               tabIndex={tabIndex}
@@ -359,6 +371,7 @@ function DayCell({
                 "pointer-events-auto ml-auto grid size-7 cursor-pointer place-items-center rounded-md text-ink-4",
                 "opacity-0 transition-[opacity,color,background-color] duration-150",
                 "hover:bg-hover hover:text-ink-2 focus-visible:opacity-100 group-hover/cell:opacity-100",
+                "touch:hidden max-md:hidden",
               )}
             >
               <Plus className="size-3.5" />
@@ -366,7 +379,22 @@ function DayCell({
           )}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* What is still open, as up to three dots in the tasks' own tints;
+            a tick once everything is done. The count is in the cell's label. */}
+        <div aria-hidden className="flex h-3 items-center justify-center gap-[3px] md:hidden">
+          {open.slice(0, 3).map((t) => (
+            <span
+              key={t.id}
+              className={cn(`tint-${t.color ?? "slate"}`, "size-[5px] shrink-0 rounded-full")}
+              style={{ background: "var(--tint)" }}
+            />
+          ))}
+          {total > 0 && unfinished === 0 && (
+            <Check className="size-3 shrink-0 text-success stroke-[3]" />
+          )}
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden max-md:hidden">
           {visible.map((task) => (
             <TaskChip
               key={task.id}
@@ -405,6 +433,9 @@ function DayCell({
                 "pointer-events-auto flex w-full cursor-pointer items-center gap-1 rounded-[6px] px-1 text-left",
                 "text-ink-4 opacity-0 transition-[opacity,color,background-color] duration-150",
                 "hover:bg-hover hover:text-ink-3 focus-visible:opacity-100 group-hover/cell:opacity-100",
+                // An invisible button a finger can still hit is a trap; on a
+                // touch screen the day's detail is where adding happens.
+                "touch:hidden",
                 CHIP_METRICS[density].text,
               )}
             >
@@ -421,10 +452,11 @@ function DayCell({
           <div
             aria-hidden
             className={cn(
-              "flex items-center gap-1.5 transition-opacity duration-150",
+              "flex items-center gap-1.5 transition-opacity duration-150 max-md:hidden",
               total > 2
                 ? "opacity-100"
-                : "opacity-0 group-focus-within/cell:opacity-100 group-hover/cell:opacity-100",
+                // No hover on a touch screen, so there the meter simply shows.
+                : "opacity-0 group-focus-within/cell:opacity-100 group-hover/cell:opacity-100 touch:opacity-100",
             )}
             style={{ height: FOOTER_H }}
           >
@@ -468,6 +500,7 @@ function WeekCell({
         className={cn(
           "absolute inset-0 grid cursor-pointer place-items-start justify-center pt-1.5",
           "text-[11px] transition-colors duration-150 hover:bg-hover",
+          "touch-hit [--touch-hit:0px_-3px] max-md:place-items-center max-md:pt-0",
           selected ? "font-semibold text-accent" : "text-ink-4 hover:text-ink-3",
         )}
       >
@@ -555,8 +588,18 @@ function SelectionBar({
 // =========================================================
 // Month
 // =========================================================
+/**
+ * Whether the chosen day's detail is drawn under the grid (the phone layout)
+ * rather than floated over it. Asked at the moment of the tap, never during a
+ * render: what is drawn is decided by CSS, this only decides whether a tap
+ * should also float a second copy of something already on screen.
+ */
+function detailIsInline(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(width < 48rem)").matches;
+}
+
 export function MonthView({
-  anchor, weekStart, hour12, density, weekNums, preview, onPeek, onOpenDay,
+  anchor, weekStart, hour12, density, weekNums, preview, onPeek, onOpenDay, onOpenShelves,
 }: {
   anchor: string;
   weekStart: number;
@@ -567,6 +610,8 @@ export function MonthView({
   preview: DropPreview | null;
   onPeek: (date: string) => void;
   onOpenDay: (date: string) => void;
+  /** The phone's way to the rail, which cannot sit beside a phone's grid. */
+  onOpenShelves: () => void;
 }) {
   const tasks = useStore((s) => s.tasks);
   const selectedDate = useStore((s) => s.selectedDate);
@@ -665,7 +710,7 @@ export function MonthView({
     setRange(null);
     setSelectedDate(date);
     if (detail > 1) onOpenDay(date);
-    else onPeek(date);
+    else if (!detailIsInline()) onPeek(date);
   }, [selectedDate, setSelectedDate, onOpenDay, onPeek]);
 
   const selectWeek = React.useCallback((week: string[]) => {
@@ -759,22 +804,27 @@ export function MonthView({
         </VisuallyHidden>
       </div>
 
-      {/* ---- the grid ---- */}
+      {/* ---- the grid ----
+          On a phone the grid is not a scroller of its own: six short rows sit
+          on the page, and the chosen day's list follows them down it. */}
       <div
         ref={scrollerRef}
         onKeyDown={onGridKeyDown}
         role="group"
         aria-label={`${monthName(anchor)} calendar grid`}
-        className="min-h-0 flex-1 select-none overflow-y-auto border-r border-t border-line"
+        className={cn(
+          "min-h-0 flex-1 select-none overflow-y-auto border-r border-t border-line",
+          "max-md:flex-none max-md:overflow-visible max-md:border-r-0",
+        )}
       >
         <div className="flex min-h-full flex-col">
           <div
             ref={headerRowRef}
-            className="sticky top-0 z-20 grid shrink-0 material"
+            className="sticky top-0 z-20 grid shrink-0 material max-md:static"
             style={{ gridTemplateColumns: cols }}
           >
             {weekNums && (
-              <div className="border-b border-l border-line px-1 py-1.5 text-center text-[10.5px] font-medium text-ink-4">
+              <div className="border-b border-l border-line px-1 py-1.5 text-center text-[10.5px] font-medium text-ink-4 max-md:border-l-0">
                 Wk
               </div>
             )}
@@ -783,6 +833,7 @@ export function MonthView({
                 key={label + i}
                 className={cn(
                   "border-b border-l border-line px-2 py-1.5 text-[11px] font-medium",
+                  "max-md:border-l-0 max-md:px-0 max-md:text-center",
                   (i + weekStart) % 7 === 0 || (i + weekStart) % 7 === 6 ? "text-ink-4" : "text-ink-3",
                 )}
               >
@@ -794,7 +845,9 @@ export function MonthView({
           {weeks.map((week) => (
             <div
               key={week[0]}
-              className="grid flex-1"
+              // The inline minimum is the laptop's chip budget; a phone row is
+              // as tall as its number and its dots.
+              className="grid flex-1 max-md:min-h-0! max-md:flex-none"
               style={{ gridTemplateColumns: cols, minHeight: rowH }}
             >
               {weekNums && (
@@ -847,6 +900,60 @@ export function MonthView({
           onAdd={addAcross}
         />
       )}
+
+      <InlineDayDetail date={selectedDate} onOpenDay={onOpenDay} onOpenShelves={onOpenShelves} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------
+// The phone's day detail — what the floating peek is on a laptop, drawn under
+// the grid the way a phone calendar lists the chosen day below its month.
+// ---------------------------------------------------------
+function InlineDayDetail({
+  date, onOpenDay, onOpenShelves,
+}: {
+  date: string;
+  onOpenDay: (date: string) => void;
+  onOpenShelves: () => void;
+}) {
+  const { unfinished, push } = usePushUnfinished(date);
+  const shelves = useShelfCounts();
+  const onShelves = shelves.books + shelves.watch + shelves.unscheduled;
+  const isToday = date === todayISO();
+
+  return (
+    <section aria-label={`${formatDate(date, { year: true })}, day detail`} className="mt-5 md:hidden">
+      <div className="flex items-center gap-2">
+        <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">
+          {isToday ? "Today" : dayName(date)}
+          <span className="ml-1.5 font-normal text-ink-3 tnum">
+            {dayNumber(date)} {monthName(date)}
+          </span>
+        </h2>
+        <Button size="sm" variant="ghost" onClick={() => onOpenDay(date)} className="-mr-2 text-accent">
+          Open day
+          <ArrowUpRight className="size-3.5" aria-hidden />
+        </Button>
+      </div>
+
+      <div className="mt-2.5">
+        <DayDetail date={date} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        {unfinished.length > 0 && (
+          <Button size="sm" onClick={push}>
+            <ChevronsRight className="size-3.5" aria-hidden />
+            Move <span className="tnum">{unfinished.length}</span> to tomorrow
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={onOpenShelves} className="ml-auto -mr-2">
+          <BookOpen className="size-3.5" aria-hidden />
+          Books &amp; shelves
+          <span className="text-ink-4 tnum">{onShelves}</span>
+        </Button>
+      </div>
+    </section>
   );
 }

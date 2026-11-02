@@ -247,7 +247,7 @@ function HabitsDue({
             }
             className={cn(
               `tint-${habit.color}`,
-              "flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-1 text-left",
+              "flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-1 text-left touch:h-11",
               "transition-colors duration-150 hover:bg-hover",
             )}
           >
@@ -338,38 +338,23 @@ function ReadingBlocks({ tasks }: { tasks: Task[] }) {
 }
 
 // =========================================================
-// DayPeek
+// DayDetail — the day's list and its extras
 //
-// A modal panel, not a floating div with a dialog role. It takes focus when it
-// opens, keeps Tab inside itself, and hands focus back to the day cell it came
-// from — the click-catcher behind it is what makes `aria-modal` true rather
-// than a claim.
+// The floating peek wears it on a laptop; the phone's month view, which has no
+// room to float anything, shows it inline under the grid. One body, so the two
+// can never disagree about what a day holds.
 // =========================================================
-export function DayPeek({ date, onClose }: { date: string; onClose: () => void }) {
+export function DayDetail({ date }: { date: string }) {
   const tasks = useStore((s) => s.tasks);
   const hour12 = useStore((s) => s.hour12);
-  const setCalendarView = useStore((s) => s.setCalendarView);
-  const setSelectedDate = useStore((s) => s.setSelectedDate);
-  const patch = useStore((s) => s.patch);
-  const toast = useStore((s) => s.toast);
-
-  const mounted = useMounted();
-  const panelRef = React.useRef<HTMLDivElement>(null);
-  const restoreRef = React.useRef<HTMLElement | null>(null);
-  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
 
   const dayTasks = React.useMemo(() => tasksOn(tasks, date), [tasks, date]);
   const timed = React.useMemo(() => dayTasks.filter(isTimed), [dayTasks]);
   const { done, total } = React.useMemo(() => completionOn(tasks, date), [tasks, date]);
-  const unfinished = React.useMemo(
-    () => dayTasks.filter((t) => t.status !== "done" && t.status !== "dropped"),
-    [dayTasks],
-  );
   const planned = React.useMemo(
     () => timed.reduce((sum, t) => { const s = spanOf(t); return sum + (s.end - s.start); }, 0),
     [timed],
   );
-  const isToday = date === todayISO();
 
   // The peek used to repeat most of the Day view. What is left open is the
   // day's list; the timeline, salah, habits and reading sit one line below it.
@@ -391,6 +376,113 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
     readingCount ? `${readingCount} reading` : null,
   ].filter(Boolean).join(" · ");
 
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <Progress value={done} max={Math.max(1, total)} height={3} className="flex-1" />
+        <span className="shrink-0 text-[11.5px] text-ink-3 tnum">
+          {done}<span className="text-ink-4">/{total}</span>
+        </span>
+        {planned > 0 && (
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] text-ink-3 tnum">
+            <Clock className="size-3" aria-hidden />
+            {formatDuration(planned)}
+          </span>
+        )}
+      </div>
+
+      {/* Timed and untimed used to be two labelled lists; they are one
+          list that already prints the times, so the labels went. */}
+      <div className="mt-2.5">
+        <TaskList
+          tasks={dayTasks}
+          sortable={false}
+          composer
+          composerDate={date}
+          emptyDescription="Nothing on this day yet."
+        />
+      </div>
+
+      {!dayTasks.length && (
+        <MiniEmpty className="mt-1">
+          Type above to add the first thing.
+        </MiniEmpty>
+      )}
+
+      <Fold
+        className="mt-3 border-t border-line pt-1"
+        dense
+        label="More"
+        summary={moreSummary}
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+      >
+        <MiniTimeline date={date} tasks={timed} hour12={hour12} />
+
+        <section className="mt-4">
+          <SectionLabel>Salah</SectionLabel>
+          <SalahRow date={date} hour12={hour12} />
+        </section>
+
+        <HabitsDue date={date} due={habitsDue} index={habitIndex} weekStart={weekStart} />
+        <ReadingBlocks tasks={dayTasks} />
+      </Fold>
+    </>
+  );
+}
+
+/** What is still open on a day, and the one verb that moves all of it on. */
+export function usePushUnfinished(date: string) {
+  const tasks = useStore((s) => s.tasks);
+  const patch = useStore((s) => s.patch);
+  const toast = useStore((s) => s.toast);
+
+  const unfinished = React.useMemo(
+    () => tasksOn(tasks, date).filter((t) => t.status !== "done" && t.status !== "dropped"),
+    [tasks, date],
+  );
+
+  const push = React.useCallback(() => {
+    const moving = unfinished.map((t) => ({ id: t.id, date: t.date as string }));
+    if (!moving.length) return;
+    moving.forEach(({ id }) => patch("tasks", id, { date: addDays(date, 1) }));
+    toast({
+      title: `${moving.length} moved to tomorrow`,
+      description: `From ${dayName(date)} ${dayNumber(date)}.`,
+      tone: "success",
+      action: {
+        label: "Undo",
+        run: () => {
+          const store = useStore.getState();
+          moving.forEach((m) => store.patch("tasks", m.id, { date: m.date }));
+        },
+      },
+    });
+  }, [unfinished, date, patch, toast]);
+
+  return { unfinished, push };
+}
+
+// =========================================================
+// DayPeek
+//
+// A modal panel, not a floating div with a dialog role. It takes focus when it
+// opens, keeps Tab inside itself, and hands focus back to the day cell it came
+// from — the click-catcher behind it is what makes `aria-modal` true rather
+// than a claim.
+// =========================================================
+export function DayPeek({ date, onClose }: { date: string; onClose: () => void }) {
+  const setCalendarView = useStore((s) => s.setCalendarView);
+  const setSelectedDate = useStore((s) => s.setSelectedDate);
+
+  const mounted = useMounted();
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const restoreRef = React.useRef<HTMLElement | null>(null);
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
+
+  const { unfinished, push: pushUnfinished } = usePushUnfinished(date);
+  const isToday = date === todayISO();
+
   // ---- placement ----
   const place = React.useCallback(() => {
     const panel = panelRef.current;
@@ -399,22 +491,32 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
     const anchor = document
       .querySelector<HTMLElement>(`[data-day-cell="${date}"]`)
       ?.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    // The visual viewport, not the window: on a phone the keyboard covers the
+    // bottom of the layout viewport without shrinking it, and a panel placed
+    // against window.innerHeight would sit underneath it. On a desktop the two
+    // are the same rectangle.
+    const vv = window.visualViewport;
+    const vx = vv?.offsetLeft ?? 0;
+    const vy = vv?.offsetTop ?? 0;
+    const vw = vv?.width ?? window.innerWidth;
+    const vh = vv?.height ?? window.innerHeight;
 
-    let left = anchor ? anchor.left + anchor.width / 2 - p.width / 2 : vw - p.width - 24;
-    let top = anchor ? anchor.bottom + 8 : 96;
-    if (anchor && top + p.height > vh - 12) top = anchor.top - p.height - 8;
-    left = Math.max(12, Math.min(left, vw - p.width - 12));
-    top = Math.max(12, Math.min(top, vh - p.height - 12));
+    let left = anchor ? anchor.left + anchor.width / 2 - p.width / 2 : vx + vw - p.width - 24;
+    let top = anchor ? anchor.bottom + 8 : vy + 96;
+    if (anchor && top + p.height > vy + vh - 12) top = anchor.top - p.height - 8;
+    left = Math.max(vx + 12, Math.min(left, vx + vw - p.width - 12));
+    top = Math.max(vy + 12, Math.min(top, vy + vh - p.height - 12));
     setPos({ top, left });
   }, [date]);
 
   React.useLayoutEffect(() => {
     place();
     const onScroll = () => place();
+    const vv = window.visualViewport;
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onScroll);
+    vv?.addEventListener("resize", onScroll);
+    vv?.addEventListener("scroll", onScroll);
     // The panel grows and shrinks as tasks are added, checked or expanded.
     const panel = panelRef.current;
     const observer = panel ? new ResizeObserver(() => place()) : null;
@@ -422,6 +524,8 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
     return () => {
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onScroll);
+      vv?.removeEventListener("resize", onScroll);
+      vv?.removeEventListener("scroll", onScroll);
       observer?.disconnect();
     };
   }, [place]);
@@ -472,24 +576,6 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
     onClose();
   }
 
-  function pushUnfinished() {
-    const moving = unfinished.map((t) => ({ id: t.id, date: t.date as string }));
-    if (!moving.length) return;
-    moving.forEach(({ id }) => patch("tasks", id, { date: addDays(date, 1) }));
-    toast({
-      title: `${moving.length} moved to tomorrow`,
-      description: `From ${dayName(date)} ${dayNumber(date)}.`,
-      tone: "success",
-      action: {
-        label: "Undo",
-        run: () => {
-          const store = useStore.getState();
-          moving.forEach((m) => store.patch("tasks", m.id, { date: m.date }));
-        },
-      },
-    });
-  }
-
   if (!mounted) return null;
 
   return createPortal(
@@ -514,7 +600,14 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
           left: pos?.left ?? -9999,
           visibility: pos ? "visible" : "hidden",
         }}
-        className="fixed z-[70] flex max-h-[78vh] flex-col rounded-xl border border-line bg-raised shadow-lg anim-pop"
+        className={cn(
+          // dvh, not vh: Safari's vh is the viewport with its toolbars hidden,
+          // taller than what is on screen while they show. A desktop window has
+          // no such toolbars, so there the two are the same length.
+          "fixed z-[70] flex max-h-[78dvh] flex-col rounded-xl border border-line bg-raised shadow-lg anim-pop",
+          "max-w-[calc((100vw-24px)/var(--ui-scale,1))]",
+          "max-md:max-h-[calc(var(--vvh-app)-24px)]",
+        )}
       >
         {/* ---- header ---- */}
         <header className="flex items-start gap-2 border-b border-line px-3 py-2.5">
@@ -543,56 +636,8 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
         </header>
 
         {/* ---- body ---- */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <Progress value={done} max={Math.max(1, total)} height={3} className="flex-1" />
-            <span className="shrink-0 text-[11.5px] text-ink-3 tnum">
-              {done}<span className="text-ink-4">/{total}</span>
-            </span>
-            {planned > 0 && (
-              <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px] text-ink-3 tnum">
-                <Clock className="size-3" aria-hidden />
-                {formatDuration(planned)}
-              </span>
-            )}
-          </div>
-
-          {/* Timed and untimed used to be two labelled lists; they are one
-              list that already prints the times, so the labels went. */}
-          <div className="mt-2.5">
-            <TaskList
-              tasks={dayTasks}
-              sortable={false}
-              composer
-              composerDate={date}
-              emptyDescription="Nothing on this day yet."
-            />
-          </div>
-
-          {!dayTasks.length && (
-            <MiniEmpty className="mt-1">
-              Type above to add the first thing.
-            </MiniEmpty>
-          )}
-
-          <Fold
-            className="mt-3 border-t border-line pt-1"
-            dense
-            label="More"
-            summary={moreSummary}
-            open={moreOpen}
-            onOpenChange={setMoreOpen}
-          >
-            <MiniTimeline date={date} tasks={timed} hour12={hour12} />
-
-            <section className="mt-4">
-              <SectionLabel>Salah</SectionLabel>
-              <SalahRow date={date} hour12={hour12} />
-            </section>
-
-            <HabitsDue date={date} due={habitsDue} index={habitIndex} weekStart={weekStart} />
-            <ReadingBlocks tasks={dayTasks} />
-          </Fold>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2.5 touch:overscroll-contain">
+          <DayDetail date={date} />
         </div>
 
         {/* ---- quick actions ---- */}
@@ -603,8 +648,9 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
               onClick={pushUnfinished}
               title={`Move every unfinished task to ${dayName(addDays(date, 1))}`}
               className={cn(
-                "flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium text-ink-2",
+                "relative flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium text-ink-2",
                 "transition-colors duration-150 hover:bg-hover hover:text-ink active:scale-[0.975]",
+                "touch-hit [--touch-hit:-8px_-2px]",
               )}
             >
               <ChevronsRight className="size-3.5" aria-hidden />
@@ -616,8 +662,9 @@ export function DayPeek({ date, onClose }: { date: string; onClose: () => void }
             type="button"
             onClick={openDayView}
             className={cn(
-              "ml-auto flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium",
+              "relative ml-auto flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium",
               "text-accent transition-colors duration-150 hover:bg-accent-soft active:scale-[0.975]",
+              "touch-hit [--touch-hit:-8px_-2px]",
             )}
           >
             Open full day

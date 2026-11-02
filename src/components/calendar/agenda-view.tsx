@@ -22,8 +22,10 @@ const PAGE = 25;
 const OVERDUE_PAGE = 12;
 
 // The two sticky levels have to agree on a height or the day header slides
-// under the week header instead of stacking beneath it.
-const WEEK_H = 30;
+// under the week header instead of stacking beneath it. A phone's week header
+// is two lines — its day bars get a row of their own to be real targets — so
+// the height is a variable the agenda sets per width.
+const WEEK_H = "var(--agenda-week-h)";
 
 function DraggableRow({ task }: { task: Task }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -48,6 +50,9 @@ function DraggableRow({ task }: { task: Task }) {
             className={cn(
               "grid size-7 cursor-grab place-items-center rounded text-ink-4",
               "transition-colors hover:text-ink-2 active:cursor-grabbing [&_svg]:size-3.5",
+              // It only appears on hover, which a touch screen never has; there
+              // the row itself lifts on a hold, and the row menu picks a date.
+              "touch:hidden",
             )}
           >
             <GripVertical />
@@ -89,17 +94,24 @@ function WeekHeader({ weekStartDate, byDate }: { weekStartDate: string; byDate: 
 
   return (
     <div
-      className="sticky top-0 z-20 flex items-center gap-2.5 px-1 py-1 bg-canvas hairline-b"
+      className={cn(
+        "sticky top-0 z-20 flex items-center gap-2.5 px-1 py-1 bg-canvas hairline-b",
+        "max-md:flex-wrap max-md:content-center max-md:gap-y-1",
+      )}
       style={{ height: WEEK_H }}
     >
-      <span className="text-[11.5px] font-medium text-ink-3 tnum">
+      <span className="whitespace-nowrap text-[11.5px] font-medium text-ink-3 tnum">
         Week {summary.week}
       </span>
-      <span className="text-[11.5px] text-ink-4 tnum">
+      <span className="whitespace-nowrap text-[11.5px] text-ink-4 tnum">
         {formatDate(summary.start, { weekday: false })} – {formatDate(summary.end, { weekday: false })}
       </span>
 
-      <div className="ml-auto flex items-end gap-[3px]" role="group" aria-label="Load per day">
+      <div
+        className="ml-auto flex items-end gap-[3px] max-md:order-last max-md:ml-0 max-md:w-full max-md:gap-0"
+        role="group"
+        aria-label="Load per day"
+      >
         {summary.perDay.map((d) => (
           <button
             key={d.date}
@@ -107,7 +119,10 @@ function WeekHeader({ weekStartDate, byDate }: { weekStartDate: string; byDate: 
             onClick={() => setSelectedDate(d.date)}
             aria-label={`${dayNameOf(weekday(d.date), "long")} ${dayNumber(d.date)}, ${d.total} ${d.total === 1 ? "item" : "items"}`}
             title={`${dayNameOf(weekday(d.date), "long")} — ${d.done}/${d.total} done`}
-            className="flex h-7 w-4 cursor-pointer flex-col justify-end rounded-[4px] p-[2px] transition-colors hover:bg-hover"
+            className={cn(
+              "relative flex h-7 w-4 cursor-pointer flex-col justify-end rounded-[4px] p-[2px] transition-colors hover:bg-hover",
+              "max-md:flex-1 max-md:px-2 touch-hit [--touch-hit:-8px_0px]",
+            )}
           >
             <span
               className={cn(
@@ -122,7 +137,7 @@ function WeekHeader({ weekStartDate, byDate }: { weekStartDate: string; byDate: 
 
       {/* The days below each carry their own count; the week only adds up the
           hours. The full roll-up is in the description. */}
-      <span className="text-[11.5px] text-ink-4 tnum" aria-hidden>
+      <span className="whitespace-nowrap text-[11.5px] text-ink-4 tnum max-md:ml-auto" aria-hidden>
         {formatDuration(summary.minutes)}
       </span>
       <VisuallyHidden>{description}</VisuallyHidden>
@@ -196,7 +211,8 @@ function DayGroup({
         </IconButton>
       </header>
 
-      <div className="py-1 pl-5 pr-1">
+      {/* The left inset is the hover grip's gutter; a touch screen has no grip. */}
+      <div className="py-1 pl-5 pr-1 touch:pl-1">
         {tasks.map((task) => <DraggableRow key={task.id} task={task} />)}
         {adding && (
           <InlineComposer
@@ -274,7 +290,15 @@ export function AgendaView({ anchor, preview }: { anchor: string; preview: DropP
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto border-t border-line">
+    <div
+      className={cn(
+        "min-h-0 flex-1 overflow-y-auto border-t border-line touch:overscroll-contain",
+        // A touch-sized hit area reaches past the edge buttons and would
+        // otherwise let the list drift sideways under a finger.
+        "touch:overflow-x-hidden",
+        "[--agenda-week-h:30px] max-md:[--agenda-week-h:60px]",
+      )}
+    >
       <div className="mx-auto max-w-[720px] pb-10">
         {overdue.length > 0 && (
           <section>
@@ -287,7 +311,7 @@ export function AgendaView({ anchor, preview }: { anchor: string; preview: DropP
                 </Button>
               </div>
             </header>
-            <div className="py-1 pl-5 pr-1">
+            <div className="py-1 pl-5 pr-1 touch:pl-1">
               {/* A long tail of overdue rows must not push the agenda itself
                   off the screen — the rest is one button away. */}
               {overdue.slice(0, overdueLimit).map((task) => <DraggableRow key={task.id} task={task} />)}
@@ -295,7 +319,7 @@ export function AgendaView({ anchor, preview }: { anchor: string; preview: DropP
                 <button
                   type="button"
                   onClick={() => setOverdueLimit(overdue.length)}
-                  className="mt-1 h-7 cursor-pointer rounded-md px-1.5 text-[12.5px] text-ink-3 transition-colors hover:bg-hover hover:text-ink"
+                  className="mt-1 h-7 cursor-pointer rounded-md px-1.5 text-[12.5px] text-ink-3 transition-colors hover:bg-hover hover:text-ink touch:h-11"
                 >
                   Show {overdue.length - overdueLimit} more overdue
                 </button>

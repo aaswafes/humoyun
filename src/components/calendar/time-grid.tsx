@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { useDroppable } from "@dnd-kit/core";
 import {
   ArrowDown, ArrowUp, BookOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown,
@@ -31,6 +32,24 @@ import { TaskChip } from "./task-chip";
 const GUTTER = 56;      // width of the hour-label column
 const EMPTY_IDS: string[] = [];
 
+// ---- touch ----
+// A finger on the grid is a scroll until it has held still this long. Only
+// then does it become a move (on a block) or a new event (on empty grid).
+const HOLD_MS = 420;
+/** How far a finger may wander before a hold is a scroll after all. */
+const HOLD_SLOP = 8;
+/** A finger that lands this soon after a scroll is stopping the glide, not tapping. */
+const GLIDE_MS = 120;
+/** Holding a drag this close to an edge scrolls the grid under it. */
+const EDGE_PX = 40;
+
+/**
+ * Day columns on a phone's week: three to a screen, the rest a swipe away.
+ * `cqw` is the time grid's own width (it is the container on a phone), so the
+ * header, the all-day strip and the grid all agree on the same column.
+ */
+const THIRD = "max-md:min-w-[calc((100cqw-56px)/3)]";
+
 /** One block captured at the moment a drag starts. */
 interface Grabbed { id: string; idx: number; start: number; dur: number }
 
@@ -44,9 +63,21 @@ type Live =
     }
   | { kind: "resize"; taskId: string; idx: number; start: number; end: number; edge: Edge; moved: boolean };
 
-interface Pending { date: string; start: number; end: number }
+/** `offer`: a tapped slot, waiting to be typed into — it does not raise a keyboard. */
+interface Pending { date: string; start: number; end: number; offer?: boolean }
 interface Ghost { key: string; idx: number; start: number; end: number }
 interface LiveLabel { idx: number; start: number; end: number; copy: boolean }
+
+/** A finger down on the grid, not yet known to be a tap, a hold or a scroll. */
+interface Press {
+  id: number;
+  x: number;
+  y: number;
+  /** the block it landed on; null for empty grid */
+  task: Task | null;
+  armed: boolean;
+  timer: number;
+}
 
 type AddTask = ReturnType<typeof useStore.getState>["addTask"];
 
@@ -127,6 +158,7 @@ function SalahBands({
                 "pointer-events-auto absolute right-1.5 flex h-7 cursor-pointer items-center gap-1 rounded-full",
                 "border border-line px-2 material text-[11px] font-semibold",
                 "transition-[color,background-color,transform] duration-150 active:scale-[0.96]",
+                "touch-hit [--touch-hit:-8px_0px]",
                 state.text,
               )}
             >
@@ -202,6 +234,9 @@ function EventBlock({
       className={cn(
         `tint-${task.color ?? "slate"}`,
         "absolute select-none overflow-hidden rounded-md py-[2px] pl-2 pr-1 touch-none",
+        // On a touch screen a finger on a block still scrolls the grid; the
+        // block only moves after a hold, which the grid's pointer code runs.
+        "touch:touch-auto touch:[-webkit-touch-callout:none]",
         "cursor-grab transition-shadow duration-150 active:cursor-grabbing",
         lifted ? "z-30 shadow-md" : "z-10",
         done && "opacity-65",
@@ -260,13 +295,17 @@ function EventBlock({
         itself — Shift+Arrow resizes the end, Alt+Arrow the start. They shrink
         with the block and vanish on a 15-minute one, because a grip that covers
         half a block steals the gesture that matters more: moving it.
+
+        A fingertip cannot find a 7px strip, and a strip that resized at once
+        would turn the start of every scroll into a resize — so touch screens
+        get ResizeHandles on a selected block instead.
       */}
       {gripH > 0 && height >= 40 && (
         <div
           aria-hidden
           onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, task, "resize", "start"); }}
           style={{ height: gripH }}
-          className="absolute inset-x-0 top-0 cursor-ns-resize touch-none"
+          className="absolute inset-x-0 top-0 cursor-ns-resize touch-none touch:hidden"
         />
       )}
       {gripH > 0 && (
@@ -274,7 +313,7 @@ function EventBlock({
           aria-hidden
           onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, task, "resize", "end"); }}
           style={{ height: gripH }}
-          className="absolute inset-x-0 bottom-0 cursor-ns-resize touch-none"
+          className="absolute inset-x-0 bottom-0 cursor-ns-resize touch-none touch:hidden"
         />
       )}
     </div>
@@ -282,7 +321,61 @@ function EventBlock({
 }
 
 // ---------------------------------------------------------
+// Resize handles — a touch screen's grips
+//
+// Hold a block and let go without moving: it is selected, and these two knobs
+// appear on it, top-right and bottom-left the way a phone calendar draws them.
+// They are dedicated handles, so they alone carry `touch-none` and start at
+// once; nothing else on the grid can turn a scroll into a resize.
+// ---------------------------------------------------------
+function ResizeHandles({
+  placed, scale, onPointerDown,
+}: {
+  placed: Placed;
+  scale: GridScale;
+  onPointerDown: (e: React.PointerEvent, task: Task, mode: "move" | "resize", edge?: Edge) => void;
+}) {
+  const { task, start, end, col, cols, span } = placed;
+  const top = scale.yFor(start);
+  const bottom = top + Math.max(15, scale.yFor(end) - scale.yFor(start));
+  const left = (col / cols) * 100;
+  const right = ((col + Math.min(span, cols - col)) / cols) * 100;
+
+  const knob = (edge: Edge, y: number, x: string) => (
+    <div
+      aria-hidden
+      data-no-create
+      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, task, "resize", edge); }}
+      style={{ top: y, left: x }}
+      className={cn(
+        `tint-${task.color ?? "slate"}`,
+        "absolute z-[36] hidden size-7 -translate-x-1/2 -translate-y-1/2 place-items-center touch-none",
+        "touch:grid touch-hit",
+      )}
+    >
+      <span
+        className="size-3 rounded-full border-2 bg-raised shadow-sm"
+        style={{ borderColor: "var(--tint)" }}
+      />
+    </div>
+  );
+
+  return (
+    <>
+      {knob("start", top, `calc(${right}% - 18px)`)}
+      {knob("end", bottom, `calc(${left}% + 18px)`)}
+    </>
+  );
+}
+
+// ---------------------------------------------------------
 // TimeGrid — shared by Week (7 columns) and Day (1 wide column)
+//
+// On a phone the week keeps all seven days but draws three to a screen: the
+// grid scrolls sideways, snapping a day at a time, with the hour gutter
+// pinned and the header and all-day rows following it. The stored view is
+// still "week" — the page title, the arrows and every drop still mean the
+// whole week — and a laptop sees exactly the seven columns it always did.
 // ---------------------------------------------------------
 export function TimeGrid({
   dates, hour12, allDay = "row", header = true, salah = false, preview,
@@ -309,9 +402,22 @@ export function TimeGrid({
 
   const gridRef = React.useRef<HTMLDivElement>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const headRef = React.useRef<HTMLDivElement>(null);
+  const allDayRef = React.useRef<HTMLDivElement>(null);
   const scrolledOnce = React.useRef(false);
+  const revealedOnce = React.useRef(false);
   const keepMinute = React.useRef<number | null>(null);
   const liveRef = React.useRef<Live | null>(null);
+  // ---- touch ----
+  const pressRef = React.useRef<Press | null>(null);
+  /** true while a held finger owns the gesture and the grid's pan is held back */
+  const holdingRef = React.useRef(false);
+  const lastScrollAt = React.useRef(0);
+  const autoRef = React.useRef<{ raf: number; x: number; y: number } | null>(null);
+  const tapRef = React.useRef<{ x: number; y: number; task: Task | null; timer: number } | null>(null);
+  const applyRef = React.useRef<(x: number, y: number, step: number) => void>(() => {});
+  /** Seven days at three a screen on a phone; Day view is one column everywhere. */
+  const multi = dates.length > 1;
   const [live, setLive] = React.useState<Live | null>(null);
   const [pending, setPending] = React.useState<Pending | null>(null);
   const [expanded, setExpanded] = React.useState(false);
@@ -437,6 +543,43 @@ export function TimeGrid({
     setExpanded(next);
   }
 
+  // A phone shows three of the week's days; whichever day is chosen — from the
+  // week bar, a header or the page arrows — slides into view, in the middle
+  // where it can be. On a laptop every column is already on screen, so this
+  // measures, finds nothing to do and leaves.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !multi || !dates.includes(selectedDate)) return;
+    const col = el.querySelector<HTMLElement>(`[data-day-cell="${selectedDate}"]`);
+    if (!col) return;
+    const view = el.getBoundingClientRect();
+    const r = col.getBoundingClientRect();
+    const first = revealedOnce.current === false;
+    revealedOnce.current = true;
+    if (r.left >= view.left + GUTTER - 1 && r.right <= view.right + 1) return;
+    el.scrollTo({
+      left: Math.max(0, el.scrollLeft + r.left - (view.left + GUTTER) - r.width),
+      behavior: first ? "auto" : "smooth",
+    });
+  }, [selectedDate, dates, multi]);
+
+  // iOS only lets a gesture stop the page panning from a touchmove listener
+  // that is not passive — React's are — so the hold registers its own. It
+  // holds nothing back until a press has armed: before that, a finger scrolls.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const hold = (e: TouchEvent) => { if (holdingRef.current) e.preventDefault(); };
+    el.addEventListener("touchmove", hold, { passive: false });
+    return () => {
+      el.removeEventListener("touchmove", hold);
+      const press = pressRef.current;
+      if (press) window.clearTimeout(press.timer);
+      if (tapRef.current) window.clearTimeout(tapRef.current.timer);
+      if (autoRef.current) cancelAnimationFrame(autoRef.current.raf);
+    };
+  }, []);
+
   const setLiveState = (next: Live | null) => { liveRef.current = next; setLive(next); };
 
   function pointToSlot(clientX: number, clientY: number) {
@@ -451,11 +594,159 @@ export function TimeGrid({
     return { idx, minutes };
   }
 
+  /** The selection travels together when the grabbed block is part of it. */
+  function grabGroup(task: Task, minutes: number): Extract<Live, { kind: "move" }> | null {
+    const ids = selectedSet.has(task.id) && selected.length > 1 ? selected : [task.id];
+    const group: Grabbed[] = [];
+    for (const id of ids) {
+      const t = id === task.id ? task : tasks.find((x) => x.id === id);
+      if (!t || !t.date) continue;
+      const idx = dates.indexOf(t.date);
+      if (idx < 0) continue;
+      const s = spanOf(t);
+      group.push({ id: t.id, idx, start: s.start, dur: s.end - s.start });
+    }
+    const lead = group.find((g) => g.id === task.id);
+    if (!lead) return null;
+    return {
+      kind: "move", idx: lead.idx, start: lead.start, grab: minutes - lead.start,
+      moved: false, copy: false, lead, group,
+    };
+  }
+
+  // ---- touch: a hold, never a hijacked scroll ----
+  //
+  // A finger is a scroll until it has held still for HOLD_MS. Lifted before
+  // that, it was a tap: a block opens, empty grid offers a slot. Held, it
+  // arms — a block lifts and follows it, empty grid draws a new event that it
+  // stretches — and only then is the pan held back. A hold that never moves
+  // selects the block (the touch screen's Shift-click), which shows its
+  // resize handles and the selection bar.
+  function beginPress(e: React.PointerEvent, task: Task | null) {
+    endPress();
+    if (performance.now() - lastScrollAt.current < GLIDE_MS) return;
+    const press: Press = { id: e.pointerId, x: e.clientX, y: e.clientY, task, armed: false, timer: 0 };
+    press.timer = window.setTimeout(() => armPress(press), HOLD_MS);
+    pressRef.current = press;
+  }
+
+  function armPress(press: Press) {
+    if (pressRef.current !== press) return;
+    const { idx, minutes } = pointToSlot(press.x, press.y);
+    let next: Live | null;
+    if (press.task) {
+      next = grabGroup(press.task, minutes);
+    } else {
+      const anchor = clampToOpen(scale, snapMin(minutes, SNAP_MIN));
+      setPending(null);
+      setSelectedDate(dates[idx]);
+      next = {
+        kind: "create", idx, anchor, start: anchor,
+        end: Math.min(scale.to, anchor + 60), moved: false,
+      };
+    }
+    if (!next) { endPress(); return; }
+    press.armed = true;
+    holdingRef.current = true;
+    setLiveState(next);
+    try { gridRef.current?.setPointerCapture(press.id); } catch { /* the finger already lifted */ }
+    // Snapping would pull every edge-scroll step back to a column boundary.
+    const el = scrollRef.current;
+    if (el) el.style.scrollSnapType = "none";
+    autoRef.current = { raf: requestAnimationFrame(edgeScroll), x: press.x, y: press.y };
+  }
+
+  function endPress() {
+    const press = pressRef.current;
+    if (press) window.clearTimeout(press.timer);
+    pressRef.current = null;
+    holdingRef.current = false;
+    if (autoRef.current) cancelAnimationFrame(autoRef.current.raf);
+    autoRef.current = null;
+    const el = scrollRef.current;
+    if (el) el.style.scrollSnapType = "";
+  }
+
+  /** A phone shows a few hours at a time; a held drag near an edge scrolls on. */
+  function edgeScroll() {
+    const auto = autoRef.current;
+    const el = scrollRef.current;
+    if (!auto || !el || !liveRef.current) return;
+    const r = el.getBoundingClientRect();
+    const pace = (d: number) => Math.min(14, Math.ceil(d / 3));
+    let dy = 0;
+    let dx = 0;
+    if (auto.y < r.top + EDGE_PX) dy = -pace(r.top + EDGE_PX - auto.y);
+    else if (auto.y > r.bottom - EDGE_PX) dy = pace(auto.y - (r.bottom - EDGE_PX));
+    if (auto.x < r.left + GUTTER + 16) dx = -pace(r.left + GUTTER + 16 - auto.x);
+    else if (auto.x > r.right - 16) dx = pace(auto.x - (r.right - 16));
+    if (dx || dy) {
+      const top = el.scrollTop;
+      const left = el.scrollLeft;
+      el.scrollTop = top + dy;
+      el.scrollLeft = left + dx;
+      if (el.scrollTop !== top || el.scrollLeft !== left) applyRef.current(auto.x, auto.y, SNAP_MIN);
+    }
+    auto.raf = requestAnimationFrame(edgeScroll);
+  }
+
+  /**
+   * A tap — a press that lifted before it held — acts on its own click, not
+   * on the lift. The click is still on its way when the finger lifts, and a
+   * phone delivers it to whatever is under the finger by then: a slot or a
+   * sheet drawn on the lift would catch it, and focus the field it landed on.
+   * The timer covers a browser that sends no click.
+   */
+  function tapAt(press: Press) {
+    const waiting = tapRef.current;
+    if (waiting) window.clearTimeout(waiting.timer);
+    const tap = { x: press.x, y: press.y, task: press.task, timer: 0 };
+    tap.timer = window.setTimeout(() => runTap(tap), 450);
+    tapRef.current = tap;
+  }
+
+  function onGridClick() {
+    const tap = tapRef.current;
+    if (!tap) return;
+    window.clearTimeout(tap.timer);
+    runTap(tap);
+  }
+
+  function runTap(tap: { x: number; y: number; task: Task | null }) {
+    if (tapRef.current !== tap) return;
+    tapRef.current = null;
+    if (tap.task) { openInspector(tap.task.id); return; }
+    // A tap on the grid first puts away whatever an earlier tap opened.
+    if (pending) {
+      (document.activeElement as HTMLElement | null)?.blur();
+      setPending(null);
+      return;
+    }
+    if (selected.length) { setSelected(EMPTY_IDS); say("Selection cleared"); return; }
+    // An offer, not a field: it raises no keyboard until it is tapped, so a
+    // stray tap costs nothing. Half-hours, because a fingertip is about one.
+    const { idx, minutes } = pointToSlot(tap.x, tap.y);
+    const start = clampToOpen(scale, Math.floor(minutes / 30) * 30);
+    setSelectedDate(dates[idx]);
+    setPending({ date: dates[idx], start, end: Math.min(DAY_MIN, start + 60), offer: true });
+  }
+
+  function onGridScroll(e: React.UIEvent<HTMLDivElement>) {
+    lastScrollAt.current = performance.now();
+    if (pressRef.current && !pressRef.current.armed) endPress();
+    // The header and the all-day strip follow the grid sideways on a phone;
+    // on a laptop nothing scrolls sideways and this writes zero to zero.
+    const x = e.currentTarget.scrollLeft;
+    if (headRef.current) headRef.current.scrollLeft = x;
+    if (allDayRef.current) allDayRef.current.scrollLeft = x;
+  }
+
   // ---- pointer: create ----
   function onGridPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest("[data-event-block]") || target.closest("[data-no-create]")) return;
+    if (e.pointerType !== "mouse") { beginPress(e, null); return; }
 
     if (!e.shiftKey && selected.length) setSelected(EMPTY_IDS);
     const { idx, minutes } = pointToSlot(e.clientX, e.clientY);
@@ -473,6 +764,10 @@ export function TimeGrid({
     if (e.button !== 0) return;
     e.stopPropagation();
 
+    // A finger on a block is a scroll until it holds. Only a dedicated resize
+    // handle — which carries touch-none — starts at once.
+    if (e.pointerType !== "mouse" && mode === "move") { beginPress(e, task); return; }
+
     // Shift-click builds the selection; it never starts a drag — and it works
     // on the grips too, so a small block is not half unselectable.
     if (e.shiftKey) {
@@ -484,36 +779,37 @@ export function TimeGrid({
     const { start, end } = spanOf(task);
 
     if (mode === "resize") {
+      if (e.pointerType !== "mouse") holdingRef.current = true;
       setLiveState({ kind: "resize", taskId: task.id, idx: dates.indexOf(task.date ?? ""), start, end, edge, moved: false });
       gridRef.current?.setPointerCapture(e.pointerId);
       return;
     }
 
-    const ids = selectedSet.has(task.id) && selected.length > 1 ? selected : [task.id];
-    const group: Grabbed[] = [];
-    for (const id of ids) {
-      const t = id === task.id ? task : tasks.find((x) => x.id === id);
-      if (!t || !t.date) continue;
-      const idx = dates.indexOf(t.date);
-      if (idx < 0) continue;
-      const s = spanOf(t);
-      group.push({ id: t.id, idx, start: s.start, dur: s.end - s.start });
-    }
-    const lead = group.find((g) => g.id === task.id);
-    if (!lead) return;
-
-    setLiveState({
-      kind: "move", idx: lead.idx, start: lead.start, grab: minutes - lead.start,
-      moved: false, copy: e.altKey, lead, group,
-    });
+    const grabbed = grabGroup(task, minutes);
+    if (!grabbed) return;
+    setLiveState({ ...grabbed, copy: e.altKey });
     gridRef.current?.setPointerCapture(e.pointerId);
   }
 
   function onGridPointerMove(e: React.PointerEvent) {
+    const press = pressRef.current;
+    if (press && e.pointerId === press.id) {
+      const far = Math.hypot(e.clientX - press.x, e.clientY - press.y) > HOLD_SLOP;
+      // Moving before the hold lands makes this a scroll, which the browser
+      // is already running; let it.
+      if (!press.armed) { if (far) endPress(); return; }
+      if (autoRef.current) { autoRef.current.x = e.clientX; autoRef.current.y = e.clientY; }
+      // A finger settles a little as the hold lands; that is not a drag.
+      if (!far && !liveRef.current?.moved) return;
+    }
+    applyPointer(e.clientX, e.clientY, stepFor(e));
+  }
+
+  /** What the live gesture becomes with the pointer here, snapped to `step`. */
+  function applyPointer(clientX: number, clientY: number, step: number) {
     const current = liveRef.current;
     if (!current) return;
-    const step = stepFor(e);
-    const { idx, minutes } = pointToSlot(e.clientX, e.clientY);
+    const { idx, minutes } = pointToSlot(clientX, clientY);
 
     // Snapping means a click never becomes a drag by accident — only a real
     // change in the snapped value flips `moved`.
@@ -558,7 +854,23 @@ export function TimeGrid({
     setLiveState({ ...current, start, moved: true });
   }
 
-  function onGridPointerUp() {
+  function onGridPointerUp(e: React.PointerEvent) {
+    const press = pressRef.current;
+    const touch = !!press && e.pointerId === press.id;
+    if (touch) {
+      const armed = press.armed;
+      endPress();
+      if (!armed) { tapAt(press); return; }
+      const held = liveRef.current;
+      if (held?.kind === "move" && !held.moved) {
+        // A hold that never moved is the touch screen's Shift-click.
+        setLiveState(null);
+        toggleSelected(held.lead.id);
+        return;
+      }
+    }
+    holdingRef.current = false;
+
     const current = liveRef.current;
     setLiveState(null);
     if (!current) return;
@@ -567,7 +879,12 @@ export function TimeGrid({
       // a plain click still opens a slot — an hour, snapped to where it landed
       const start = current.moved ? current.start : current.anchor;
       const end = current.moved ? current.end : Math.min(DAY_MIN, current.anchor + 60);
-      setPending({ date: dates[current.idx], start, end });
+      const slot = { date: dates[current.idx], start, end };
+      if (!touch) { setPending(slot); return; }
+      // The field has to exist, and take focus, inside this touch: iOS only
+      // raises the keyboard for a focus() made during the gesture.
+      flushSync(() => setPending(slot));
+      gridRef.current?.querySelector<HTMLInputElement>("[data-pending-input]")?.focus();
       return;
     }
 
@@ -588,7 +905,10 @@ export function TimeGrid({
   }
 
   // A touch that turns into a scroll must not leave a half-made event behind.
-  function onGridPointerCancel() { setLiveState(null); }
+  function onGridPointerCancel() { endPress(); setLiveState(null); }
+
+  // The edge scroll runs between renders and must move whatever is live now.
+  React.useLayoutEffect(() => { applyRef.current = applyPointer; });
 
   // ---- mutations shared by pointer and keyboard ----
   function toggleSelected(id: string) {
@@ -906,11 +1226,17 @@ export function TimeGrid({
     </IconButton>
   );
 
+  // The gutter cells stay put while a phone's week slides under them.
+  const pinGutter = multi && "max-md:sticky max-md:left-0 max-md:z-10 max-md:bg-canvas";
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className={cn("relative flex min-h-0 flex-1 flex-col", multi && "max-md:@container")}>
       {header && (
-        <div className="flex shrink-0 border-t border-line">
-          <div style={{ width: GUTTER }} className="flex shrink-0 items-center justify-center">
+        <div
+          ref={headRef}
+          className={cn("flex shrink-0 border-t border-line", multi && "max-md:overflow-x-hidden")}
+        >
+          <div style={{ width: GUTTER }} className={cn("flex shrink-0 items-center justify-center", pinGutter)}>
             {scaleToggle}
           </div>
           {dates.map((date) => {
@@ -924,8 +1250,11 @@ export function TimeGrid({
                 aria-current={date === selectedDate ? "date" : undefined}
                 title={`${formatDate(date, { year: true })} — ${load} ${load === 1 ? "item" : "items"}`}
                 className={cn(
-                  "flex flex-1 cursor-pointer items-baseline justify-center gap-1.5 border-l border-line py-2",
-                  "transition-colors duration-150 hover:bg-hover",
+                  // min-w-0: a narrow window (an iPad beside the sidebar) clips a
+                  // day's label rather than pushing the row out over the rail.
+                  "flex min-w-0 flex-1 cursor-pointer items-baseline justify-center gap-1.5 overflow-hidden border-l border-line py-2",
+                  "transition-colors duration-150 hover:bg-hover touch:py-[11px]",
+                  multi && THIRD,
                   date === selectedDate && "bg-selected",
                 )}
               >
@@ -955,15 +1284,28 @@ export function TimeGrid({
       )}
 
       {allDay === "row" && (
-        <div className={cn("flex shrink-0 border-t border-line", !hasAllDay && "h-[30px]")}>
+        <div
+          ref={allDayRef}
+          className={cn(
+            "flex shrink-0 border-t border-line",
+            !hasAllDay && "h-[30px]",
+            multi && "max-md:overflow-x-hidden",
+          )}
+        >
           <div
             style={{ width: GUTTER }}
-            className="shrink-0 pr-2 pt-1.5 text-right text-[10.5px] font-medium text-ink-4"
+            className={cn("shrink-0 pr-2 pt-1.5 text-right text-[10.5px] font-medium text-ink-4", pinGutter)}
           >
             All-day
           </div>
           {dates.map((date) => (
-            <AllDayCell key={date} date={date} tasks={allDayByDate.get(date) ?? []} hour12={hour12} />
+            <AllDayCell
+              key={date}
+              date={date}
+              tasks={allDayByDate.get(date) ?? []}
+              hour12={hour12}
+              third={multi}
+            />
           ))}
         </div>
       )}
@@ -984,9 +1326,28 @@ export function TimeGrid({
         </div>
       )}
 
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto border-t border-line">
-        <div className="flex" style={{ height: scale.height }}>
-          <div style={{ width: GUTTER }} className="relative shrink-0">
+      <div
+        ref={scrollRef}
+        onScroll={onGridScroll}
+        className={cn(
+          "relative min-h-0 flex-1 overflow-y-auto border-t border-line",
+          // A hold must not end in the iOS loupe or a text selection, and a
+          // fling must not drag the page along behind the grid.
+          "touch:select-none touch:overscroll-contain touch:[-webkit-touch-callout:none]",
+          multi && "max-md:snap-x max-md:snap-mandatory max-md:scroll-pl-14 max-md:overflow-x-auto",
+        )}
+      >
+        {/* As wide as the week on a phone, not as the screen: a sticky gutter
+            can only stay pinned inside its own parent's box. */}
+        <div className={cn("flex", multi && "max-md:w-max max-md:min-w-full")} style={{ height: scale.height }}>
+          <div
+            style={{ width: GUTTER }}
+            className={cn(
+              "relative shrink-0",
+              // Above every block, label and composer that slides beneath it.
+              multi && "max-md:sticky max-md:left-0 max-md:z-[45] max-md:bg-canvas",
+            )}
+          >
             {scale.hours.map((h) => {
               const y = scale.yFor(h * 60);
               if (y <= 0) return null;
@@ -1008,6 +1369,7 @@ export function TimeGrid({
             onPointerMove={onGridPointerMove}
             onPointerUp={onGridPointerUp}
             onPointerCancel={onGridPointerCancel}
+            onClick={onGridClick}
             className="relative flex flex-1"
           >
             {openWindows.length > 0 && (
@@ -1049,6 +1411,7 @@ export function TimeGrid({
                 onPendingDone={() => setPending(null)}
                 weekStart={weekStart}
                 addTask={addTask}
+                third={multi}
               />
             ))}
 
@@ -1088,15 +1451,20 @@ export function TimeGrid({
                   className={cn(
                     "absolute inset-x-0 z-30 flex cursor-pointer items-center justify-center gap-1.5",
                     "bg-sunken text-[11px] text-ink-4 transition-colors duration-150",
-                    "hover:text-accent [&:hover_svg]:text-accent",
+                    "hover:text-accent [&:hover_svg]:text-accent touch-hit [--touch-hit:-7px_0px]",
                     band.from === 0 ? "hairline-b" : "hairline-t",
+                    // A phone's strip is a week wide but a screen is three days:
+                    // its words start at the left and ride along with the scroll.
+                    multi && "max-md:justify-start max-md:pl-3",
                   )}
                 >
-                  <ChevronsUpDown className="size-3" aria-hidden />
-                  <span className="tnum">{range}</span>
-                  {hidden > 0 && (
-                    <span className="text-ink-3 tnum">· {hidden} hidden</span>
-                  )}
+                  <span className={cn("flex items-center gap-1.5", multi && "max-md:sticky max-md:left-[68px]")}>
+                    <ChevronsUpDown className="size-3" aria-hidden />
+                    <span className="tnum">{range}</span>
+                    {hidden > 0 && (
+                      <span className="text-ink-3 tnum">· {hidden} hidden</span>
+                    )}
+                  </span>
                 </button>
               );
             })}
@@ -1226,7 +1594,8 @@ function SelectionBar({
   onClear: () => void;
 }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-3 z-40 flex justify-center px-3">
+    // Above a phone's pinned hour gutter (z-45), which it overlaps at the left.
+    <div className="pointer-events-none absolute inset-x-0 bottom-3 z-40 flex justify-center px-3 max-md:z-50">
       <div
         role="group"
         aria-label={`${count} blocks selected`}
@@ -1270,7 +1639,7 @@ function SelectionBar({
 // ---------------------------------------------------------
 function DayColumn({
   date, idx, selected, previewed, placed, hour12, scale, live, selectedIds, ghosts, label,
-  pending, onBlockPointerDown, onBlockKeyDown, onKeyDown, onPendingDone, weekStart, addTask,
+  pending, onBlockPointerDown, onBlockKeyDown, onKeyDown, onPendingDone, weekStart, addTask, third,
 }: {
   date: string;
   idx: number;
@@ -1290,6 +1659,8 @@ function DayColumn({
   onPendingDone: () => void;
   weekStart: number;
   addTask: AddTask;
+  /** a third of a phone's screen, snapping, inside a week that scrolls sideways */
+  third: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `day:${date}`,
@@ -1315,6 +1686,7 @@ function DayColumn({
       className={cn(
         "relative min-w-0 flex-1 border-l border-line transition-colors duration-150",
         "focus-visible:z-30",
+        third && `${THIRD} max-md:snap-start`,
         selected && "bg-selected/50",
         previewed && !isOver && "bg-accent-soft",
         isOver && "bg-accent-soft ring-1 ring-inset ring-accent-line",
@@ -1337,6 +1709,11 @@ function DayColumn({
           onKeyDown={onBlockKeyDown}
         />
       ))}
+
+      {/* Touch screens only — the mouse has the grips on the block itself. */}
+      {placed.map((p) => (selectedIds.has(p.task.id) && !draggingIds?.has(p.task.id) ? (
+        <ResizeHandles key={`resize-${p.task.id}`} placed={p} scale={scale} onPointerDown={onBlockPointerDown} />
+      ) : null))}
 
       {/* Alt-drag copies: the original stays put, these show where the copy lands. */}
       {ghosts.map((g) => (
@@ -1381,6 +1758,7 @@ function DayColumn({
           date={date}
           start={pending.start}
           end={pending.end}
+          offer={!!pending.offer}
           hour12={hour12}
           scale={scale}
           weekStart={weekStart}
@@ -1396,11 +1774,13 @@ function DayColumn({
 // The new-event field that appears where the drag ended
 // ---------------------------------------------------------
 function PendingComposer({
-  date, start, end, hour12, scale, weekStart, addTask, onDone,
+  date, start, end, offer, hour12, scale, weekStart, addTask, onDone,
 }: {
   date: string;
   start: number;
   end: number;
+  /** a tapped slot: drawn, but not focused until it is tapped itself */
+  offer: boolean;
   hour12: boolean;
   scale: GridScale;
   weekStart: number;
@@ -1409,11 +1789,20 @@ function PendingComposer({
 }) {
   const [value, setValue] = React.useState("");
   const ref = React.useRef<HTMLInputElement>(null);
+  /** set while Cancel is pressed, so the blur that press causes does not save */
+  const cancelling = React.useRef(false);
   const range = formatRange(start, end, hour12);
 
-  React.useEffect(() => { ref.current?.focus(); }, []);
+  React.useEffect(() => { if (!offer) ref.current?.focus(); }, [offer]);
+
+  function cancel() {
+    cancelling.current = true;
+    setValue("");
+    onDone();
+  }
 
   function commit() {
+    if (cancelling.current) return;
     const text = value.trim();
     if (!text) { onDone(); return; }
     const parsed = parseTask(text, weekStart);
@@ -1445,6 +1834,7 @@ function PendingComposer({
     >
       <input
         ref={ref}
+        data-pending-input
         aria-label={`New event, ${range}`}
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -1455,14 +1845,33 @@ function PendingComposer({
           if (e.key === "Enter") { e.preventDefault(); commit(); }
           if (e.key === "Escape") { setValue(""); onDone(); }
         }}
+        enterKeyHint="done"
         placeholder="New event"
-        className="h-[22px] w-full bg-transparent px-1.5 text-[11.5px] font-medium text-ink outline-none placeholder:text-ink-4"
+        // 16px on a touch screen (globals.css), so the field needs the height.
+        className="h-[22px] w-full bg-transparent px-1.5 text-[11.5px] font-medium text-ink outline-none placeholder:text-ink-4 touch:h-8"
       />
-      <p className="px-1.5 pb-1 text-[10.5px] text-ink-3 tnum">
-        {range}
-        <span className="mx-1 text-ink-4">·</span>
-        {formatDuration(end - start)}
-      </p>
+      <div className="touch:flex touch:items-start">
+        <p className="px-1.5 pb-1 text-[10.5px] text-ink-3 tnum touch:min-w-0 touch:flex-1 touch:truncate">
+          {range}
+          <span className="mx-1 text-ink-4">·</span>
+          {formatDuration(end - start)}
+        </p>
+        {/* There is no Escape on a phone. Return on its keyboard saves. */}
+        <button
+          type="button"
+          aria-label="Cancel the new event"
+          onPointerDown={(e) => { e.stopPropagation(); cancelling.current = true; }}
+          onPointerCancel={() => { cancelling.current = false; }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={cancel}
+          className={cn(
+            "relative mb-1 mr-1 hidden size-6 shrink-0 cursor-pointer place-items-center rounded-md text-ink-3",
+            "transition-colors duration-150 active:bg-hover touch:grid touch-hit [--touch-hit:-10px]",
+          )}
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -1470,7 +1879,14 @@ function PendingComposer({
 // ---------------------------------------------------------
 // All-day strip cell
 // ---------------------------------------------------------
-function AllDayCell({ date, tasks, hour12 }: { date: string; tasks: Task[]; hour12: boolean }) {
+function AllDayCell({
+  date, tasks, hour12, third,
+}: {
+  date: string;
+  tasks: Task[];
+  hour12: boolean;
+  third: boolean;
+}) {
   const { setNodeRef, isOver } = useDroppable({
     id: `allday:${date}`,
     data: { type: "day", date },
@@ -1483,12 +1899,16 @@ function AllDayCell({ date, tasks, hour12 }: { date: string; tasks: Task[]; hour
       aria-label={`All-day on ${formatDate(date)} — ${tasks.length} ${tasks.length === 1 ? "item" : "items"}`}
       className={cn(
         "flex max-h-[84px] min-w-0 flex-1 flex-col gap-[2px] overflow-y-auto border-l border-line p-1",
-        "transition-colors duration-150",
+        "transition-colors duration-150 touch:overscroll-contain",
+        // Two fingertip-tall chips to a phone's strip; the rest scroll inside it.
+        "max-md:max-h-[92px]",
+        third && THIRD,
         isOver && "bg-accent-soft ring-1 ring-inset ring-accent-line",
       )}
     >
       {tasks.map((task) => (
-        <TaskChip key={task.id} task={task} hour12={hour12} />
+        // The padding is inline (density), so a phone's taller target needs `!`.
+        <TaskChip key={task.id} task={task} hour12={hour12} className="max-md:py-[10px]!" />
       ))}
     </div>
   );

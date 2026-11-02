@@ -41,10 +41,18 @@ function WeekBar({ dates }: { dates: string[] }) {
       : ".");
 
   return (
-    <div className="flex items-center gap-3 px-1 pb-2" aria-describedby="week-bar-summary">
+    // On a phone the grid below shows three days, so these bars are how the
+    // other four are reached: a full-width row of real targets, with the two
+    // facts on a line of their own under it.
+    <div
+      className="flex items-center gap-3 px-1 pb-2 max-md:flex-col max-md:items-stretch max-md:gap-1 max-md:px-0"
+      aria-describedby="week-bar-summary"
+    >
       <VisuallyHidden id="week-bar-summary">{description}</VisuallyHidden>
 
-      <div className="flex items-end gap-[3px]" role="group" aria-label="Load per day">
+      {/* Buttons touch edge to edge on a phone — the painted bars inside keep
+          their spacing — so even a 320px screen gives each one 40px. */}
+      <div className="flex items-end gap-[3px] max-md:gap-0" role="group" aria-label="Load per day">
         {summary.perDay.map((d) => {
           const isToday = d.date === today;
           const height = 4 + Math.round((d.total / peak) * 14);
@@ -57,8 +65,9 @@ function WeekBar({ dates }: { dates: string[] }) {
               title={`${dayNameOf(weekday(d.date), "long")} — ${d.done}/${d.total} done`}
               aria-label={`${dayNameOf(weekday(d.date), "long")}, ${d.total} ${d.total === 1 ? "item" : "items"}, ${d.done} done`}
               className={cn(
-                "group/bar flex h-7 w-5 cursor-pointer flex-col justify-end rounded-[4px] p-[2px]",
+                "group/bar relative flex h-7 w-5 cursor-pointer flex-col justify-end rounded-[4px] p-[2px]",
                 "transition-colors duration-150 hover:bg-hover",
+                "max-md:h-8 max-md:flex-1 max-md:px-2 touch-hit [--touch-hit:-6px_0px]",
                 d.date === selectedDate && "bg-selected",
               )}
             >
@@ -77,7 +86,7 @@ function WeekBar({ dates }: { dates: string[] }) {
       {/* Two facts the bars cannot show. The done count is already in the page
           header and the busiest day is the tallest bar, so both left the line
           and stayed in the spoken description. */}
-      <p className="text-[12px] text-ink-3 tnum">
+      <p className="text-[12px] text-ink-3 tnum max-md:px-1">
         <span className="text-ink-2">{formatDuration(summary.minutes)}</span> scheduled
         <span className="mx-1.5 text-ink-4">·</span>
         <span className="text-ink-2">{formatDuration(free * 60)}</span> free

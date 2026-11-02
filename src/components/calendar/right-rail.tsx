@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
 import {
   BookOpen, CalendarPlus, Clapperboard, Clock, Flag, Inbox, Maximize2,
-  PanelRightClose, PanelRightOpen,
+  PanelRightClose, PanelRightOpen, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -14,6 +14,8 @@ import {
 import { inboxTasks, useStore } from "@/lib/store";
 import { MEDIA_KIND_LABELS, type Book, type Media, type Task } from "@/lib/types";
 import { Button, IconButton, Progress } from "@/components/ui/primitives";
+import { Sheet } from "@/components/ui/overlays";
+import { DRAG_BODY_CLASS, useDragBody } from "@/components/ui/drag";
 import { MiniEmpty } from "@/components/ui/form";
 import { openQuickAdd } from "@/components/shell/quick-add";
 import { MediaCover } from "@/components/watch/media-cover";
@@ -63,11 +65,12 @@ function shelfOrder<T extends { status: string; order_index: number }>(active: s
 // dnd-kit's keyboard sensor needs `attributes` to take a tab stop; this card
 // deliberately skips them and offers the button instead, so there is exactly
 // one keyboard route and it says what it will do.
+//
+// Only the pointer activators reach the card (useDragBody). Spreading every
+// listener also handed the card the keyboard sensor's, which caught Enter and
+// Space bubbling up from its own buttons and started a drag instead.
 // ---------------------------------------------------------
-function RailCard({
-  dragId, payload, cover, title, subtitle, meta, footer, preview, actionLabel, onAction,
-  openLabel, onOpen,
-}: {
+interface RailCardProps {
   dragId: string;
   payload: Record<string, unknown>;
   cover: React.ReactNode;
@@ -80,17 +83,43 @@ function RailCard({
   onAction: () => void;
   openLabel?: string;
   onOpen?: () => void;
-}) {
-  const { listeners, setNodeRef, isDragging } = useDraggable({ id: dragId, data: payload });
+}
 
+/**
+ * Whether the cards below can be picked up. The phone shows the shelves as a
+ * sheet over the calendar — there is no day under a finger to drop on, so
+ * there the card is its buttons and nothing else.
+ */
+const RailDrag = React.createContext(true);
+
+function RailCard(props: RailCardProps) {
+  // A conditional hook is illegal; a conditional component is not.
+  return React.useContext(RailDrag) ? <DraggableRailCard {...props} /> : <RailCardBody {...props} />;
+}
+
+function DraggableRailCard(props: RailCardProps) {
+  const { listeners, setNodeRef, isDragging } = useDraggable({ id: props.dragId, data: props.payload });
+  const body = useDragBody(listeners);
+  return <RailCardBody {...props} nodeRef={setNodeRef} dragBody={body} dragging={isDragging} />;
+}
+
+function RailCardBody({
+  cover, title, subtitle, meta, footer, preview, actionLabel, onAction,
+  openLabel, onOpen, nodeRef, dragBody, dragging,
+}: RailCardProps & {
+  nodeRef?: (node: HTMLElement | null) => void;
+  dragBody?: ReturnType<typeof useDragBody>;
+  dragging?: boolean;
+}) {
   return (
     <div
-      ref={setNodeRef}
-      {...listeners}
+      ref={nodeRef}
+      {...dragBody}
       className={cn(
-        "group/card relative flex cursor-grab items-start gap-2.5 rounded-lg p-1.5 touch-none",
-        "transition-[background-color,opacity] duration-150 hover:bg-hover active:cursor-grabbing",
-        isDragging && "opacity-30",
+        "group/card relative flex items-start gap-2.5 rounded-lg p-1.5",
+        "transition-[background-color,opacity] duration-150 hover:bg-hover",
+        dragBody && DRAG_BODY_CLASS,
+        dragging && "opacity-30",
       )}
     >
       {cover}
@@ -114,7 +143,7 @@ function RailCard({
             size="md"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={onOpen}
-            className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/card:opacity-100"
+            className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/card:opacity-100 touch:opacity-100"
           >
             <Maximize2 />
           </IconButton>
@@ -401,6 +430,68 @@ function UnscheduledPane({ date }: { date: string }) {
 // accordion, so one shelf is on screen at a time instead of four tabs and a
 // scrolling list. Both states, and which pane is open, are remembered.
 // ---------------------------------------------------------
+/** What is on each shelf — the collapsed edge and the phone's entry points say it. */
+export function useShelfCounts() {
+  const books = useStore((s) => s.books);
+  const media = useStore((s) => s.media);
+  const tasks = useStore((s) => s.tasks);
+  return React.useMemo(() => ({
+    books: uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned")).length,
+    watch: uniqueById(media.filter((m) => m.status === "watching" || m.status === "planned")).length,
+    unscheduled: inboxTasks(tasks).length,
+  }), [books, media, tasks]);
+}
+
+/** Which shelf is open, remembered — the rail and the phone sheet share it. */
+function useShelfFolds() {
+  const [booksOpen, setBooksOpen] = useStickyFlag(OPEN_KEY.books, true);
+  const [watchOpen, setWatchOpen] = useStickyFlag(OPEN_KEY.watch, false);
+  const [inboxOpen, setInboxOpen] = useStickyFlag(OPEN_KEY.unscheduled, false);
+  return {
+    open: { books: booksOpen, watch: watchOpen, unscheduled: inboxOpen } as Record<Section, boolean>,
+    set: { books: setBooksOpen, watch: setWatchOpen, unscheduled: setInboxOpen } as Record<Section, (next: boolean) => void>,
+  };
+}
+
+function ShelfFolds({
+  date, counts, folds,
+}: {
+  date: string;
+  counts: ReturnType<typeof useShelfCounts>;
+  folds: ReturnType<typeof useShelfFolds>;
+}) {
+  return (
+    <>
+      <Fold
+        label="Books"
+        summary={`${counts.books} on the shelf`}
+        open={folds.open.books}
+        onOpenChange={folds.set.books}
+      >
+        <BooksPane date={date} />
+      </Fold>
+
+      <Fold
+        label="Watch"
+        summary={`${counts.watch} on the watchlist`}
+        open={folds.open.watch}
+        onOpenChange={folds.set.watch}
+      >
+        <WatchPane date={date} />
+      </Fold>
+
+      <Fold
+        label="Unscheduled"
+        summary={`${counts.unscheduled} without a date`}
+        open={folds.open.unscheduled}
+        onOpenChange={folds.set.unscheduled}
+      >
+        <UnscheduledPane date={date} />
+      </Fold>
+    </>
+  );
+}
+
 export function RightRail({
   date, open, onOpenChange,
 }: {
@@ -408,25 +499,8 @@ export function RightRail({
   open: boolean;
   onOpenChange: (next: boolean) => void;
 }) {
-  const books = useStore((s) => s.books);
-  const media = useStore((s) => s.media);
-  const tasks = useStore((s) => s.tasks);
-
-  const [booksOpen, setBooksOpen] = useStickyFlag(OPEN_KEY.books, true);
-  const [watchOpen, setWatchOpen] = useStickyFlag(OPEN_KEY.watch, false);
-  const [inboxOpen, setInboxOpen] = useStickyFlag(OPEN_KEY.unscheduled, false);
-
-  const counts = React.useMemo(() => ({
-    books: uniqueById(books.filter((b) => b.status === "reading" || b.status === "planned")).length,
-    watch: uniqueById(media.filter((m) => m.status === "watching" || m.status === "planned")).length,
-    unscheduled: inboxTasks(tasks).length,
-  }), [books, media, tasks]);
-
-  const setSectionOpen: Record<Section, (next: boolean) => void> = {
-    books: setBooksOpen,
-    watch: setWatchOpen,
-    unscheduled: setInboxOpen,
-  };
+  const counts = useShelfCounts();
+  const folds = useShelfFolds();
 
   const EDGE: { key: Section; icon: React.ComponentType<{ className?: string }>; noun: (n: number) => string }[] = [
     { key: "books", icon: BookOpen, noun: (n) => `${n} ${n === 1 ? "book" : "books"} on the shelf` },
@@ -434,11 +508,14 @@ export function RightRail({
     { key: "unscheduled", icon: Inbox, noun: (n) => `${n} ${n === 1 ? "task" : "tasks"} without a date` },
   ];
 
+  // Below md the rail never sits beside the grid — even collapsed it is a
+  // column the grid cannot spare. The phone reaches the same shelves through
+  // RailSheet, opened from the View menu and from the month's day detail.
   if (!open) {
     return (
       <aside
         aria-label="Books, films and unscheduled"
-        className="flex w-11 shrink-0 flex-col items-center gap-1 border-l border-line pl-1 pt-0.5"
+        className="flex w-11 shrink-0 flex-col items-center gap-1 border-l border-line pl-1 pt-0.5 max-md:hidden"
       >
         <IconButton label="Show books, films and unscheduled" size="md" onClick={() => onOpenChange(true)}>
           <PanelRightOpen />
@@ -450,12 +527,13 @@ export function RightRail({
           <button
             key={key}
             type="button"
-            onClick={() => { onOpenChange(true); setSectionOpen[key](true); }}
+            onClick={() => { onOpenChange(true); folds.set[key](true); }}
             aria-label={`Open the rail — ${noun(counts[key])}`}
             title={noun(counts[key])}
             className={cn(
-              "flex w-9 cursor-pointer flex-col items-center gap-0.5 rounded-md py-1.5",
+              "relative flex w-9 cursor-pointer flex-col items-center gap-0.5 rounded-md py-1.5",
               "text-ink-4 transition-colors duration-150 hover:bg-hover hover:text-ink-2",
+              "touch-hit [--touch-hit:-2px_-4px]",
             )}
           >
             <Icon className="size-4" />
@@ -467,7 +545,7 @@ export function RightRail({
   }
 
   return (
-    <aside className="flex w-[292px] shrink-0 flex-col border-l border-line pl-4">
+    <aside className="flex w-[292px] shrink-0 flex-col border-l border-line pl-4 max-md:hidden">
       <div className="flex items-center gap-1 pb-1">
         <p className="min-w-0 flex-1 truncate text-[11.5px] text-ink-4">
           Drag onto any day · buttons use {friendlyDate(date).toLowerCase()}
@@ -478,33 +556,46 @@ export function RightRail({
       </div>
 
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-        <Fold
-          label="Books"
-          summary={`${counts.books} on the shelf`}
-          open={booksOpen}
-          onOpenChange={setBooksOpen}
-        >
-          <BooksPane date={date} />
-        </Fold>
-
-        <Fold
-          label="Watch"
-          summary={`${counts.watch} on the watchlist`}
-          open={watchOpen}
-          onOpenChange={setWatchOpen}
-        >
-          <WatchPane date={date} />
-        </Fold>
-
-        <Fold
-          label="Unscheduled"
-          summary={`${counts.unscheduled} without a date`}
-          open={inboxOpen}
-          onOpenChange={setInboxOpen}
-        >
-          <UnscheduledPane date={date} />
-        </Fold>
+        <ShelfFolds date={date} counts={counts} folds={folds} />
       </div>
     </aside>
+  );
+}
+
+/**
+ * The rail, for a phone: the same three shelves as a full-screen sheet. A
+ * sheet covers the days, so nothing here drags — every card's button
+ * schedules it on the selected day, which is the rail's own keyboard path.
+ */
+export function RailSheet({
+  date, open, onClose,
+}: {
+  date: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const counts = useShelfCounts();
+  const folds = useShelfFolds();
+
+  return (
+    <Sheet open={open} onClose={onClose} width={400}>
+      <div className="flex items-center gap-2 px-4 pb-2 pt-3 hairline-b">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink">Books &amp; shelves</h2>
+          <p className="truncate text-[12.5px] text-ink-3">
+            Buttons schedule on {friendlyDate(date).toLowerCase()}
+          </p>
+        </div>
+        <IconButton label="Close" size="lg" onClick={onClose}>
+          <X />
+        </IconButton>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-4 py-2">
+        <RailDrag.Provider value={false}>
+          <ShelfFolds date={date} counts={counts} folds={folds} />
+        </RailDrag.Provider>
+      </div>
+    </Sheet>
   );
 }

@@ -461,7 +461,7 @@ function DayTip({ day, anchor, hour12 }: { day: YearDay; anchor: TipAnchor; hour
         </ul>
       )}
 
-      <p className="mt-2 flex items-center gap-1 border-t border-line pt-2 text-[11px] text-ink-4">
+      <p className="mt-2 flex items-center gap-1 border-t border-line pt-2 text-[11px] text-ink-4 touch:hidden">
         <Kbd>↵</Kbd> open day
         <span className="mx-0.5 text-ink-4">·</span>
         <Kbd>Space</Kbd> select
@@ -502,15 +502,17 @@ const MiniMonth = React.memo(function MiniMonth({
   const isCurrentMonth = today.slice(0, 7) === first.slice(0, 7);
 
   return (
-    <section className="mx-auto w-full max-w-[264px]" aria-label={label}>
+    // A little wider on a phone, where the year is one column anyway: the
+    // squares become fingertip-sized instead of a few pixels short.
+    <section className="mx-auto w-full max-w-[264px] max-md:max-w-[296px]" aria-label={label}>
       <div className="flex items-baseline gap-2 px-0.5">
         <button
           type="button"
           onClick={() => onOpenMonth(first)}
           aria-label={`Open ${label} in month view`}
           className={cn(
-            "-mx-1 flex h-7 cursor-pointer items-center rounded-md px-1 text-[13px] font-semibold tracking-[-0.01em]",
-            "transition-colors duration-150 hover:bg-hover active:scale-[0.975]",
+            "relative -mx-1 flex h-7 cursor-pointer items-center rounded-md px-1 text-[13px] font-semibold tracking-[-0.01em]",
+            "transition-colors duration-150 hover:bg-hover active:scale-[0.975] touch-hit",
             isCurrentMonth ? "text-accent" : "text-ink",
           )}
         >
@@ -900,7 +902,8 @@ export function YearView({
         ))}
       </div>
 
-      <p className="mt-3 text-[11.5px] leading-relaxed text-ink-4">
+      {/* Keys only; a touch screen has none, and tapping a square opens its day. */}
+      <p className="mt-3 text-[11.5px] leading-relaxed text-ink-4 touch:hidden">
         Arrows move a day · <Kbd>PgUp</Kbd>/<Kbd>PgDn</Kbd> a month ·{" "}
         <Kbd>Home</Kbd>/<Kbd>End</Kbd> jump to 1 Jan / 31 Dec · <Kbd>↵</Kbd> opens the day ·{" "}
         <Kbd>Space</Kbd> selects it
@@ -917,12 +920,14 @@ export function YearView({
         </div>
 
         <VisuallyHidden id={stripId}>{stripSummary}</VisuallyHidden>
-        <div className="mt-3 overflow-x-auto pb-1">
+        <div className="mt-3 overflow-x-auto overscroll-x-contain pb-1">
+          {/* Two rows of six on a phone, so the year fits instead of hiding
+              half of itself past a sideways scroll. */}
           <div
             role="group"
             aria-label={`Completion by month in ${year}`}
             aria-describedby={stripId}
-            className="grid min-w-[540px] grid-cols-12 gap-1"
+            className="grid min-w-[540px] grid-cols-12 gap-1 max-md:min-w-0 max-md:grid-cols-6 max-md:gap-y-3"
           >
             {model.months.map((m) => {
               const pct = m.rate == null ? null : Math.round(m.rate * 100);

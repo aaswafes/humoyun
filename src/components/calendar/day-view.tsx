@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { ArrowDownToLine, Clock, Sun, Timer } from "lucide-react";
+import { ArrowDownToLine, ChevronRight, Clock, Sun, Timer } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   addDays, dayName, dayNumber, formatDuration, formatTime, friendlyDate,
@@ -69,6 +69,9 @@ export function DayView({
   // The four load figures are what you check while planning, not what you came
   // to the day for — so they rest folded behind the two that matter.
   const [loadOpen, setLoadOpen] = useStickyFlag("humoyun.calendar.dayLoadOpen", false);
+  // A phone has the timeline to show first. The untimed list waits behind a
+  // line that counts it; a laptop's column has the room and never folds it.
+  const [listOpen, setListOpen] = useStickyFlag("humoyun.calendar.dayUnscheduledOpen", false);
 
   const { setNodeRef, isOver } = useDroppable({
     id: `dayside:${date}`,
@@ -130,16 +133,21 @@ export function DayView({
   const isToday = date === todayISO();
 
   return (
-    <div className="flex min-h-0 flex-1 gap-5">
+    <div className="flex min-h-0 flex-1 gap-5 max-md:flex-col max-md:gap-2">
       <aside
         ref={setNodeRef}
         className={cn(
           "flex w-[236px] shrink-0 flex-col overflow-y-auto rounded-lg pr-1 transition-colors duration-150",
+          // Above the grid on a phone, and never more than part of the screen:
+          // an open list scrolls inside it rather than squeezing the timeline.
+          "max-md:max-h-[calc(42dvh/var(--ui-scale,1))] max-md:w-full max-md:px-1 max-md:overscroll-contain",
           previewed && !isOver && "bg-accent-soft",
           isOver && "bg-accent-soft ring-1 ring-accent-line",
         )}
       >
-        <div className="pt-1">
+        {/* The page header already says which day and how much of it is
+            done; on a phone the hero and the bar would say it twice. */}
+        <div className="pt-1 max-md:hidden">
           <p
             className={cn(
               "text-[12px] font-medium",
@@ -160,7 +168,7 @@ export function DayView({
 
         {/* The bar and the count say it once between them — the label above
             them said nothing the numbers did not. */}
-        <div className="mt-5 flex items-center gap-2">
+        <div className="mt-5 flex items-center gap-2 max-md:hidden">
           <Progress value={done} max={Math.max(1, total)} height={4} className="flex-1" />
           <span className="shrink-0 text-[12px] text-ink-3 tnum">
             {done}<span className="text-ink-4">/{total}</span>
@@ -168,7 +176,7 @@ export function DayView({
         </div>
 
         <Fold
-          className="mt-5"
+          className="mt-5 max-md:mt-0"
           label="Load"
           summary={`${formatDuration(load.scheduled)} · ${formatDuration(load.free)} free`}
           open={loadOpen}
@@ -200,36 +208,63 @@ export function DayView({
         {carryOver.length > 0 && (
           // Loose ends are information, not an alert: a line of quiet text and
           // the one button that clears them, on spacing rather than a card.
-          <div className="mt-5">
-            <p className="text-[12px] leading-snug text-ink-3">
+          <div className="mt-5 max-md:mt-1 max-md:flex max-md:items-center max-md:gap-3">
+            <p className="text-[12px] leading-snug text-ink-3 max-md:min-w-0 max-md:flex-1">
               {carryOver.length} unfinished {carryOver.length === 1 ? "task" : "tasks"} on{" "}
               {friendlyDate(addDays(date, -1)).toLowerCase()}.
             </p>
-            <Button size="sm" className="mt-1.5 w-full" onClick={pullCarryOver}>
+            <Button size="sm" className="mt-1.5 w-full max-md:mt-0 max-md:w-auto max-md:shrink-0" onClick={pullCarryOver}>
               <ArrowDownToLine className="size-3.5" />
               Bring {carryOver.length === 1 ? "it" : "them"} across
             </Button>
           </div>
         )}
 
-        <div className="mt-7 min-h-0 flex-1">
-          <div className="mb-1.5 flex items-baseline justify-between">
+        <div className="mt-7 min-h-0 flex-1 max-md:mt-1">
+          <div className="mb-1.5 flex items-baseline justify-between max-md:hidden">
             <SectionLabel>Unscheduled</SectionLabel>
             {untimed.length > 0 && (
               <span className="text-[11px] text-ink-4 tnum">{untimed.length}</span>
             )}
           </div>
-          <TaskList
-            tasks={untimed}
-            sortable={false}
-            composer
-            composerDate={date}
-            emptyDescription="Nothing without a time yet."
-          />
+
+          <button
+            type="button"
+            aria-expanded={listOpen}
+            onClick={() => setListOpen(!listOpen)}
+            className={cn(
+              "-mx-1 flex h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-1 text-left md:hidden",
+              "transition-colors duration-150 hover:bg-hover touch:h-11",
+            )}
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn(
+                "size-3 shrink-0 text-ink-4 transition-transform duration-200 ease-[var(--ease-out-apple)]",
+                listOpen && "rotate-90",
+              )}
+            />
+            <span className="shrink-0 text-[12px] font-medium text-ink-2">Unscheduled</span>
+            <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-4 tnum">
+              {untimed.length ? `${untimed.length} without a time` : "nothing yet"}
+            </span>
+          </button>
+
+          <div className={cn(!listOpen && "max-md:hidden")}>
+            <TaskList
+              tasks={untimed}
+              sortable={false}
+              composer
+              composerDate={date}
+              emptyDescription="Nothing without a time yet."
+            />
+          </div>
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* min-h-0: stacked on a phone, the grid scrolls inside the screen
+          rather than growing the page by its full twenty-four hours. */}
+      <div className="flex min-w-0 flex-1 flex-col max-md:min-h-0">
         <TimeGrid dates={[date]} hour12={hour12} allDay="none" header={false} salah preview={preview} />
       </div>
     </div>

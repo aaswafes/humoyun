@@ -81,6 +81,21 @@ export function Fold({
 }) {
   const panelId = React.useId();
 
+  // Once the close animation has run, the content leaves the layout. Clipped
+  // to nothing it was already invisible, but still laid out — and a touch
+  // screen's accessibility and hit-testing treat a laid-out control as there.
+  const [settled, setSettled] = React.useState(!open);
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setSettled(false);
+  }
+  React.useEffect(() => {
+    if (open) return;
+    const t = window.setTimeout(() => setSettled(true), 220);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
   return (
     <div className={className}>
       <button
@@ -91,7 +106,9 @@ export function Fold({
         className={cn(
           "-mx-1 flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1 text-left",
           "transition-colors duration-150 hover:bg-hover",
+          // The whole row is the target, so on a touch screen the row grows.
           dense ? "h-7" : "h-8",
+          "touch:h-11",
         )}
       >
         <ChevronRight
@@ -117,6 +134,7 @@ export function Fold({
           className={cn(
             "min-h-0 overflow-hidden transition-opacity duration-200 ease-[var(--ease-out-apple)]",
             open ? "opacity-100" : "opacity-0",
+            !open && settled && "hidden",
             panelClassName,
           )}
         >
