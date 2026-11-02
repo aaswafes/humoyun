@@ -58,7 +58,7 @@ export function InsightLines({ insights }: { insights: Insight[] }) {
             onClick={() => setShowHeld((v) => !v)}
             aria-expanded={showHeld}
             className={cn(
-              "mt-3 -ml-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11.5px]",
+              "mt-3 -ml-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11.5px] touch:h-9",
               "cursor-pointer text-ink-4 transition-colors duration-150 hover:bg-hover hover:text-ink-2",
             )}
           >

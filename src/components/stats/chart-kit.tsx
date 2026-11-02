@@ -298,7 +298,9 @@ export function Chart({
             onKeyDown={nav ? onKeyDown : undefined}
             onFocus={nav ? () => { setFocused(true); if (nav.index == null && nav.n > 0) nav.onIndex(nav.n - 1); } : undefined}
             onBlur={nav ? () => { setFocused(false); nav.onIndex(null); } : undefined}
-            className={cn("block rounded-md", !reduced && animateKey != null && "anim-fade")}
+            // On a phone the plot runs to the edge of a 361px column, so the first
+            // and last axis labels hang past it; let them use the page gutter.
+            className={cn("block rounded-md max-md:overflow-visible", !reduced && animateKey != null && "anim-fade")}
           >
             {children({ w, h })}
           </svg>
@@ -456,7 +458,7 @@ export function Panel({
                   onClick={() => setShowTable((v) => !v)}
                   aria-expanded={showTable}
                   className={cn(
-                    "ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11.5px]",
+                    "ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11.5px] touch:h-9",
                     "cursor-pointer transition-colors duration-150",
                     showTable ? "bg-hover text-ink" : "text-ink-4 hover:bg-hover hover:text-ink-2",
                   )}

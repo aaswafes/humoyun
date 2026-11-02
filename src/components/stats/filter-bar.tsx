@@ -47,7 +47,7 @@ export function FilterBar({
                 : "Filters. Tags, comparison window and export."
             }
             className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-2.5",
+              "inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-2.5 touch:h-10",
               "text-[12.5px] font-medium cursor-pointer transition-colors duration-150",
               count ? "text-ink" : "text-ink-3 hover:bg-hover hover:text-ink-2",
             )}
