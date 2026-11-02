@@ -147,7 +147,10 @@ export function NewGoalDialog({
 
   return (
     <Modal open={open} onClose={onClose} title="New goal" width={460}>
-      <div className="max-h-[70vh] overflow-y-auto px-4 py-4">
+      {/* On a phone the body is sized by what is visible above the keyboard,
+          less the title bar and the footer (~120px together), so Create stays
+          on screen while you type and only the middle scrolls. */}
+      <div className="max-h-[70dvh] overflow-y-auto overscroll-contain px-4 py-4 max-md:max-h-[calc(var(--vvh-app)-var(--safe-top)-120px)]">
         {/* ---- what ---- */}
         <label htmlFor="new-goal-title" className="text-[12px] font-medium text-ink-2">
           What are you aiming at?
@@ -165,7 +168,7 @@ export function NewGoalDialog({
         {/* ---- when ---- */}
         <div className="mt-5">
           <div className="flex items-baseline gap-2">
-            <span className="text-[12px] font-medium text-ink-2">By when?</span>
+            <span className="shrink-0 text-[12px] font-medium text-ink-2">By when?</span>
             {/* The one thing the old form asked you to choose is now the one
                 thing it tells you. */}
             <span className="text-[11.5px] text-ink-4">
@@ -175,7 +178,7 @@ export function NewGoalDialog({
             </span>
           </div>
 
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex flex-wrap gap-1.5 touch:gap-2">
             {presets(today).map((p) => (
               <button
                 key={p.label}
@@ -184,6 +187,8 @@ export function NewGoalDialog({
                 onClick={() => setDate(p.date)}
                 className={cn(
                   "h-7 rounded-full border px-2.5 text-[12px] cursor-pointer transition-colors",
+                  // 36px chips, plus 4px of press area into the 8px gaps.
+                  "relative touch:h-9 touch:px-3 touch-hit [--touch-hit:-4px_0px]",
                   date === p.date
                     ? "border-accent bg-accent-soft text-accent"
                     : "border-line text-ink-2 hover:bg-hover",
@@ -219,7 +224,7 @@ export function NewGoalDialog({
         {/* ---- the first moves ---- */}
         <div className="mt-5">
           <div className="flex items-baseline gap-2">
-            <span className="text-[12px] font-medium text-ink-2">First tasks</span>
+            <span className="shrink-0 text-[12px] font-medium text-ink-2">First tasks</span>
             <span className="text-[11.5px] text-ink-4">
               Optional — “read 30 pages friday 7am” keeps its Friday
             </span>
@@ -240,7 +245,7 @@ export function NewGoalDialog({
                   <IconButton
                     size="sm"
                     label={`Remove ${t.title}`}
-                    className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/draft:opacity-100"
+                    className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/draft:opacity-100 touch:opacity-100"
                     onClick={() => setTasks((list) => list.filter((_, j) => j !== i))}
                   >
                     <X />

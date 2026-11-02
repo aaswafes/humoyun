@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import {
-  closestCenter, DndContext, DragOverlay, KeyboardSensor, PointerSensor,
-  pointerWithin, useDroppable, useSensor, useSensors,
+  closestCenter, DndContext, DragOverlay, pointerWithin, useDroppable,
   type CollisionDetection, type DragEndEvent, type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -15,7 +14,7 @@ import { CornerDownRight, GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Goal, Horizon, Tint } from "@/lib/types";
 import { Badge, IconButton } from "@/components/ui/primitives";
-import { useDragBody } from "@/components/ui/drag";
+import { useAppSensors, useDragBody } from "@/components/ui/drag";
 import { MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/overlays";
 import { GoalCard } from "./goal-card";
 import { HORIZON_BLURB, HORIZON_LABEL, HORIZONS, type GoalIndex } from "./goal-model";
@@ -175,10 +174,7 @@ export function GoalLadder({
   // -------------------------------------------------------
   // Drag and drop
   // -------------------------------------------------------
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useAppSensors({ distance: 5, coordinateGetter: sortableKeyboardCoordinates });
 
   /**
    * A card's middle band means "become a child of this"; its edges mean
@@ -292,13 +288,17 @@ export function GoalLadder({
         },
       }}
     >
-      <div className="overflow-x-auto pb-3 pl-7">
+      {/* Below md the rungs stack, Life at the top and Week at the bottom.
+          Five 240px columns side by side would show one at a time, and the
+          lines between them would only ever be seen cut off — so a phone
+          card names its parent instead (GoalCard's rollsUpTo). */}
+      <div className="overflow-x-auto overscroll-x-contain pb-3 pl-7 max-md:overflow-visible max-md:pb-2 max-md:pl-0">
         {/* The columns are the ladder's rungs — they need to read as five
             separate places, not one block, so the gutter between them is wide. */}
-        <div ref={hostRef} className="relative flex min-w-max gap-10">
+        <div ref={hostRef} className="relative flex min-w-max gap-10 max-md:min-w-0 max-md:flex-col max-md:gap-8">
           <svg
             className={cn(
-              "pointer-events-none absolute inset-0 size-full transition-opacity duration-200",
+              "pointer-events-none absolute inset-0 size-full transition-opacity duration-200 max-md:hidden",
               activeId && "opacity-25",
             )}
             aria-hidden
@@ -402,7 +402,7 @@ function LadderColumn({
   const columnHinted = !!hint && "horizon" in hint && hint.horizon === horizon;
 
   return (
-    <section className="group/col relative z-10 w-[240px] shrink-0">
+    <section className="group/col relative z-10 w-[240px] shrink-0 max-md:w-full">
       {/* The column header is the only place the horizon needs saying — every
           card below it inherits the answer, so none of them repeats it. */}
       <ColumnHeader
@@ -447,7 +447,7 @@ function LadderColumn({
             "px-2.5 text-left text-[12.5px] text-ink-4 transition-colors duration-150",
             "hover:bg-hover hover:text-ink-3",
             goals.length
-              ? "h-8"
+              ? "h-8 touch:h-11"
               : "min-h-[76px] border border-dashed border-line py-2.5 hover:border-line-strong",
           )}
         >
@@ -492,6 +492,8 @@ function LadderCard({
   const dropHint =
     hint && "targetId" in hint && hint.targetId === goal.id ? hint.kind : null;
 
+  const parent = goal.parent_id ? index.byId.get(goal.parent_id) ?? null : null;
+
   return (
     <div
       ref={setNodeRef}
@@ -514,6 +516,7 @@ function LadderCard({
         dragging={isDragging}
         dropHint={dropHint}
         dragProps={body}
+        rollsUpTo={parent ? parent.title : null}
         dragHandle={
           <button
             {...attributes}
@@ -525,6 +528,9 @@ function LadderCard({
               "grid size-7 cursor-grab place-items-center rounded-md border border-line bg-raised text-ink-4",
               "opacity-0 transition-opacity duration-150 active:cursor-grabbing",
               "hover:text-ink-2 focus-visible:opacity-100 group-hover/goal:opacity-100",
+              // Only hover ever showed it. A finger holds the card itself to
+              // lift it, and the ⋯ menu carries every move as a command.
+              "max-md:hidden touch:hidden",
               isDragging && "opacity-100",
             )}
           >

@@ -81,6 +81,8 @@ export function Fold({
           className={cn(
             "flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md py-1.5 text-left",
             "transition-colors duration-150",
+            // Folds sit in generous space, so the press area can grow into it.
+            "relative touch-hit [--touch-hit:-7px_0px]",
           )}
         >
           <ChevronRight

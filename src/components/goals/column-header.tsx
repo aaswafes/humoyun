@@ -69,6 +69,7 @@ export function ColumnHeader({
           title="Rename this column"
           className={cn(
             "rounded-sm px-1 -mx-1 text-[12.5px] font-medium cursor-text transition-colors hover:bg-hover",
+            "relative touch-hit [--touch-hit:-12px_-6px]",
             tint ? "text-[var(--tint-ink)]" : "text-ink-2",
           )}
         >
@@ -82,7 +83,7 @@ export function ColumnHeader({
       <IconButton
         label={`New ${label.toLowerCase()} goal`}
         size="sm"
-        className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100"
+        className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100 touch:opacity-100"
         onClick={onCreate}
       >
         <Plus />
@@ -95,7 +96,7 @@ export function ColumnHeader({
           <IconButton
             label={`${label} column options`}
             size="sm"
-            className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100"
+            className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100 touch:opacity-100"
           >
             <Ellipsis />
           </IconButton>
@@ -142,7 +143,7 @@ export function HiddenColumns({ prefs }: { prefs: ColumnPrefs }) {
       trigger={
         <button
           type="button"
-          className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors"
+          className="relative flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink cursor-pointer transition-colors touch-hit [--touch-hit:-8px_-4px]"
         >
           <EyeOff className="size-3.5" />
           {hidden.length} hidden

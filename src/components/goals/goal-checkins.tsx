@@ -77,7 +77,7 @@ export function GoalCheckIns({ goal, stats }: { goal: Goal; stats: GoalStats }) 
           value={cadence}
           options={CADENCE_OPTIONS}
           onChange={(next) => setMeta(goal, { cadence: next })}
-          className="w-[152px]"
+          className="relative w-[152px] touch-hit [--touch-hit:-8px_0px]"
         />
       </div>
 
@@ -96,7 +96,7 @@ export function GoalCheckIns({ goal, stats }: { goal: Goal; stats: GoalStats }) 
         <Sparkline goal={goal} points={meta.checkins} className="mt-3" />
       )}
 
-      <div className="mt-3 flex items-center gap-1.5">
+      <div className="mt-3 flex items-center gap-1.5 max-md:flex-wrap max-md:gap-y-0">
         <Input
           value={value}
           inputMode="decimal"
@@ -110,15 +110,18 @@ export function GoalCheckIns({ goal, stats }: { goal: Goal; stats: GoalStats }) 
             of {fmtNum(goal.target)}{goal.unit ? ` ${goal.unit}` : ""}
           </span>
         )}
+        {/* Phone: the note gets a line of its own rather than the 120px
+            left over beside the number — a line break, and nothing else. */}
+        <span aria-hidden className="hidden max-md:block max-md:h-0 max-md:basis-full" />
         <Input
           value={note}
           placeholder="What happened? (optional)"
           aria-label="Check-in note"
           onChange={(e) => setNote(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
-          className="min-w-0 flex-1"
+          className="min-w-0 flex-1 max-md:mt-2"
         />
-        <Button variant="primary" size="sm" disabled={!valid} onClick={submit} className="shrink-0">
+        <Button variant="primary" size="sm" disabled={!valid} onClick={submit} className="shrink-0 max-md:mt-2">
           <Check className="size-3.5" />
           Log
         </Button>
@@ -157,7 +160,7 @@ export function GoalCheckIns({ goal, stats }: { goal: Goal; stats: GoalStats }) 
                   label={`Delete the check-in from ${formatDate(entry.date, { weekday: false })}`}
                   size="sm"
                   tone="danger"
-                  className="shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/ci:opacity-100"
+                  className="shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/ci:opacity-100 touch:opacity-100"
                   onClick={() => removeCheckIn(goal, entry.id)}
                 >
                   <Trash2 />

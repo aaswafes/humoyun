@@ -150,7 +150,7 @@ export function GoalReview({
         open={filters.open}
         onToggle={filters.toggle}
       >
-        <div className="flex flex-wrap gap-1.5 pt-1">
+        <div className="flex flex-wrap gap-1.5 pt-1 touch:gap-2">
           <FilterChip
             active={filter === "all"}
             label="Everything"
@@ -179,7 +179,7 @@ export function GoalReview({
           return (
             <div
               key={entry.goal.id}
-              className="group/row relative flex items-start gap-2.5 rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover"
+              className="group/row relative flex items-start gap-2.5 rounded-lg px-2 py-2.5 transition-colors duration-150 hover:bg-hover max-md:flex-wrap max-md:gap-y-2"
             >
               <span className="mt-[3px]"><GoalDot goal={entry.goal} /></span>
 
@@ -206,7 +206,9 @@ export function GoalReview({
                 <AttentionLine flags={entry.flags} className="mt-1.5" />
               </div>
 
-              <div className="relative z-[1] flex shrink-0 items-center gap-1 pt-0.5">
+              {/* On a phone the fix drops under the text, aligned with it, so
+                  the name and its flags keep the row's whole width. */}
+              <div className="relative z-[1] flex shrink-0 items-center gap-1 pt-0.5 max-md:basis-full max-md:gap-2 max-md:pl-6 max-md:pt-0">
                 {entry.kinds.has("overdue") && (
                   <>
                     <Button size="xs" onClick={() => rollForward(entry.goal)}>
@@ -337,6 +339,7 @@ function FilterChip({
       aria-pressed={active}
       className={cn(
         "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px]",
+        "touch:min-h-10 touch:px-3",
         "transition-[background-color,border-color,color] duration-150",
         active
           ? "border-accent bg-accent-soft text-accent"

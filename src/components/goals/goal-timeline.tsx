@@ -186,14 +186,19 @@ export function GoalTimeline({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[760px] surface overflow-hidden">
+      <div className="overflow-x-auto overscroll-x-contain">
+        {/* Below md the 212px name column folds into each row — the name on
+            one line, its bar across the full width under it — so the whole
+            year fits the screen instead of three months beside a gutter. */}
+        <div className="min-w-[760px] surface overflow-hidden max-md:min-w-0">
           {/* month scale */}
           <div className="flex hairline-b">
-            <div className="w-[212px] shrink-0 px-3 py-2 hairline-r">
+            <div className="w-[212px] shrink-0 px-3 py-2 hairline-r max-md:hidden">
               <span className="text-[11.5px] font-medium text-ink-4">Goal</span>
             </div>
-            <div className="relative flex flex-1">
+            {/* mx-3 on a phone keeps the bars off the card's edge; the rows'
+                bands and gridlines carry the same inset, so dates line up. */}
+            <div className="relative flex flex-1 max-md:mx-3">
               {columns.map((column, i) => (
                 <div
                   key={column.key}
@@ -201,16 +206,24 @@ export function GoalTimeline({
                   className={cn(
                     "text-center text-[11px] font-medium text-ink-3",
                     zoom === "quarter" ? "pb-4 pt-2" : "py-2",
+                    // A phone's months are ~28px wide, too narrow to share
+                    // with the Today pill, so the pill gets a line above them.
+                    todayLeft != null && "max-md:pt-6",
                     i > 0 && "hairline-l",
                   )}
                 >
                   {column.label}
                 </div>
               ))}
-              {zoom === "quarter" && gridlines.map((line) => (
+              {zoom === "quarter" && gridlines.map((line, i) => (
                 <span
                   key={line.key}
-                  className="pointer-events-none absolute bottom-[3px] -translate-x-1/2 text-[10.5px] text-ink-4 tnum"
+                  className={cn(
+                    "pointer-events-none absolute bottom-[3px] -translate-x-1/2 text-[10.5px] text-ink-4 tnum",
+                    // Thirteen labels in a phone's width run into each other;
+                    // every other one still names the week under each line.
+                    i % 2 === 1 && "max-md:hidden",
+                  )}
                   style={{ left: `${line.left}%` }}
                 >
                   {line.label}
@@ -235,8 +248,9 @@ export function GoalTimeline({
             />
           ) : (
             <div className="relative">
-              {/* gridlines sit under the bars */}
-              <div className="pointer-events-none absolute inset-y-0 left-[212px] right-0">
+              {/* gridlines sit under the bars (and, on a phone, under the
+                  name lines too, which cover them with the surface colour) */}
+              <div className="pointer-events-none absolute inset-y-0 left-[212px] right-0 max-md:left-3 max-md:right-3">
                 {gridlines.map((line) => (
                   <div
                     key={line.key}
@@ -265,13 +279,22 @@ export function GoalTimeline({
                   <div
                     key={bar.goal.id}
                     className={cn(
-                      "relative flex items-stretch transition-colors duration-150 hover:bg-hover",
+                      "relative flex items-stretch transition-colors duration-150 hover:bg-hover max-md:flex-col",
                       bar.goal.id === openId && "bg-selected",
                     )}
                   >
                     <button
                       onClick={() => onOpen(bar.goal.id)}
-                      className="flex w-[212px] shrink-0 cursor-pointer items-center gap-1.5 px-3 py-1.5 text-left hairline-r"
+                      className={cn(
+                        "flex w-[212px] shrink-0 cursor-pointer items-center gap-1.5 px-3 py-1.5 text-left md:hairline-r",
+                        // Phone: the name line spans the row.
+                        "max-md:w-full max-md:bg-raised max-md:pb-0.5 max-md:pt-2",
+                        // Phone or finger: the whole row, bar band included,
+                        // is the press area — a 17px bar is no target — and a
+                        // touch screen with the desktop layout gets taller rows.
+                        "max-md:after:absolute max-md:after:inset-0 max-md:after:content-['']",
+                        "touch:after:absolute touch:after:inset-0 touch:after:content-[''] md:touch:py-[11px]",
+                      )}
                     >
                       <GoalDot goal={bar.goal} />
                       <span
@@ -295,7 +318,10 @@ export function GoalTimeline({
                       <span className="shrink-0 text-[11px] text-ink-3 tnum">{pct(bar.progress)}</span>
                     </button>
 
-                    <div className="relative flex-1 py-1.5">
+                    {/* A phone row's band has no in-flow content, so it needs a
+                        height of its own; taps fall through to the name's
+                        stretched press area, which opens the same goal. */}
+                    <div className="relative flex-1 py-1.5 max-md:pointer-events-none max-md:mx-3 max-md:h-6 max-md:flex-none max-md:py-0 touch:pointer-events-none">
                       <button
                         onClick={() => onOpen(bar.goal.id)}
                         title={`${bar.goal.title || "Untitled goal"} — ${summary}`}
@@ -354,7 +380,7 @@ export function GoalTimeline({
           <p className="mb-2 text-[12.5px] leading-relaxed text-ink-3">
             These have no start or end date, so they cannot overlap with anything. Open one to give it a range.
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 touch:gap-2">
             {undated.map((goal) => (
               <button
                 key={goal.id}
@@ -362,6 +388,7 @@ export function GoalTimeline({
                 className={cn(
                   "inline-flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded-full border border-line",
                   "bg-raised px-2.5 py-1 text-[12.5px] text-ink transition-colors duration-150 hover:bg-hover",
+                  "touch:min-h-10 touch:px-3",
                 )}
               >
                 <GoalDot goal={goal} />

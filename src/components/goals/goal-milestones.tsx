@@ -177,7 +177,7 @@ function MilestoneRow({
         label={`Delete milestone ${milestone.title || ""}`.trim()}
         size="sm"
         tone="danger"
-        className="shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/ms:opacity-100"
+        className="shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/ms:opacity-100 touch:opacity-100"
         onClick={onDelete}
       >
         <Trash2 />

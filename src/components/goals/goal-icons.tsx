@@ -43,7 +43,7 @@ export function GoalIconPicker({
         aria-label="No icon"
         title="No icon"
         className={cn(
-          "grid size-7 place-items-center rounded-md cursor-pointer transition-colors",
+          "grid size-7 place-items-center rounded-md cursor-pointer transition-colors touch:size-10",
           value == null ? "bg-accent-soft text-accent" : "text-ink-4 hover:bg-hover hover:text-ink-2",
         )}
       >
@@ -57,7 +57,7 @@ export function GoalIconPicker({
           aria-label={name}
           title={name}
           className={cn(
-            "grid size-7 place-items-center rounded-md cursor-pointer transition-colors",
+            "grid size-7 place-items-center rounded-md cursor-pointer transition-colors touch:size-10",
             value === name ? "bg-accent-soft text-accent" : "text-ink-3 hover:bg-hover hover:text-ink",
           )}
         >

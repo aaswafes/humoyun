@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners,
-  useDraggable, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, closestCorners, useDraggable, useDroppable,
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
@@ -17,7 +16,7 @@ import {
   type Timeframe,
 } from "@/lib/timeframe";
 import { IconButton } from "@/components/ui/primitives";
-import { useDragBody } from "@/components/ui/drag";
+import { useAppSensors, useDragBody } from "@/components/ui/drag";
 import { GoalCard } from "./goal-card";
 import type { GoalIndex } from "./goal-model";
 
@@ -74,7 +73,9 @@ function BoardCard({
             {...listeners}
             data-no-drag
             aria-label={`Move ${goal.title || "goal"} to another timeframe`}
-            className="grid size-5 cursor-grab place-items-center rounded text-ink-4 hover:text-ink-2 active:cursor-grabbing"
+            // A finger lifts the card itself by holding it, and a stacked
+            // phone column has no gutter for the grip to sit in.
+            className="grid size-5 cursor-grab place-items-center rounded text-ink-4 hover:text-ink-2 active:cursor-grabbing max-md:hidden touch:hidden"
           >
             <GripVertical className="size-3.5" />
           </button>
@@ -98,7 +99,7 @@ function BoardColumn({
   const range = timeframeRange(frame);
 
   return (
-    <section className="group/col relative w-[250px] shrink-0">
+    <section className="group/col relative w-[250px] shrink-0 max-md:w-full">
       <div className="mb-3 flex items-baseline gap-1.5 px-0.5">
         <h2 className="text-[12.5px] font-medium text-ink-2">{TIMEFRAME_LABELS[frame]}</h2>
         {range && <span className="text-[11px] text-ink-4">{range}</span>}
@@ -107,7 +108,7 @@ function BoardColumn({
         <IconButton
           label={`New goal due ${TIMEFRAME_LABELS[frame].toLowerCase()}`}
           size="sm"
-          className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100"
+          className="opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/col:opacity-100 touch:opacity-100"
           onClick={() => onCreate(frame)}
         >
           <Plus />
@@ -117,7 +118,8 @@ function BoardColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "min-h-[72px] space-y-2 rounded-lg p-1 -m-1 transition-colors duration-150",
+          // A stacked phone shelf only needs to stay big enough to drop on.
+          "min-h-[72px] space-y-2 rounded-lg p-1 -m-1 transition-colors duration-150 max-md:min-h-11",
           isOver && activeId && "bg-hover ring-1 ring-accent-line",
         )}
       >
@@ -152,10 +154,7 @@ export function GoalBoard({
   const toast = useStore((s) => s.toast);
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useAppSensors({ distance: 5, coordinateGetter: sortableKeyboardCoordinates });
 
   const columns = React.useMemo(() => {
     const map = new Map<Timeframe, Goal[]>(TIMEFRAMES.map((f) => [f, []]));
@@ -197,7 +196,9 @@ export function GoalBoard({
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div className="flex gap-5 overflow-x-auto pb-4">
+      {/* Below md the shelves stack into one list, read top to bottom from
+          this month outwards — seven 250px columns would show one at a time. */}
+      <div className="flex gap-5 overflow-x-auto overscroll-x-contain pb-4 max-md:flex-col max-md:gap-8 max-md:overflow-visible max-md:pb-2">
         {TIMEFRAMES.map((frame) => (
           <BoardColumn
             key={frame}

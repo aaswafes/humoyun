@@ -139,14 +139,18 @@ export function GoalFinished({
             {archived.map((goal) => (
               <div
                 key={goal.id}
-                className="group/row flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-hover"
+                className="group/row relative flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-hover touch:min-h-11"
               >
                 {goal.status === "paused"
                   ? <Pause className="size-3.5 shrink-0 text-ink-3" />
                   : <Ban className="size-3.5 shrink-0 text-ink-4" />}
                 <button
                   onClick={() => onOpen(goal.id)}
-                  className="min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] text-ink-2"
+                  className={cn(
+                    "min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] text-ink-2",
+                    // A finger gets the whole row; the restore button sits above it.
+                    "touch:after:absolute touch:after:inset-0 touch:after:content-['']",
+                  )}
                 >
                   {goal.title || "Untitled goal"}
                 </button>
@@ -154,7 +158,7 @@ export function GoalFinished({
                 <IconButton
                   label={`Reactivate ${goal.title || "goal"}`}
                   size="sm"
-                  className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
+                  className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100 touch:opacity-100"
                   onClick={() => restore(goal)}
                 >
                   <Undo2 />
@@ -201,13 +205,17 @@ function FinishedRow({
   ].filter(Boolean).join(" · ");
 
   return (
-    <div className="group/row flex items-start gap-2.5 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-hover">
+    <div className="group/row relative flex items-start gap-2.5 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-hover">
       <CircleCheck className="mt-[2px] size-4 shrink-0 text-success" />
 
       <div className="min-w-0 flex-1">
         <button
           onClick={() => onOpen(goal.id)}
-          className="block max-w-full cursor-pointer truncate text-left text-[13.5px] font-medium text-ink"
+          className={cn(
+            "block max-w-full cursor-pointer truncate text-left text-[13.5px] font-medium text-ink",
+            // A finger gets the whole row; the reopen button sits above it.
+            "touch:after:absolute touch:after:inset-0 touch:after:content-['']",
+          )}
         >
           {goal.title || "Untitled goal"}
         </button>
@@ -231,7 +239,7 @@ function FinishedRow({
       <IconButton
         label={`Reopen ${goal.title || "goal"}`}
         size="sm"
-        className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
+        className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100 touch:opacity-100"
         onClick={onRestore}
       >
         <Undo2 />

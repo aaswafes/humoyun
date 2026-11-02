@@ -237,7 +237,11 @@ function GoalSheetBody({
       <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6">
         {/* ================= About ================= */}
         <div className="space-y-5">
-          <div>
+          {/* On touch globals.css sizes text fields max(16px, 1em) of their
+              parent, so the 19px has to be here too or the goal's name shrinks
+              to 16px on a phone. Touch only: on the desktop a bigger parent
+              font would grow the line box round the inline textarea by 3px. */}
+          <div className="touch:text-[19px]">
             <AutoTextarea
               value={title}
               onChange={setTitle}
@@ -248,7 +252,9 @@ function GoalSheetBody({
                 else setTitle(goal.title);
               }}
               placeholder="Name this goal"
-              className="text-[19px] font-semibold leading-[1.28] tracking-[-0.01em] text-ink placeholder:text-ink-4"
+              // Padding cancelled by an equal negative margin: on touch the
+              // field answers to ~40px of finger without the text moving.
+              className="text-[19px] font-semibold leading-[1.28] tracking-[-0.01em] text-ink placeholder:text-ink-4 touch:-my-2 touch:py-2"
             />
 
             <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -258,7 +264,7 @@ function GoalSheetBody({
                 value={goal.horizon}
                 options={HORIZON_OPTIONS}
                 onChange={(h: Horizon) => patch("goals", goal.id, { horizon: h })}
-                className="w-[116px]"
+                className="relative w-[116px] touch-hit [--touch-hit:-8px_0px]"
               />
               <AttentionLine flags={flags} />
             </div>
@@ -277,7 +283,7 @@ function GoalSheetBody({
                 if (next !== storedWhy) setWhy(goal, next);
               }}
               placeholder="What changes in your life when this is done?"
-              className="mt-1 text-[13.5px] text-ink-2 placeholder:text-ink-4"
+              className="mt-1 text-[13.5px] text-ink-2 placeholder:text-ink-4 touch:-mb-2 touch:-mt-1 touch:pb-2 touch:pt-2"
             />
           </div>
 
@@ -292,7 +298,7 @@ function GoalSheetBody({
                 if (next !== stats.meta.done_looks_like) setMeta(goal, { done_looks_like: next });
               }}
               placeholder="The sentence you will be able to say when this is finished."
-              className="mt-1 text-[13.5px] text-ink-2 placeholder:text-ink-4"
+              className="mt-1 text-[13.5px] text-ink-2 placeholder:text-ink-4 touch:-mb-2 touch:-mt-1 touch:pb-2 touch:pt-2"
             />
             {!stats.defined && (
               <p className="mt-2 text-[12px] leading-relaxed text-ink-4">
@@ -555,7 +561,7 @@ function GoalSheetBody({
                   return (
                     <div
                       key={child.id}
-                      className="group/child relative flex items-center gap-2 rounded-md px-1.5 py-[7px] transition-colors duration-150 hover:bg-hover"
+                      className="group/child relative flex items-center gap-2 rounded-md px-1.5 py-[7px] transition-colors duration-150 hover:bg-hover touch:py-[11px]"
                     >
                       <GoalDot goal={child} />
                       <button
@@ -571,7 +577,9 @@ function GoalSheetBody({
                       {childStats.needsCheckIn && (
                         <span className="shrink-0 text-[11px] text-ink-3">check in</span>
                       )}
-                      <div className="w-14 shrink-0">
+                      {/* The percentage beside it says the same; a phone
+                          spends the width on the name instead. */}
+                      <div className="w-14 shrink-0 max-md:hidden">
                         <Progress value={childProgress * 100} tint={child.color} height={3} />
                       </div>
                       <span className="w-8 shrink-0 text-right text-[11px] text-ink-4 tnum">{pct(childProgress)}</span>
@@ -696,7 +704,7 @@ function ChildComposer({ horizon, onCreate }: { horizon: Horizon; onCreate: (tit
     return (
       <button
         onClick={() => setActive(true)}
-        className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-[7px] text-left text-[13px] text-ink-4 transition-colors duration-150 hover:bg-hover hover:text-ink-3"
+        className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-[7px] text-left text-[13px] text-ink-4 transition-colors duration-150 hover:bg-hover hover:text-ink-3 touch:py-[11px]"
       >
         <Plus className="size-4" />
         Add {HORIZON_LABEL[horizon].toLowerCase()} goal
@@ -705,7 +713,7 @@ function ChildComposer({ horizon, onCreate }: { horizon: Horizon; onCreate: (tit
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-md bg-hover px-1.5 py-[6px]">
+    <div className="flex items-center gap-2 rounded-md bg-hover px-1.5 py-[6px] touch:py-[10px]">
       <Plus className="size-4 shrink-0 text-ink-4" />
       <input
         ref={ref}

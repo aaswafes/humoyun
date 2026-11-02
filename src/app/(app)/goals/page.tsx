@@ -81,28 +81,32 @@ export default function GoalsPage() {
     [active, index],
   );
 
+  // Below lg the tabs keep the words and drop the icons, not the other way
+  // round: five bare glyphs explained only by a tooltip are five guesses on a
+  // phone, where a tooltip never appears. lg, not md, because beside an iPad's
+  // sidebar the icons were what pushed the title and New goal out of the bar.
   const viewOptions = React.useMemo(() => [
     {
       value: "board" as const,
-      label: <><CalendarRange className="size-3.5" /><span className="ml-1.5 hidden sm:inline">By date</span></>,
+      label: <><CalendarRange className="size-3.5 max-lg:hidden" /><span className="lg:ml-1.5">By date</span></>,
       title: "Goals filed by when they are due",
     },
     {
       value: "ladder" as const,
-      label: <><Rows3 className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Ladder</span></>,
+      label: <><Rows3 className="size-3.5 max-lg:hidden" /><span className="lg:ml-1.5">Ladder</span></>,
       title: "Goals by horizon",
     },
     {
       value: "timeline" as const,
-      label: <><ChartNoAxesGantt className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Timeline</span></>,
+      label: <><ChartNoAxesGantt className="size-3.5 max-lg:hidden" /><span className="lg:ml-1.5">Timeline</span></>,
       title: "Goals across the year",
     },
     {
       value: "review" as const,
       label: (
         <>
-          <Radar className="size-3.5" />
-          <span className="ml-1.5 hidden sm:inline">Review</span>
+          <Radar className="size-3.5 max-lg:hidden" />
+          <span className="lg:ml-1.5">Review</span>
           {/* How many goals want something is a fact, not an alarm. */}
           {needing > 0 && (
             <span className="ml-1.5 rounded-full bg-hover px-1 text-[10.5px] font-medium text-ink-3 tnum">
@@ -115,7 +119,7 @@ export default function GoalsPage() {
     },
     {
       value: "finished" as const,
-      label: <><Trophy className="size-3.5" /><span className="ml-1.5 hidden sm:inline">Finished</span></>,
+      label: <><Trophy className="size-3.5 max-lg:hidden" /><span className="lg:ml-1.5">Finished</span></>,
       title: "What you actually finished",
     },
   ], [needing]);
@@ -154,7 +158,11 @@ export default function GoalsPage() {
     <>
       <PageHeader
         title="Goals"
-        subtitle={ready ? subtitle : undefined}
+        // Between md and lg — an iPad beside its sidebar — the five tabs and
+        // New goal leave the title ~50px, and the header shrinks title and
+        // subtitle together until it reads "G". The summary steps aside there;
+        // a phone (second row for the tabs) and lg+ still show it.
+        subtitle={ready ? <span className="md:max-lg:hidden">{subtitle}</span> : undefined}
         actions={
           <Button variant="primary" size="sm" onClick={() => setCreating({ date: null })}>
             <Plus className="size-3.5" />
@@ -273,9 +281,9 @@ export default function GoalsPage() {
 
 function LadderSkeleton() {
   return (
-    <div className="flex gap-10 overflow-hidden">
+    <div className="flex gap-10 overflow-hidden max-md:flex-col max-md:gap-8">
       {HORIZONS.map((horizon, column) => (
-        <div key={horizon} className="w-[240px] shrink-0 space-y-2">
+        <div key={horizon} className="w-[240px] shrink-0 space-y-2 max-md:w-full">
           <Skeleton className="h-3 w-16" />
           {Array.from({ length: 3 - (column % 2) }, (_, i) => (
             <Skeleton key={i} className="h-[92px] w-full rounded-lg" />

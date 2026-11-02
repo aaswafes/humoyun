@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import {
-  Ban, BellDot, CalendarPlus, CircleCheck, Ellipsis, Flag, Hourglass, Link2Off,
-  Pause, PencilLine, Play, Trash2, TrendingDown, Undo2,
+  Ban, BellDot, CalendarPlus, CircleCheck, CornerLeftUp, Ellipsis, Flag, Hourglass,
+  Link2Off, Pause, PencilLine, Play, Trash2, TrendingDown, Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
@@ -68,13 +68,14 @@ function IdentityPicker({ goal }: { goal: Goal }) {
   return (
     <Popover
       align="start"
-      className="w-[236px]"
+      // Wide enough for the fingertip-sized icon grid on touch.
+      className="w-[236px] touch:w-[272px]"
       trigger={
         <button
           type="button"
           aria-label={`Icon and colour for ${goal.title || "goal"}`}
           title="Icon and colour"
-          className="relative z-[1] -m-1 grid size-6 place-items-center rounded-md p-1 cursor-pointer transition-colors hover:bg-hover"
+          className="relative z-[1] -m-1 grid size-6 place-items-center rounded-md p-1 cursor-pointer transition-colors hover:bg-hover touch-hit [--touch-hit:-10px]"
         >
           <GoalDot goal={goal} />
         </button>
@@ -168,12 +169,21 @@ export interface GoalCardProps {
   /** the ladder's drag grip, parked in the gutter to the card's left */
   dragHandle?: React.ReactNode;
   /** pointer-only drag activation, so the card can be grabbed by the card */
-  dragProps?: { onPointerDown?: React.PointerEventHandler<HTMLElement> };
+  dragProps?: {
+    onPointerDown?: React.PointerEventHandler<HTMLElement>;
+    onMouseDown?: React.MouseEventHandler<HTMLElement>;
+    onTouchStart?: React.TouchEventHandler<HTMLElement>;
+  };
   /** where a drop would land this card's neighbour */
   dropHint?: "before" | "after" | "nest" | null;
   dragging?: boolean;
   /** move commands, injected by whoever owns the layout */
   menuExtra?: (close: () => void) => React.ReactNode;
+  /**
+   * The title of the goal this one rolls up to. Shown on a phone only, where
+   * the ladder stacks and its connector lines have nowhere to run.
+   */
+  rollsUpTo?: string | null;
 }
 
 /**
@@ -191,7 +201,7 @@ export interface GoalCardProps {
  */
 export function GoalCard({
   goal, stats, onOpen, onHover, dimmed, active, className,
-  dragHandle, dragProps, dropHint, dragging, menuExtra,
+  dragHandle, dragProps, dropHint, dragging, menuExtra, rollsUpTo,
 }: GoalCardProps) {
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
@@ -245,17 +255,23 @@ export function GoalCard({
     toast({ title: note, description: goal.title, tone: status === "done" ? "success" : "default" });
   }
 
+  // useAppSensors hands out mouse + touch activators rather than a pointer one.
+  const draggable = !!(dragProps?.onPointerDown || dragProps?.onMouseDown || dragProps?.onTouchStart);
+
   return (
     <>
       <div
         data-goal-card={goal.id}
         title={summary}
-        onMouseEnter={() => onHover?.(goal.id)}
-        onMouseLeave={() => onHover?.(null)}
+        // A finger has no hover. iOS replays a tap as mouseenter and never
+        // sends the leave, which left the lineage lit and the rest of the
+        // ladder dimmed after every tap; pointer events say who is pointing.
+        onPointerEnter={(e) => { if (e.pointerType !== "touch") onHover?.(goal.id); }}
+        onPointerLeave={(e) => { if (e.pointerType !== "touch") onHover?.(null); }}
         {...dragProps}
         className={cn(
           "group/goal relative rounded-lg border bg-raised p-3",
-          dragProps?.onPointerDown && DRAG_BODY_CLASS,
+          draggable && DRAG_BODY_CLASS,
           "transition-[background-color,border-color,opacity,box-shadow] duration-200 ease-[var(--ease-out-apple)]",
           "hover:bg-hover focus-within:border-line-strong",
           active ? "border-accent-line" : "border-line hover:border-line-strong",
@@ -324,7 +340,7 @@ export function GoalCard({
               <IconButton
                 label={`Options for ${goal.title || "goal"}`}
                 size="sm"
-                className="relative z-[1] -mr-1 -mt-1 shrink-0 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/goal:opacity-100"
+                className="relative z-[1] -mr-1 -mt-1 shrink-0 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/goal:opacity-100 touch:opacity-100"
               >
                 <Ellipsis />
               </IconButton>
@@ -376,6 +392,14 @@ export function GoalCard({
 
         {!done && (
           <GoalFlags stats={stats} className="mt-2 pl-[18px]" />
+        )}
+
+        {rollsUpTo != null && (
+          <p className="mt-2 flex min-w-0 items-center gap-1 pl-[18px] text-[11px] text-ink-4 md:hidden">
+            <CornerLeftUp className="size-3 shrink-0" aria-hidden />
+            <span className="sr-only">Rolls up to</span>
+            <span className="truncate">{rollsUpTo || "Untitled goal"}</span>
+          </p>
         )}
       </div>
 
