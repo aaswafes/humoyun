@@ -4,9 +4,9 @@ import * as React from "react";
 import { useDraggable } from "@dnd-kit/core";
 import {
   Clock, Flag, GripVertical, MoreHorizontal, Play, Copy, Trash2, Calendar,
-  ChevronRight, BookOpen, Repeat, Timer as TimerIcon, ArrowRight,
+  ChevronLeft, ChevronRight, BookOpen, Repeat, Timer as TimerIcon, ArrowRight,
   Sun, Sunrise, X, AlignLeft, Ban, CircleDot, Inbox, CornerDownRight,
-  Milestone, CalendarDays, Check, Pencil, Hash, ListTree, CheckSquare,
+  Milestone, CalendarDays, Check, Pencil, Hash, ListTree, CheckSquare, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, subtasksOf } from "@/lib/store";
@@ -98,11 +98,27 @@ export function blockedByThis(links: TaskLinks, taskId: string): string[] {
 // =========================================================
 const PRIORITY_CLASS = ["", "text-ink-3", "text-warn", "text-danger"];
 
+/**
+ * A meta chip under a fingertip. On touch the title's press area is stretched
+ * over the whole row (see TaskRowBase), so a chip has to sit above it
+ * (`relative z-[1]`) to keep its own job. Its extra reach goes almost all
+ * downward, into the row's own padding: reaching up would cover the title the
+ * chip sits under. 28px box + 2 + 10 = a 40px press, and never narrower than
+ * that either, which is what the "+1" and "…" chips needed.
+ */
+const CHIP_TOUCH =
+  "touch:relative touch:z-[1] touch:min-h-7 touch:min-w-10 touch:justify-center " +
+  "touch-hit [--touch-hit:-2px_0px_-10px_0px]";
+
+/** The same reach for a tag chip, which is already 28px tall and word-wide. */
+const TAG_TOUCH = "touch:relative touch:z-[1] touch-hit [--touch-hit:-2px_0px_-10px_0px]";
+
 /** Chip padding is negative-margined so a 28px hit box costs the row no height. */
 const CHIP =
   "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-2 -my-2 " +
   "text-[11.5px] leading-none cursor-pointer transition-colors duration-120 " +
-  "hover:bg-active text-ink-3";
+  "hover:bg-active text-ink-3 " +
+  CHIP_TOUCH;
 
 const CHIP_STATIC =
   "inline-flex max-w-full items-center gap-1 px-1.5 py-2 -my-2 text-[11.5px] leading-none text-ink-3";
@@ -206,6 +222,13 @@ function TimeEditor({ task, onDone }: { task: Task; onDone: () => void }) {
   const hour12 = useStore((s) => s.hour12);
   const [start, setStart] = React.useState(task.start_min != null ? formatTime(task.start_min, false) : "");
   const [end, setEnd] = React.useState(task.end_min != null ? formatTime(task.end_min, false) : "");
+  // A mouse lands in the Start field ready to type. A finger would get the iOS
+  // keyboard over the presets it most likely came for, so it starts unfocused.
+  // Read once on mount — this only ever renders inside an opened popover, on
+  // the client, so there is no server render for it to disagree with.
+  const [focusStart] = React.useState(
+    () => typeof window === "undefined" || !window.matchMedia?.("(pointer: coarse)").matches,
+  );
 
   function commit(nextStart = start, nextEnd = end) {
     const s = parseTime(nextStart);
@@ -234,7 +257,7 @@ function TimeEditor({ task, onDone }: { task: Task; onDone: () => void }) {
   }
 
   const inputCls =
-    "h-7 w-full rounded-md border border-line bg-transparent px-2 text-center text-[13px] text-ink tnum " +
+    "h-7 w-full rounded-md border border-line bg-transparent px-2 text-center text-[13px] text-ink tnum touch:h-10 " +
     "transition-[border-color,box-shadow] duration-150 hover:border-line-strong " +
     "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft";
 
@@ -246,8 +269,9 @@ function TimeEditor({ task, onDone }: { task: Task; onDone: () => void }) {
             <input
               {...wiring}
               value={start}
-              autoFocus
+              autoFocus={focusStart}
               placeholder="—"
+              enterKeyHint="done"
               onChange={(e) => setStart(e.target.value)}
               onBlur={() => commit()}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); onDone(); } }}
@@ -255,13 +279,14 @@ function TimeEditor({ task, onDone }: { task: Task; onDone: () => void }) {
             />
           )}
         </Field>
-        <span aria-hidden className="pb-2 text-ink-4">–</span>
+        <span aria-hidden className="pb-2 text-ink-4 touch:pb-3">–</span>
         <Field label="End" className="w-[76px]">
           {(wiring) => (
             <input
               {...wiring}
               value={end}
               placeholder="—"
+              enterKeyHint="done"
               onChange={(e) => setEnd(e.target.value)}
               onBlur={() => commit()}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); onDone(); } }}
@@ -389,8 +414,16 @@ export interface TaskRowProps {
   showDate?: boolean;
   showSubtasks?: boolean;
   dragHandle?: React.ReactNode;
-  /** pointer-only drag activation, so the row can be grabbed by the row */
-  dragProps?: { onPointerDown?: React.PointerEventHandler<HTMLElement> };
+  /**
+   * pointer-only drag activation, so the row can be grabbed by the row —
+   * whatever `useDragBody` produced: onPointerDown from a PointerSensor, or
+   * onMouseDown + onTouchStart from useAppSensors
+   */
+  dragProps?: {
+    onPointerDown?: React.PointerEventHandler<HTMLElement>;
+    onMouseDown?: React.MouseEventHandler<HTMLElement>;
+    onTouchStart?: React.TouchEventHandler<HTMLElement>;
+  };
   compact?: boolean;
   className?: string;
   onOpen?: (task: Task) => void;
@@ -473,9 +506,13 @@ function TaskRowBase({
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(task.title);
   const [expanded, setExpanded] = React.useState(false);
+  /** the touch menu's second page — the calendar it folds away */
+  const [menuDate, setMenuDate] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const titleRef = React.useRef<HTMLButtonElement>(null);
   const returnFocus = React.useRef(false);
+  /** set by the touch Cancel, so a blur on the way out can never save the draft */
+  const cancelled = React.useRef(false);
 
   const subtasks = showSubtasks ? subtasksOf(tasks, task.id) : [];
   const doneSubs = subtasks.filter((s) => s.status === "done").length;
@@ -499,6 +536,7 @@ function TaskRowBase({
 
   React.useEffect(() => {
     if (editing) {
+      cancelled.current = false;
       inputRef.current?.focus();
       inputRef.current?.select();
     } else if (returnFocus.current) {
@@ -511,9 +549,17 @@ function TaskRowBase({
   // clicking away means they wanted to be somewhere else.
   function commit() {
     setEditing(false);
+    if (cancelled.current) { setDraft(task.title); return; }
     const next = draft.trim();
     if (next && next !== task.title) patch("tasks", task.id, { title: next });
     else setDraft(task.title);
+  }
+
+  /** Escape's twin for a finger, which has no Escape key. */
+  function cancelRename() {
+    cancelled.current = true;
+    setDraft(task.title);
+    setEditing(false);
   }
 
   function open() {
@@ -624,17 +670,22 @@ function TaskRowBase({
     });
   }
 
+  // Badge puts its children in one truncating span, which a flex parent turns
+  // into a block — and preflight makes every svg a block too, so these icons
+  // used to stack above and below the word and get clipped to a stray mark
+  // over its first letters. `inline` puts them back on the line they belong to.
+  // The × is how a tap here says what it does; a finger has no hover to show it.
   const tagChip = (tag: string) => (
     <button
       key={tag}
       onClick={() => removeTag(tag)}
       aria-label={`Remove tag ${tag}`}
-      className="group/tag -my-2 flex h-7 max-w-[150px] items-center px-1 cursor-pointer"
+      className={cn("group/tag -my-2 flex h-7 max-w-[150px] items-center px-1 cursor-pointer", TAG_TOUCH)}
     >
       <Badge tint="slate" className="group-hover/tag:brightness-95 dark:group-hover/tag:brightness-110">
-        <Hash className="size-2.5 shrink-0 opacity-60" />
+        <Hash className="mr-px inline size-2.5 shrink-0 opacity-60" />
         {tag}
-        <X className="size-2.5 shrink-0 opacity-0 transition-opacity duration-120 group-hover/tag:opacity-100" />
+        <X className="ml-0.5 inline size-2.5 shrink-0 opacity-0 transition-opacity duration-120 group-hover/tag:opacity-100 touch:opacity-60" />
       </Badge>
     </button>
   );
@@ -904,6 +955,134 @@ function TaskRowBase({
 
   const metaShown = metas.slice(0, META_VISIBLE);
   const metaRest = metas.slice(META_VISIBLE);
+  // Any activator useDragBody produced — with useAppSensors that is
+  // onMouseDown + onTouchStart, and no onPointerDown at all.
+  const grabbable = !!(dragProps?.onPointerDown || dragProps?.onMouseDown || dragProps?.onTouchStart);
+
+  function startFocus() {
+    startTimer({ taskId: task.id, label: task.title, mode: "pomodoro" });
+    toast({ title: "Focus started", description: task.title });
+  }
+
+  /**
+   * The row's actions, drawn twice: the hover bar's menu for a mouse, and the
+   * "…" a finger can actually see. The touch copy also carries what the mouse
+   * gets elsewhere — the timer the hover bar shows beside its "…", and a way
+   * into selection, which a mouse starts with ⌘- or shift-click — and leaves
+   * out the keyboard letters. Its calendar folds behind one item: at a
+   * fingertip's row height it would make the menu three screens long.
+   */
+  function menuBody(close: () => void, touch: boolean) {
+    if (touch && menuDate) {
+      return (
+        <>
+          <MenuItem icon={ChevronLeft} onClick={() => setMenuDate(false)}>
+            Back
+          </MenuItem>
+          <MenuSeparator />
+          <TaskDatePicker
+            value={task.date}
+            onPick={(iso) => { moveTo(iso); close(); }}
+            onClear={() => { moveTo(null); close(); }}
+          />
+        </>
+      );
+    }
+    const key = (k: string) => (touch ? undefined : k);
+    return (
+      <>
+        {touch && (
+          <MenuItem icon={Play} checked={running} onClick={() => { startFocus(); close(); }}>
+            {running ? "Timer running" : "Start focus timer"}
+          </MenuItem>
+        )}
+        <MenuItem icon={Pencil} shortcut={key("E")} onClick={() => { setEditing(true); close(); }}>
+          Rename
+        </MenuItem>
+        <MenuItem icon={ArrowRight} shortcut={key("↵")} onClick={() => { open(); close(); }}>
+          Open details
+        </MenuItem>
+        {onInsertBelow && (
+          <MenuItem icon={CornerDownRight} shortcut={key("O")} onClick={() => { onInsertBelow(task); close(); }}>
+            Add task below
+          </MenuItem>
+        )}
+        {touch && onSelectToggle && (
+          <MenuItem icon={ListChecks} onClick={() => { onSelectToggle({ shift: false, mod: true }); close(); }}>
+            Select
+          </MenuItem>
+        )}
+        <MenuSeparator />
+
+        <MenuLabel>Schedule</MenuLabel>
+        <MenuItem icon={Sun} shortcut={key("T")} onClick={() => { moveTo(today); close(); }}>
+          Today
+        </MenuItem>
+        <MenuItem icon={Sunrise} shortcut={key("Y")} onClick={() => { moveTo(addDays(task.date ?? today, 1)); close(); }}>
+          Tomorrow
+        </MenuItem>
+        <MenuItem icon={CalendarDays} onClick={() => { moveTo(addDays(today, 7)); close(); }}>
+          Next week
+        </MenuItem>
+        <MenuItem icon={Inbox} shortcut={key("I")} onClick={() => { moveTo(null); close(); }}>
+          Move to Inbox
+        </MenuItem>
+        {touch ? (
+          <MenuItem icon={Calendar} onClick={() => setMenuDate(true)}>
+            Pick a date…
+          </MenuItem>
+        ) : (
+          <div className="px-1 pb-1">
+            <TaskDatePicker value={task.date} onPick={(iso) => { moveTo(iso); close(); }} />
+          </div>
+        )}
+
+        <MenuSeparator />
+        <MenuLabel>Priority</MenuLabel>
+        <div className="grid grid-cols-4 gap-1 px-1 pb-1">
+          {PRIORITY_LABELS.map((label, i) => (
+            <Button
+              key={label}
+              size="xs"
+              variant={task.priority === i ? "subtle" : "ghost"}
+              className={cn("justify-center", task.priority === i && PRIORITY_CLASS[i])}
+              onClick={() => patch("tasks", task.id, { priority: i })}
+            >
+              {label === "None" ? "—" : label[0]}
+            </Button>
+          ))}
+        </div>
+
+        <MenuSeparator />
+        <MenuLabel>Status</MenuLabel>
+        <MenuItem icon={Check} checked={done} onClick={() => { setStatus(done ? "todo" : "done"); close(); }}>
+          {done ? "Mark not done" : "Mark done"}
+        </MenuItem>
+        <MenuItem icon={CircleDot} checked={doing} onClick={() => { setStatus(doing ? "todo" : "doing"); close(); }}>
+          In progress
+        </MenuItem>
+        <MenuItem icon={Ban} checked={dropped} onClick={() => { setStatus(dropped ? "todo" : "dropped"); close(); }}>
+          {dropped ? "Un-drop" : "Drop"}
+        </MenuItem>
+
+        <MenuSeparator />
+        <MenuLabel>Colour</MenuLabel>
+        <TintPicker
+          value={task.color}
+          allowNone
+          onChange={(t) => patch("tasks", task.id, { color: t })}
+        />
+
+        <MenuSeparator />
+        <MenuItem icon={Copy} shortcut={key("D")} onClick={() => { duplicate(); close(); }}>
+          Duplicate
+        </MenuItem>
+        <MenuItem icon={Trash2} danger shortcut={key("⌫")} onClick={() => { deleteWithUndo(); close(); }}>
+          Delete
+        </MenuItem>
+      </>
+    );
+  }
 
   return (
     <div
@@ -915,16 +1094,23 @@ function TaskRowBase({
         {...dragProps}
         className={cn(
           "relative flex items-start gap-2 rounded-md px-1.5 transition-colors duration-120",
-          compact ? "py-1" : "py-1.5",
-          dragProps?.onPointerDown && DRAG_BODY_CLASS,
+          // A fingertip row: the title's stretched press area fills it.
+          compact ? "py-1 touch:py-2" : "py-1.5 touch:py-2.5",
+          grabbable && DRAG_BODY_CLASS,
           selected ? "bg-selected" : "hover:bg-hover",
         )}
       >
-        {/* gutter: drag handle on hover, or the selection tick while selecting */}
+        {/* gutter: drag handle on hover, or the selection tick while selecting.
+            A finger has no hover to find the handle with — it lifts the row by
+            the row, a 220ms hold — so on touch the handle is not laid out at
+            all. A phone has no room in its 16px margin for the tick either, so
+            while selecting it steps into the row, where the done box was. */}
         <div
           className={cn(
             "absolute -left-4 top-1/2 -translate-y-1/2 transition-opacity duration-150",
-            selectionActive ? "opacity-100" : "opacity-0 group-hover/task:opacity-100 focus-within:opacity-100",
+            selectionActive
+              ? "opacity-100 max-md:static max-md:flex max-md:h-5 max-md:translate-y-0 max-md:items-center"
+              : "opacity-0 group-hover/task:opacity-100 focus-within:opacity-100 touch:hidden",
           )}
         >
           {selectionActive && onSelectToggle ? (
@@ -933,13 +1119,16 @@ function TaskRowBase({
               checked={!!selected}
               onChange={() => onSelectToggle({ shift: false, mod: true })}
               label={`${selected ? "Deselect" : "Select"} ${task.title || "Untitled"}`}
+              className="touch:size-[17px]"
             />
           ) : (
             dragHandle ?? <GripVertical className="size-3.5 cursor-grab text-ink-4" />
           )}
         </div>
 
-        <div className="flex h-5 shrink-0 items-center">
+        {/* While selecting, every press in the row selects (TaskList captures
+            it), so on a phone the inert done box steps aside for the tick. */}
+        <div className={cn("flex h-5 shrink-0 items-center", selectionActive && onSelectToggle && "max-md:hidden")}>
           <Checkbox
             checked={done}
             indeterminate={doing}
@@ -950,42 +1139,62 @@ function TaskRowBase({
           />
         </div>
 
-        <div className="min-w-0 flex-1">
+        {/* relative on touch: it is what the title's stretched ::after measures */}
+        <div className="min-w-0 flex-1 touch:relative">
           <div className="flex min-w-0 items-baseline gap-1.5">
             {subtasks.length > 0 && (
               <button
                 onClick={() => setExpanded((v) => !v)}
                 aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
                 aria-expanded={expanded}
-                className="-ml-1 flex h-5 w-4 shrink-0 items-center justify-center rounded text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors"
+                className={cn(
+                  "-ml-1 flex h-5 w-4 shrink-0 items-center justify-center rounded text-ink-4 hover:bg-active hover:text-ink-2 cursor-pointer transition-colors",
+                  // above the stretched title, reaching up and down but never
+                  // left, where the done box is
+                  "touch:relative touch:z-[1] touch-hit [--touch-hit:-10px_-4px_-10px_0px]",
+                )}
               >
                 <ChevronRight className={cn("size-3 transition-transform duration-200", expanded && "rotate-90")} />
               </button>
             )}
 
             {editing ? (
-              <input
-                ref={inputRef}
-                value={draft}
-                aria-label="Task title"
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={commit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    returnFocus.current = true;
-                    commit();
-                  }
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDraft(task.title);
-                    returnFocus.current = true;
-                    setEditing(false);
-                  }
-                }}
-                className="min-w-0 flex-1 rounded-sm bg-transparent text-[13.5px] text-ink outline-none"
-              />
+              <>
+                <input
+                  ref={inputRef}
+                  value={draft}
+                  aria-label="Task title"
+                  enterKeyHint="done"
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      returnFocus.current = true;
+                      commit();
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDraft(task.title);
+                      returnFocus.current = true;
+                      setEditing(false);
+                    }
+                  }}
+                  className="min-w-0 flex-1 rounded-sm bg-transparent text-[13.5px] text-ink outline-none"
+                />
+                {/* Escape cancels a rename; a finger gets the word. It is pressed
+                    without taking focus, so the field never blurs — which would
+                    save it — on the way out. */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={cancelRename}
+                  className="relative hidden shrink-0 self-center rounded-md px-1 text-[15px] text-ink-3 cursor-pointer touch:inline-flex touch-hit [--touch-hit:-12px_-4px]"
+                >
+                  Cancel
+                </button>
+              </>
             ) : (
               <button
                 ref={titleRef}
@@ -994,6 +1203,13 @@ function TaskRowBase({
                 onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
                 className={cn(
                   "min-w-0 flex-1 truncate text-left text-[13.5px] leading-[1.45] cursor-pointer transition-colors",
+                  // On touch the press area is the whole text column, title and
+                  // meta line both, out to the row's edges: a finger opens the
+                  // task wherever it lands on it, the way a phone list works.
+                  // Deliberately not `relative` — the column is the box this
+                  // ::after measures. The chips sit above it and keep their jobs.
+                  // 11px each way: a one-line title (19.6px) still answers to 41.
+                  "touch-hit [--touch-hit:-11px_0px]",
                   done || dropped ? "text-ink-4 line-through decoration-ink-4/60" : "text-ink",
                   blocked && !done && "text-ink-2",
                 )}
@@ -1015,7 +1231,7 @@ function TaskRowBase({
 
           {/* meta line — three facts, the rest one click away */}
           {metas.length > 0 && (
-            <div className="mt-1 -ml-1.5 flex flex-wrap items-center gap-x-0.5 gap-y-1.5">
+            <div className="mt-1 -ml-1.5 flex flex-wrap items-center gap-x-0.5 gap-y-1.5 touch:mt-1.5">
               {metaShown.map((m) => (
                 <React.Fragment key={m.key}>{m.node}</React.Fragment>
               ))}
@@ -1032,9 +1248,9 @@ function TaskRowBase({
                     </button>
                   }
                 >
-                  <div className="flex flex-col items-start gap-0.5 p-1">
+                  <div className="flex flex-col items-start gap-0.5 p-1 touch:gap-1">
                     {metaRest.map((m) => (
-                      <div key={m.key} className="flex min-h-7 max-w-full items-center px-0.5">
+                      <div key={m.key} className="flex min-h-7 max-w-full items-center px-0.5 touch:min-h-10">
                         {m.expandedNode ?? m.node}
                       </div>
                     ))}
@@ -1046,17 +1262,17 @@ function TaskRowBase({
         </div>
 
         {/* Hover actions: two direct ones. Everything the bar used to carry —
-            today, tomorrow, priority, duplicate, delete — is in the menu. */}
+            today, tomorrow, priority, duplicate, delete — is in the menu.
+            A finger never hovers, so on touch the bar is not drawn at all and
+            the row ends in a plain "…" instead — the same menu, with the timer
+            folded into it. One quiet button per row, not a floating bar. */}
         {showQuickBar && (
-          <QuickBar>
+          <QuickBar className="touch:hidden">
             <IconButton
               label={running ? "Timer running" : "Start focus timer"}
               size="md"
               active={running}
-              onClick={() => {
-                startTimer({ taskId: task.id, label: task.title, mode: "pomodoro" });
-                toast({ title: "Focus started", description: task.title });
-              }}
+              onClick={startFocus}
             >
               <Play />
             </IconButton>
@@ -1066,85 +1282,27 @@ function TaskRowBase({
               className="w-[228px]"
               trigger={<IconButton label="Task options" size="md"><MoreHorizontal /></IconButton>}
             >
-              {(close) => (
-                <>
-                  <MenuItem icon={Pencil} shortcut="E" onClick={() => { setEditing(true); close(); }}>
-                    Rename
-                  </MenuItem>
-                  <MenuItem icon={ArrowRight} shortcut="↵" onClick={() => { open(); close(); }}>
-                    Open details
-                  </MenuItem>
-                  {onInsertBelow && (
-                    <MenuItem icon={CornerDownRight} shortcut="O" onClick={() => { onInsertBelow(task); close(); }}>
-                      Add task below
-                    </MenuItem>
-                  )}
-                  <MenuSeparator />
-
-                  <MenuLabel>Schedule</MenuLabel>
-                  <MenuItem icon={Sun} shortcut="T" onClick={() => { moveTo(today); close(); }}>
-                    Today
-                  </MenuItem>
-                  <MenuItem icon={Sunrise} shortcut="Y" onClick={() => { moveTo(addDays(task.date ?? today, 1)); close(); }}>
-                    Tomorrow
-                  </MenuItem>
-                  <MenuItem icon={CalendarDays} onClick={() => { moveTo(addDays(today, 7)); close(); }}>
-                    Next week
-                  </MenuItem>
-                  <MenuItem icon={Inbox} shortcut="I" onClick={() => { moveTo(null); close(); }}>
-                    Move to Inbox
-                  </MenuItem>
-                  <div className="px-1 pb-1">
-                    <TaskDatePicker value={task.date} onPick={(iso) => { moveTo(iso); close(); }} />
-                  </div>
-
-                  <MenuSeparator />
-                  <MenuLabel>Priority</MenuLabel>
-                  <div className="grid grid-cols-4 gap-1 px-1 pb-1">
-                    {PRIORITY_LABELS.map((label, i) => (
-                      <Button
-                        key={label}
-                        size="xs"
-                        variant={task.priority === i ? "subtle" : "ghost"}
-                        className={cn("justify-center", task.priority === i && PRIORITY_CLASS[i])}
-                        onClick={() => patch("tasks", task.id, { priority: i })}
-                      >
-                        {label === "None" ? "—" : label[0]}
-                      </Button>
-                    ))}
-                  </div>
-
-                  <MenuSeparator />
-                  <MenuLabel>Status</MenuLabel>
-                  <MenuItem icon={Check} checked={done} onClick={() => { setStatus(done ? "todo" : "done"); close(); }}>
-                    {done ? "Mark not done" : "Mark done"}
-                  </MenuItem>
-                  <MenuItem icon={CircleDot} checked={doing} onClick={() => { setStatus(doing ? "todo" : "doing"); close(); }}>
-                    In progress
-                  </MenuItem>
-                  <MenuItem icon={Ban} checked={dropped} onClick={() => { setStatus(dropped ? "todo" : "dropped"); close(); }}>
-                    {dropped ? "Un-drop" : "Drop"}
-                  </MenuItem>
-
-                  <MenuSeparator />
-                  <MenuLabel>Colour</MenuLabel>
-                  <TintPicker
-                    value={task.color}
-                    allowNone
-                    onChange={(t) => patch("tasks", task.id, { color: t })}
-                  />
-
-                  <MenuSeparator />
-                  <MenuItem icon={Copy} shortcut="D" onClick={() => { duplicate(); close(); }}>
-                    Duplicate
-                  </MenuItem>
-                  <MenuItem icon={Trash2} danger shortcut="⌫" onClick={() => { deleteWithUndo(); close(); }}>
-                    Delete
-                  </MenuItem>
-                </>
-              )}
+              {(close) => menuBody(close, false)}
             </Popover>
           </QuickBar>
+        )}
+        {showQuickBar && (
+          <div className="hidden h-5 shrink-0 items-center touch:flex">
+            <Popover
+              align="end"
+              className="w-[228px]"
+              onOpenChange={(next) => { if (!next) setMenuDate(false); }}
+              trigger={
+                // reaches 6px right, the row's own padding — no further, so a
+                // row flush with a scroller's edge never widens it
+                <IconButton label="Task options" size="md" className="text-ink-4 [--touch-hit:-8px_-6px_-8px_-8px]">
+                  <MoreHorizontal />
+                </IconButton>
+              }
+            >
+              {(close) => menuBody(close, true)}
+            </Popover>
+          </div>
         )}
       </div>
 

@@ -6,7 +6,7 @@ import {
   Target, ListTree, Timer as TimerIcon, CheckSquare, Inbox, Shapes,
   History, Copy, MoreHorizontal, Ban, Link2, ChevronUp,
   ChevronDown, ChevronRight, CornerDownRight, Sparkles, Milestone, CalendarClock,
-  Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal, Boxes, Hourglass,
+  Check, CircleDot, Search, AlignLeft, BookOpen, SlidersHorizontal, Boxes, Hourglass, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore, subtasksOf, orderBetween, uid } from "@/lib/store";
@@ -32,6 +32,13 @@ import {
 const PRIORITY_CLASS = ["text-ink-3", "text-ink-2", "text-warn", "text-danger"];
 const DURATION_CHIPS = [15, 30, 45, 60, 90, 120];
 
+/**
+ * A 28px control in a field row answers to a fingertip without the row
+ * growing: 8px more above and below, and nothing sideways, where its
+ * neighbours are.
+ */
+const FIELD_HIT = "relative touch-hit [--touch-hit:-8px_0px]";
+
 const FREQ_NOUN: Record<Recurrence["freq"], string> = {
   daily: "day",
   weekly: "week",
@@ -50,23 +57,36 @@ function recurrenceLabel(rec: Recurrence): string {
  * decoration sitting next to an unlabelled box.
  */
 function InspectorRow({
-  icon: Icon, label, htmlFor, children, align = "start",
+  icon: Icon, label, htmlFor, children, align = "start", field, wraps,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   htmlFor?: string;
   children: React.ReactNode;
   align?: "start" | "center";
+  /** the first line holds a text field, which is 40px tall on touch, not 28 */
+  field?: boolean;
+  /** a centred row whose controls wrap on a phone: there the label belongs
+      beside the first line, not halfway down the second */
+  wraps?: boolean;
 }) {
   // The label column is scaffolding, the value is the content — so the labels
   // sit a step back rather than competing with what they name.
   const labelCls = cn(
     "flex w-[76px] shrink-0 items-center gap-1.5 text-[12px] text-ink-4",
     align === "start" && "pt-1.5",
+    align === "start" && field && "touch:pt-3",
+    align === "center" && wraps && "max-md:pt-1.5",
     htmlFor && "cursor-pointer",
   );
   return (
-    <div className={cn("flex gap-2.5 py-1", align === "center" ? "items-center" : "items-start")}>
+    <div
+      className={cn(
+        "flex gap-2.5 py-1",
+        align === "center" ? "items-center" : "items-start",
+        align === "center" && wraps && "max-md:items-start",
+      )}
+    >
       {htmlFor ? (
         <label htmlFor={htmlFor} className={labelCls}>
           <Icon className="size-3.5" />
@@ -105,7 +125,7 @@ function Fold({
       <button
         onClick={toggle}
         aria-expanded={open}
-        className="group flex w-full items-center gap-2 py-2.5 text-left cursor-pointer"
+        className="group flex w-full items-center gap-2 py-2.5 text-left cursor-pointer touch:min-h-11"
       >
         <Icon className="size-3.5 shrink-0 text-ink-4" />
         <span className="shrink-0 text-[12.5px] font-medium text-ink-2">{title}</span>
@@ -162,8 +182,9 @@ function LinkPicker({
           value={query}
           aria-label="Search tasks to link"
           placeholder="Search tasks…"
+          enterKeyHint="search"
           onChange={(e) => setQuery(e.target.value)}
-          className="h-7 min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-4"
+          className="h-7 min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-4 touch:h-10"
         />
       </div>
       {results.length === 0 ? (
@@ -189,14 +210,18 @@ function LinkChip({ id, tone }: { id: string; tone: "blocker" | "blocked" }) {
   const target = tasks.find((t) => t.id === id);
   if (!target) return null;
   const done = target.status === "done";
+  // `inline` on the icon: Badge's truncating span is a block, and a block svg
+  // there stacks above the title and is clipped to a sliver (see the tags).
   return (
     <button
       onClick={() => openInspector(id)}
       aria-label={`Open ${target.title || "Untitled"}`}
-      className="flex h-7 max-w-full items-center gap-1 px-0.5 cursor-pointer"
+      className={cn("flex h-7 max-w-full items-center gap-1 px-0.5 cursor-pointer", FIELD_HIT)}
     >
       <Badge tint={done ? "emerald" : tone === "blocker" ? "amber" : "blue"} className="max-w-[190px]">
-        {done ? <Check className="size-2.5 shrink-0" /> : <CircleDot className="size-2.5 shrink-0" />}
+        {done
+          ? <Check className="mr-0.5 inline size-2.5 shrink-0" />
+          : <CircleDot className="mr-0.5 inline size-2.5 shrink-0" />}
         {target.title || "Untitled"}
       </Badge>
     </button>
@@ -262,6 +287,13 @@ export function TaskInspector() {
 
   function setChecklist(next: ChecklistItem[]) {
     set({ checklist: next });
+  }
+
+  /** Enter in the tag field, and the button a finger gets for it. */
+  function addDraftTag() {
+    const t = tagDraft.trim().toLowerCase().replace(/^#/, "");
+    if (!current.tags.includes(t)) set({ tags: [...current.tags, t] });
+    setTagDraft("");
   }
 
   function moveChecklist(index: number, delta: number) {
@@ -461,8 +493,9 @@ export function TaskInspector() {
   return (
     <>
       <Sheet open onClose={close} width={420} resizeKey="task">
-        {/* header */}
-        <div className="flex items-center gap-1 border-b border-line px-3 py-2.5">
+        {/* header — on touch the four buttons stand a little apart, since each
+            one's fingertip press area is wider than the button itself */}
+        <div className="flex items-center gap-1 border-b border-line px-3 py-2.5 touch:gap-2">
           <Checkbox
             checked={current.status === "done"}
             indeterminate={current.status === "doing"}
@@ -542,18 +575,27 @@ export function TaskInspector() {
           <IconButton label="Close" size="md" onClick={close}><X /></IconButton>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {/* title — the one hero of this panel */}
-          <AutoTextarea
-            value={current.title}
-            onChange={(v) => set({ title: v })}
-            placeholder="Untitled"
-            aria-label="Task title"
-            className={cn(
-              "px-1 text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink",
-              (current.status === "done" || current.status === "dropped") && "text-ink-3 line-through",
-            )}
-          />
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          {/* title — the one hero of this panel. On touch globals.css sizes
+              every field max(16px, 1em) so iOS never zooms into it; the 17px
+              on the wrapper is that 1em, so the title keeps its size there.
+              Touch only: the textarea sits on this line box, and a desktop
+              line box must stay exactly as it was. */}
+          <div className="touch:text-[17px]">
+            <AutoTextarea
+              value={current.title}
+              onChange={(v) => set({ title: v })}
+              placeholder="Untitled"
+              aria-label="Task title"
+              className={cn(
+                "px-1 text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink",
+                // one line of title is a 23px strip to aim at; on touch the
+                // field reaches past it, the margin giving the room back
+                "touch:-my-2.5 touch:py-2.5",
+                (current.status === "done" || current.status === "dropped") && "text-ink-3 line-through",
+              )}
+            />
+          </div>
 
           {openBlockers.length > 0 && (
             <p className="mt-1.5 flex items-start gap-1.5 px-1 text-[12px] leading-snug text-ink-3">
@@ -570,7 +612,7 @@ export function TaskInspector() {
                 <Popover
                   className="w-[262px] p-2"
                   trigger={
-                    <button className="h-7 rounded-md px-2 text-left text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors">
+                    <button className={cn("h-7 rounded-md px-2 text-left text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors", FIELD_HIT)}>
                       {current.date ? friendlyDate(current.date) : <span className="text-ink-4">Add date</span>}
                     </button>
                   }
@@ -614,7 +656,7 @@ export function TaskInspector() {
             </InspectorRow>
 
             {/* time */}
-            <InspectorRow icon={Clock} label="Time" htmlFor={`ti-start-${current.id}`}>
+            <InspectorRow icon={Clock} label="Time" htmlFor={`ti-start-${current.id}`} field>
               <div className="flex items-center gap-1.5">
                 <Input
                   id={`ti-start-${current.id}`}
@@ -664,6 +706,7 @@ export function TaskInspector() {
                     aria-pressed={current.priority === i}
                     className={cn(
                       "h-7 rounded-md px-2 text-[12.5px] font-medium cursor-pointer transition-colors",
+                      FIELD_HIT,
                       current.priority === i ? "bg-hover text-ink" : "text-ink-4 hover:bg-hover hover:text-ink-2",
                       current.priority === i && PRIORITY_CLASS[i],
                     )}
@@ -686,11 +729,13 @@ export function TaskInspector() {
             >
               <div className="space-y-0.5">
                 {/* estimate */}
-                <InspectorRow icon={TimerIcon} label="Estimate" htmlFor={`ti-est-${current.id}`}>
+                <InspectorRow icon={TimerIcon} label="Estimate" htmlFor={`ti-est-${current.id}`} field>
                   <div className="flex items-center gap-2">
                     <Input
                       id={`ti-est-${current.id}`}
                       type="number"
+                      // whole minutes: the iPhone's digit pad, not the full keyboard
+                      inputMode="numeric"
                       min={0}
                       step={5}
                       key={`d-${current.duration_min}`}
@@ -716,7 +761,7 @@ export function TaskInspector() {
                         key={m}
                         size="xs"
                         variant={current.duration_min === m ? "subtle" : "ghost"}
-                        className="tnum"
+                        className="tnum touch:min-w-8"
                         onClick={() =>
                           set({
                             duration_min: m,
@@ -731,8 +776,9 @@ export function TaskInspector() {
                 </InspectorRow>
 
             {/* kind */}
-            <InspectorRow icon={Shapes} label="Type" align="center">
-              <div className="flex gap-1">
+            <InspectorRow icon={Shapes} label="Type" align="center" wraps>
+              {/* a fourth, custom kind does not fit beside the three on a phone */}
+              <div className="flex gap-1 max-md:flex-wrap max-md:gap-y-2">
                 {([
                   { kind: "task", label: "Task", icon: CheckSquare },
                   { kind: "event", label: "Event", icon: CalendarClock },
@@ -744,6 +790,7 @@ export function TaskInspector() {
                     aria-pressed={current.kind === opt.kind}
                     className={cn(
                       "flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium cursor-pointer transition-colors",
+                      FIELD_HIT,
                       current.kind === opt.kind ? "bg-hover text-ink" : "text-ink-4 hover:bg-hover hover:text-ink-2",
                     )}
                   >
@@ -776,6 +823,7 @@ export function TaskInspector() {
                   <button
                     className={cn(
                       "flex h-7 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-hover cursor-pointer transition-colors",
+                      FIELD_HIT,
                       current.color && `tint-${current.color}`,
                     )}
                   >
@@ -792,18 +840,22 @@ export function TaskInspector() {
             </InspectorRow>
 
             {/* tags */}
-            <InspectorRow icon={Hash} label="Tags">
-              <div className="flex flex-wrap items-center gap-1">
+            <InspectorRow icon={Hash} label="Tags" field>
+              {/* `inline` on the icons: Badge's truncating span is a block, and
+                  a block svg there stacks under or over the word and is clipped
+                  to a sliver. The rows wrap, so on touch they get a little air
+                  for the fingertip reach of each chip. */}
+              <div className="flex flex-wrap items-center gap-1 touch:gap-y-2">
                 {current.tags.map((tag) => (
                   <button
                     key={tag}
                     onClick={() => set({ tags: current.tags.filter((t) => t !== tag) })}
                     aria-label={`Remove tag ${tag}`}
-                    className="group/tag flex h-7 items-center cursor-pointer"
+                    className={cn("group/tag flex h-7 items-center cursor-pointer", FIELD_HIT)}
                   >
                     <Badge tint={storeTags.find((t) => t.name === tag)?.color ?? "slate"}>
                       {tag}
-                      <X className="size-2.5 shrink-0 opacity-50 transition-opacity group-hover/tag:opacity-100" />
+                      <X className="ml-0.5 inline size-2.5 shrink-0 opacity-50 transition-opacity group-hover/tag:opacity-100" />
                     </Badge>
                   </button>
                 ))}
@@ -814,17 +866,29 @@ export function TaskInspector() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && tagDraft.trim()) {
                       e.preventDefault();
-                      const t = tagDraft.trim().toLowerCase().replace(/^#/, "");
-                      if (!current.tags.includes(t)) set({ tags: [...current.tags, t] });
-                      setTagDraft("");
+                      addDraftTag();
                     }
                   }}
                   placeholder="Add tag"
-                  className="h-7 w-[88px] bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-4"
+                  className="h-7 w-[88px] bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-4 touch:h-10 touch:w-[120px]"
                 />
+                {/* Enter adds a tag; a finger gets the same as a button it can
+                    see, once there is something to add. */}
+                {tagDraft.trim() && (
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    className="hidden touch:inline-flex"
+                    // keep the field focused, so the keyboard stays up for the next tag
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={addDraftTag}
+                  >
+                    <Plus className="size-3" /> Add
+                  </Button>
+                )}
               </div>
               {storeTags.filter((t) => !current.tags.includes(t.name)).length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1">
+                <div className="mt-1 flex flex-wrap gap-1 touch:mt-2 touch:gap-y-2">
                   {storeTags
                     .filter((t) => !current.tags.includes(t.name))
                     .slice(0, 6)
@@ -833,10 +897,10 @@ export function TaskInspector() {
                         key={t.id}
                         onClick={() => set({ tags: [...current.tags, t.name] })}
                         aria-label={`Add tag ${t.name}`}
-                        className="flex h-7 items-center cursor-pointer opacity-60 transition-opacity hover:opacity-100"
+                        className={cn("flex h-7 items-center cursor-pointer opacity-60 transition-opacity hover:opacity-100", FIELD_HIT)}
                       >
                         <Badge tint={t.color}>
-                          <Plus className="size-2.5 shrink-0" />
+                          <Plus className="mr-0.5 inline size-2.5 shrink-0" />
                           {t.name}
                         </Badge>
                       </button>
@@ -850,7 +914,7 @@ export function TaskInspector() {
               <Popover
                 className="w-[190px]"
                 trigger={
-                  <button className="h-7 rounded-md px-2 text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors">
+                  <button className={cn("h-7 rounded-md px-2 text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors", FIELD_HIT)}>
                     {current.recurrence
                       ? recurrenceLabel(current.recurrence)
                       : <span className="text-ink-4">Never</span>}
@@ -889,8 +953,12 @@ export function TaskInspector() {
               <Popover
                 className="max-h-[260px] w-[240px] overflow-y-auto"
                 trigger={
-                  <button className="h-7 truncate rounded-md px-2 text-left text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors">
-                    {project ? (project.name || "Untitled project") : <span className="text-ink-4">Not linked</span>}
+                  // The truncation lives on the inner span: a button that
+                  // clipped its own overflow would clip its fingertip ::after too.
+                  <button className={cn("h-7 max-w-full rounded-md px-2 text-left text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors", FIELD_HIT)}>
+                    <span className="block truncate">
+                      {project ? (project.name || "Untitled project") : <span className="text-ink-4">Not linked</span>}
+                    </span>
                   </button>
                 }
               >
@@ -924,8 +992,10 @@ export function TaskInspector() {
               <Popover
                 className="max-h-[260px] w-[240px] overflow-y-auto"
                 trigger={
-                  <button className="h-7 truncate rounded-md px-2 text-left text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors">
-                    {goal ? goal.title : <span className="text-ink-4">Not linked</span>}
+                  <button className={cn("h-7 max-w-full rounded-md px-2 text-left text-[13px] text-ink hover:bg-hover cursor-pointer transition-colors", FIELD_HIT)}>
+                    <span className="block truncate">
+                      {goal ? goal.title : <span className="text-ink-4">Not linked</span>}
+                    </span>
                   </button>
                 }
               >
@@ -975,7 +1045,7 @@ export function TaskInspector() {
             >
             <div className="space-y-0.5">
               {current.checklist.map((item, i) => (
-                <div key={item.id} className="group/ci flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-hover">
+                <div key={item.id} className="group/ci flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-hover touch:min-h-11 touch:gap-2.5">
                   <Checkbox
                     size="sm"
                     checked={item.done}
@@ -983,6 +1053,7 @@ export function TaskInspector() {
                     onChange={(next) =>
                       setChecklist(current.checklist.map((c) => (c.id === item.id ? { ...c, done: next } : c)))
                     }
+                    className="touch:size-[17px]"
                   />
                   <input
                     value={item.text}
@@ -1005,11 +1076,11 @@ export function TaskInspector() {
                       if (e.key === "ArrowDown" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); moveChecklist(i, 1); }
                     }}
                     className={cn(
-                      "min-w-0 flex-1 bg-transparent text-[13px] outline-none",
+                      "min-w-0 flex-1 bg-transparent text-[13px] outline-none touch:self-stretch",
                       item.done ? "text-ink-4 line-through" : "text-ink",
                     )}
                   />
-                  <div className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/ci:opacity-100">
+                  <div className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/ci:opacity-100 touch:hidden">
                     <IconButton
                       label={`Move “${item.text || "item"}” up`}
                       size="sm"
@@ -1041,12 +1112,53 @@ export function TaskInspector() {
                       <X />
                     </IconButton>
                   </div>
+                  {/* A finger never hovers, and four 24px icons side by side are
+                      four mis-taps waiting — so on touch they are one "…". */}
+                  <Popover
+                    align="end"
+                    className="w-[230px]"
+                    trigger={
+                      <IconButton
+                        label={`Options for “${item.text || "item"}”`}
+                        size="md"
+                        className="hidden text-ink-4 touch:inline-flex"
+                      >
+                        <MoreHorizontal />
+                      </IconButton>
+                    }
+                  >
+                    {(closeMenu) => (
+                      <>
+                        <MenuItem icon={ChevronUp} disabled={i === 0} onClick={() => { moveChecklist(i, -1); closeMenu(); }}>
+                          Move up
+                        </MenuItem>
+                        <MenuItem
+                          icon={ChevronDown}
+                          disabled={i === current.checklist.length - 1}
+                          onClick={() => { moveChecklist(i, 1); closeMenu(); }}
+                        >
+                          Move down
+                        </MenuItem>
+                        <MenuItem icon={CornerDownRight} onClick={() => { checklistToSubtask(item); closeMenu(); }}>
+                          Turn into a subtask
+                        </MenuItem>
+                        <MenuSeparator />
+                        <MenuItem
+                          icon={X}
+                          danger
+                          onClick={() => { setChecklist(current.checklist.filter((c) => c.id !== item.id)); closeMenu(); }}
+                        >
+                          Remove
+                        </MenuItem>
+                      </>
+                    )}
+                  </Popover>
                 </div>
               ))}
             </div>
             <button
               onClick={() => setChecklist([...current.checklist, { id: uid(), text: "", done: false }])}
-              className="mt-1 flex items-center gap-1.5 rounded-md px-1 py-1 text-[12.5px] text-ink-4 hover:bg-hover hover:text-ink-3 cursor-pointer transition-colors"
+              className="mt-1 flex items-center gap-1.5 rounded-md px-1 py-1 text-[12.5px] text-ink-4 hover:bg-hover hover:text-ink-3 cursor-pointer transition-colors touch:min-h-11 touch:w-full"
             >
               <Plus className="size-3.5" /> Add item
             </button>
@@ -1061,23 +1173,24 @@ export function TaskInspector() {
             >
             <div className="space-y-0.5">
               {subtasks.map((sub, i) => (
-                <div key={sub.id} className="group/st flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-hover">
+                <div key={sub.id} className="group/st flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-hover touch:min-h-11 touch:gap-2.5">
                   <Checkbox
                     size="sm"
                     checked={sub.status === "done"}
                     label={sub.title || "Subtask"}
                     onChange={() => toggleTask(sub.id)}
+                    className="touch:size-[17px]"
                   />
                   <input
                     value={sub.title}
                     aria-label={`Subtask ${i + 1}`}
                     onChange={(e) => patch("tasks", sub.id, { title: e.target.value })}
                     className={cn(
-                      "min-w-0 flex-1 bg-transparent text-[13px] outline-none",
+                      "min-w-0 flex-1 bg-transparent text-[13px] outline-none touch:self-stretch",
                       sub.status === "done" ? "text-ink-4 line-through" : "text-ink",
                     )}
                   />
-                  <div className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/st:opacity-100">
+                  <div className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/st:opacity-100 touch:hidden">
                     <IconButton
                       label={`Move “${sub.title || "subtask"}” up`}
                       size="sm"
@@ -1109,6 +1222,56 @@ export function TaskInspector() {
                       <X />
                     </IconButton>
                   </div>
+                  {/* the same four, as one menu a finger can find */}
+                  <Popover
+                    align="end"
+                    className="w-[230px]"
+                    trigger={
+                      <IconButton
+                        label={`Options for “${sub.title || "subtask"}”`}
+                        size="md"
+                        className="hidden text-ink-4 touch:inline-flex"
+                      >
+                        <MoreHorizontal />
+                      </IconButton>
+                    }
+                  >
+                    {(closeMenu) => (
+                      <>
+                        <MenuItem icon={ArrowRight} onClick={() => { openInspector(sub.id); closeMenu(); }}>
+                          Open details
+                        </MenuItem>
+                        <MenuItem
+                          icon={ChevronUp}
+                          disabled={i === 0}
+                          onClick={() => {
+                            patch("tasks", sub.id, {
+                              order_index: orderBetween(subtasks[i - 2]?.order_index, subtasks[i - 1].order_index),
+                            });
+                            closeMenu();
+                          }}
+                        >
+                          Move up
+                        </MenuItem>
+                        <MenuItem
+                          icon={ChevronDown}
+                          disabled={i === subtasks.length - 1}
+                          onClick={() => {
+                            patch("tasks", sub.id, {
+                              order_index: orderBetween(subtasks[i + 1].order_index, subtasks[i + 2]?.order_index),
+                            });
+                            closeMenu();
+                          }}
+                        >
+                          Move down
+                        </MenuItem>
+                        <MenuSeparator />
+                        <MenuItem icon={X} danger onClick={() => { remove("tasks", sub.id); closeMenu(); }}>
+                          Delete
+                        </MenuItem>
+                      </>
+                    )}
+                  </Popover>
                 </div>
               ))}
             </div>

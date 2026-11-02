@@ -3,8 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import {
-  DndContext, DragOverlay, closestCenter, pointerWithin, PointerSensor, KeyboardSensor,
-  useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, closestCenter, pointerWithin, useDroppable,
   type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -24,7 +23,7 @@ import { PRIORITY_LABELS, type Task, type Tint } from "@/lib/types";
 import { TaskRow, TaskDatePicker, timeOfDayOf } from "./task-row";
 import { Button, EmptyState, IconButton, Badge } from "@/components/ui/primitives";
 import { Popover, MenuItem, MenuLabel, MenuSeparator, TintPicker, useMounted } from "@/components/ui/overlays";
-import { useDragBody } from "@/components/ui/drag";
+import { useAppSensors, useDragBody } from "@/components/ui/drag";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 
 // =========================================================
@@ -368,6 +367,8 @@ export function InlineComposer({
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-[13.5px] text-ink-4",
           "hover:bg-hover hover:text-ink-3 cursor-pointer transition-colors",
+          // a whole-width row is its own target, so it grows rather than borrows
+          "touch:min-h-11",
           className,
         )}
       >
@@ -377,8 +378,10 @@ export function InlineComposer({
     );
   }
 
+  // The keyboard's return key adds the task and keeps the field open for the
+  // next one, as Enter does; tapping anywhere else adds it and closes.
   return (
-    <div className={cn("flex items-center gap-2 rounded-md bg-hover px-1.5 py-1.5", className)}>
+    <div className={cn("flex items-center gap-2 rounded-md bg-hover px-1.5 py-1.5 touch:py-0.5", className)}>
       <Plus className="size-4 shrink-0 text-ink-4" />
       <input
         ref={ref}
@@ -397,7 +400,7 @@ export function InlineComposer({
           }
         }}
         placeholder="Task name — try “friday 9am #deep !high”"
-        className="min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-4"
+        className="min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-4 touch:h-10"
       />
     </div>
   );
@@ -433,10 +436,13 @@ function InsertPoint({
       type="button"
       // Kept out of the tab ring on purpose: with one of these between every
       // row it would triple the stops. The keyboard twin is "O" on a focused row.
+      // Not laid out on touch: an invisible 8px strip between two rows only
+      // catches fingers aimed at the rows. The finger's twin is "Add task
+      // below" in the row's "…".
       tabIndex={-1}
       aria-label="Insert a task here"
       onClick={() => setOpen(true)}
-      className="group/gap relative -my-1 flex h-2 w-full cursor-pointer items-center"
+      className="group/gap relative -my-1 flex h-2 w-full cursor-pointer items-center touch:hidden"
     >
       <span className="absolute -left-1 grid size-3.5 place-items-center rounded-full bg-accent text-accent-ink opacity-0 transition-opacity duration-150 group-hover/gap:opacity-100">
         <Plus className="size-2.5" strokeWidth={3} />
@@ -473,6 +479,8 @@ function TrayTarget({
       ref={setNodeRef}
       className={cn(
         "flex h-14 w-[86px] flex-col items-center justify-center gap-1 rounded-lg border text-[11.5px] font-medium",
+        // a cell of the phone's 3×2 grid
+        "max-md:h-12 max-md:w-auto",
         "transition-[background-color,border-color,transform] duration-150 ease-[var(--ease-out-apple)]",
         isOver
           ? danger
@@ -490,10 +498,22 @@ function TrayTarget({
 function DragTray({ title }: { title: string }) {
   const mounted = useMounted();
   if (!mounted) return null;
+  // Six 86px targets are 560px — wider than a phone, so there they become a
+  // 3×2 grid across the screen, above the tab bar instead of under it.
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[95] flex justify-center px-4">
-      <div className="pointer-events-auto material anim-slide flex items-center gap-1.5 rounded-2xl border border-line p-1.5 shadow-lg">
-        <div className="hidden max-w-[150px] px-2 sm:block">
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-4 z-[95] flex justify-center px-4",
+        "max-md:bottom-[calc(var(--bottom-inset)+12px)]",
+      )}
+    >
+      <div
+        className={cn(
+          "pointer-events-auto material anim-slide flex items-center gap-1.5 rounded-2xl border border-line p-1.5 shadow-lg",
+          "max-md:grid max-md:w-full max-md:max-w-[420px] max-md:grid-cols-3",
+        )}
+      >
+        <div className="hidden max-w-[150px] px-2 sm:block max-md:col-span-3 max-md:max-w-none max-md:pb-0.5">
           <p className="truncate text-[12px] font-medium text-ink">{title || "Untitled"}</p>
           <p className="text-[11px] text-ink-3">Drop to…</p>
         </div>
@@ -530,7 +550,7 @@ function GroupHeader({
       <button
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-w-0 flex-1 items-center gap-1.5 cursor-pointer text-left"
+        className="relative flex min-w-0 flex-1 items-center gap-1.5 cursor-pointer text-left touch-hit [--touch-hit:-14px_-6px]"
       >
         <ChevronRight
           className={cn("size-3 shrink-0 text-ink-4 transition-transform duration-200", open && "rotate-90")}
@@ -600,21 +620,35 @@ function SelectionBar({
   if (!mounted || !tasks.length) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[92] flex justify-center px-4">
+    // A phone gets a panel instead of the pill: nine actions do not fit across
+    // 390px, and a pill that scrolls five of them out of sight is a toolbar
+    // nobody finds the end of. So: the count and Clear on top, then every
+    // action as a fingertip cell, four to a row. It floats above the toasts
+    // and the timer bar — over the tab bar — as the pill does on a desktop,
+    // so an Undo is never underneath it.
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-20 z-[92] flex justify-center px-4",
+        "max-md:bottom-[calc(var(--bottom-inset)+72px)]",
+      )}
+    >
       <div
         role="toolbar"
         aria-label={`${tasks.length} selected`}
-        className="pointer-events-auto material anim-slide flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-line p-1 pl-3 shadow-lg"
+        className={cn(
+          "pointer-events-auto material anim-slide flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-line p-1 pl-3 shadow-lg",
+          "max-md:grid max-md:w-full max-md:max-w-[420px] max-md:grid-cols-4 max-md:overflow-visible max-md:rounded-2xl max-md:p-1.5",
+        )}
       >
-        <span className="shrink-0 whitespace-nowrap text-[12.5px] font-medium text-ink tnum">
+        <span className="shrink-0 whitespace-nowrap text-[12.5px] font-medium text-ink tnum max-md:col-span-3 max-md:px-2 max-md:text-[13px]">
           {tasks.length} selected
         </span>
-        <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line" />
+        <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line max-md:hidden" />
 
         <Button
           size="xs"
           variant="ghost"
-          className="shrink-0"
+          className={cn("shrink-0", PANEL_CELL)}
           onClick={() =>
             bulkApply(allDone ? "Reopened" : "Completed", () => ({
               status: allDone ? "todo" : "done",
@@ -625,13 +659,13 @@ function SelectionBar({
           <Check className="size-3" /> {allDone ? "Reopen" : "Complete"}
         </Button>
 
-        <Button size="xs" variant="ghost" className="shrink-0" onClick={() => bulkApply("Moved to today", () => ({ date: today }))}>
+        <Button size="xs" variant="ghost" className={cn("shrink-0", PANEL_CELL)} onClick={() => bulkApply("Moved to today", () => ({ date: today }))}>
           <Sun className="size-3" /> Today
         </Button>
         <Button
           size="xs"
           variant="ghost"
-          className="shrink-0"
+          className={cn("shrink-0", PANEL_CELL)}
           onClick={() => bulkApply("Pushed a day", (t) => ({ date: addDays(t.date ?? today, 1) }))}
         >
           <Sunrise className="size-3" /> Tomorrow
@@ -642,7 +676,7 @@ function SelectionBar({
           align="center"
           className="w-[256px]"
           trigger={
-            <Button size="xs" variant="ghost" className="shrink-0">
+            <Button size="xs" variant="ghost" className={cn("shrink-0", PANEL_CELL)}>
               <CalendarDays className="size-3" /> Date
             </Button>
           }
@@ -661,7 +695,7 @@ function SelectionBar({
           align="center"
           className="w-[180px]"
           trigger={
-            <Button size="xs" variant="ghost" className="shrink-0">
+            <Button size="xs" variant="ghost" className={cn("shrink-0", PANEL_CELL)}>
               <Flag className="size-3" /> Priority
             </Button>
           }
@@ -682,7 +716,7 @@ function SelectionBar({
           align="center"
           className="w-[210px]"
           trigger={
-            <Button size="xs" variant="ghost" className="shrink-0">
+            <Button size="xs" variant="ghost" className={cn("shrink-0", PANEL_CELL)}>
               <Hash className="size-3" /> Tag
             </Button>
           }
@@ -719,7 +753,7 @@ function SelectionBar({
           align="center"
           className="w-[210px]"
           trigger={
-            <Button size="xs" variant="ghost" className="shrink-0">
+            <Button size="xs" variant="ghost" className={cn("shrink-0", PANEL_CELL)}>
               <Palette className="size-3" /> Colour
             </Button>
           }
@@ -731,11 +765,20 @@ function SelectionBar({
           />
         </Popover>
 
-        <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line" />
-        <IconButton label={`Delete ${tasks.length} tasks`} size="md" tone="danger" className="shrink-0" onClick={bulkDelete}>
+        <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-line max-md:hidden" />
+        <IconButton
+          label={`Delete ${tasks.length} tasks`}
+          size="md"
+          tone="danger"
+          className={cn("shrink-0", PANEL_CELL, "max-md:text-danger")}
+          onClick={bulkDelete}
+        >
           <Trash2 />
+          {/* the cell names its action like its neighbours; the pill's icon speaks for itself */}
+          <span aria-hidden className="hidden max-md:inline">Delete</span>
         </IconButton>
-        <IconButton label="Clear selection" size="md" className="shrink-0" onClick={onClear}>
+        {/* top row, beside the count */}
+        <IconButton label="Clear selection" size="md" className="shrink-0 max-md:order-1 max-md:justify-self-end" onClick={onClear}>
           <X />
         </IconButton>
       </div>
@@ -743,6 +786,16 @@ function SelectionBar({
     document.body,
   );
 }
+
+/**
+ * One cell of the phone's selection panel: icon over word, a fingertip tall,
+ * after the count row (order) — its own height is the press area, so the
+ * kit's borrowed touch margin is switched off rather than spilling into the
+ * cells beside it.
+ */
+const PANEL_CELL =
+  "max-md:order-2 max-md:h-11 max-md:w-full max-md:flex-col max-md:gap-0.5 max-md:rounded-lg max-md:px-1 " +
+  "max-md:text-[11px] max-md:font-medium max-md:[&_svg]:size-4 max-md:[--touch-hit:0px]";
 
 // =========================================================
 // TaskList
@@ -801,10 +854,9 @@ export function TaskList({
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(() => new Set<string>());
   const anchor = React.useRef<string | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  // Mouse by 4px of travel, as before; a finger by a 220ms hold, so a swipe
+  // down the list is always a scroll; keyboard unchanged.
+  const sensors = useAppSensors({ distance: 4, coordinateGetter: sortableKeyboardCoordinates });
 
   const showInsert = insertBetween ?? !!composer;
   const showControls = controls ?? tasks.length >= 4;
@@ -1213,7 +1265,8 @@ export function TaskSection({
         <button
           onClick={toggle}
           aria-expanded={open}
-          className="group flex min-w-0 items-center gap-1.5 cursor-pointer py-0.5"
+          // A 21px header line answers to a fingertip without the section moving.
+          className="group relative flex min-w-0 items-center gap-1.5 cursor-pointer py-0.5 touch-hit [--touch-hit:-12px_-8px]"
         >
           <ChevronRight
             className={cn(
