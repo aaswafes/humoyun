@@ -1,14 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { MoonStar } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import {
   addDays, dayNameOf, daysBetween, formatDate, formatTime, monthName, startOfWeek, weekday,
 } from "@/lib/date";
-import { Button, EmptyState } from "@/components/ui/primitives";
-import { VisuallyHidden } from "@/components/ui/form";
+import { Button } from "@/components/ui/primitives";
+import { MiniEmpty, VisuallyHidden } from "@/components/ui/form";
 import { Fold, useFold } from "@/components/salah/fold";
 import { currentStreak, summarize, type TahajjudNight } from "./night-data";
 
@@ -21,12 +20,11 @@ const HISTORY_PAGE = 30;
  * how often, and when.
  */
 export function TahajjudStats({
-  current, index, weekStart, onRecord,
+  current, index, weekStart,
 }: {
   current: string;
   index: Map<string, TahajjudNight>;
   weekStart: number;
-  onRecord: () => void;
 }) {
   const hour12 = useStore((s) => s.hour12);
   const [historyOpen, setHistoryOpen] = useFold("tahajjud.history", false);
@@ -74,18 +72,14 @@ export function TahajjudStats({
     if (el) el.scrollLeft = el.scrollWidth;
   }, [hasNights]);
 
+  // The toggle that fills this in sits right above it, so a short line is
+  // enough — a full empty state would only repeat that button.
   if (!lifetime) {
     return (
-      <EmptyState
-        icon={MoonStar}
-        title="No nights recorded yet"
-        description="Mark a night you rose for tahajjud and this page starts keeping the count — how often, how many rakat, and which nights you tend to wake."
-        action={
-          <Button variant="primary" size="sm" onClick={onRecord}>
-            Record a night
-          </Button>
-        }
-      />
+      <MiniEmpty>
+        No nights recorded yet. Mark one above and the count starts here — how often, how many
+        rakat, and which nights you tend to wake.
+      </MiniEmpty>
     );
   }
 

@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
       { source: "/books", destination: "/consumption/books", permanent: true },
       { source: "/watch", destination: "/consumption/films", permanent: true },
       { source: "/youtube", destination: "/consumption/youtube", permanent: true },
+      // Tahajjud had its own page for a day before it became a tab on Salah.
+      { source: "/tahajjud", destination: "/salah?view=tahajjud", permanent: false },
     ];
   },
 };

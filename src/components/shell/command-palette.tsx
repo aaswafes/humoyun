@@ -65,7 +65,7 @@ export function CommandPalette() {
       { id: "n-youtube", label: "YouTube", group: "Go to", icon: MonitorPlay, run: () => go("/consumption/youtube") },
       { id: "n-habits", label: "Habits", group: "Go to", icon: Flame, run: () => go("/habits") },
       { id: "n-salah", label: "Salah", group: "Go to", icon: Moon, run: () => go("/salah") },
-      { id: "n-tahajjud", label: "Tahajjud", group: "Go to", icon: MoonStar, keywords: "night qiyam last third", run: () => go("/tahajjud") },
+      { id: "n-tahajjud", label: "Tahajjud", group: "Go to", icon: MoonStar, keywords: "salah night qiyam last third", run: () => go("/salah?view=tahajjud") },
       { id: "n-goals", label: "Goals", group: "Go to", icon: Target, run: () => go("/goals") },
       { id: "n-focus", label: "Focus", group: "Go to", icon: Timer, run: () => go("/focus") },
       { id: "n-stats", label: "Stats", group: "Go to", icon: BarChart3, run: () => go("/stats") },

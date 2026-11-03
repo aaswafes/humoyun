@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { Segmented, Skeleton } from "@/components/ui/primitives";
 import { useNow } from "@/hooks/use-hotkeys";
@@ -14,13 +15,15 @@ import { RhythmView } from "@/components/salah/rhythm-view";
 import { TodayCard } from "@/components/salah/today-card";
 import { ZikrView } from "@/components/salah/zikr-view";
 import { UpcomingReadings } from "@/components/salah/upcoming-readings";
+import { TahajjudView } from "@/components/tahajjud/tahajjud-view";
 import { useSalahPrefs } from "@/components/salah/prefs";
 import { nextPrayer, openWindow, type TimesTriple } from "@/components/salah/windows";
 
-type View = "today" | "rhythm" | "quran" | "zikr";
+type View = "today" | "tahajjud" | "rhythm" | "quran" | "zikr";
 
 const VIEWS: { value: View; label: string; title: string }[] = [
   { value: "today", label: "Today", title: "The five, their windows and what follows them" },
+  { value: "tahajjud", label: "Tahajjud", title: "The night prayer — its own record and its own numbers" },
   { value: "rhythm", label: "Rhythm", title: "Jamaah, alone and qadha — with the month of times, the Hijri date and the qibla" },
   { value: "quran", label: "Quran", title: "Khatm progress, juz by juz, and the reading plan" },
   { value: "zikr", label: "Zikr", title: "The counter, what this hour asks for, and a lifetime of counts" },
@@ -31,12 +34,42 @@ const VIEWS: { value: View; label: string; title: string }[] = [
 // table), and on a phone that pushed the whole page past the screen edge.
 const RAIL = "grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-8";
 
+const isView = (v: string | null): v is View => VIEWS.some((x) => x.value === v);
+
+// Reading the tab from the URL means the tree under it can only render on the
+// client; the boundary keeps the rest of the route prerenderable and shows
+// the same skeleton the page shows while the store loads.
 export default function SalahPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <>
+          <PageHeader title="Salah" />
+          <PageBody className="max-w-[1120px]">
+            <LoadingSalah />
+          </PageBody>
+        </>
+      }
+    >
+      <SalahScreen />
+    </React.Suspense>
+  );
+}
+
+function SalahScreen() {
   const ready = useStore((s) => s.ready);
   const profile = useStore((s) => s.profile);
   const [prefs, setPrefs] = useSalahPrefs();
 
-  const [view, setView] = React.useState<View>("today");
+  // The tab lives in the URL, so /salah?view=tahajjud can be linked to and
+  // survives a reload. replaceState, not the router: Next keeps
+  // useSearchParams in step with it, and switching a tab needs no server trip.
+  const params = useSearchParams();
+  const requested = params.get("view");
+  const view: View = isView(requested) ? requested : "today";
+  const setView = (next: View) => {
+    window.history.replaceState(null, "", next === "today" ? "/salah" : `/salah?view=${next}`);
+  };
   const [planning, setPlanning] = React.useState(false);
 
   // One slow tick drives the current-window highlight and the day rollover;
@@ -74,7 +107,7 @@ export default function SalahPage() {
         title="Salah"
         subtitle={next ? <HeaderStatus open={open} next={next} /> : undefined}
       >
-        {/* The four views are this section's navigation, so on a phone they
+        {/* The five views are this section's navigation, so on a phone they
             span the row like an iOS segmented control: thumb-sized, and
             "Zikr" no longer a 38px sliver at the end. */}
         <Segmented
@@ -101,6 +134,8 @@ export default function SalahPage() {
             />
             <MonthGrid today={today} />
           </div>
+        ) : view === "tahajjud" ? (
+          <TahajjudView today={today} t={times} nowMin={nowMin} />
         ) : view === "rhythm" ? (
           <RhythmView
             today={today}

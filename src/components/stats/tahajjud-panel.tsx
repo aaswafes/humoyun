@@ -55,7 +55,7 @@ export function TahajjudPanel({
           title="No nights recorded yet"
           description="Mark the nights you rise for tahajjud and they are counted here, on their own — apart from the five."
           action={
-            <Button variant="primary" size="sm" onClick={() => router.push("/tahajjud")}>
+            <Button variant="primary" size="sm" onClick={() => router.push("/salah?view=tahajjud")}>
               Open Tahajjud
             </Button>
           }

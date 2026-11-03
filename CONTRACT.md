@@ -687,7 +687,7 @@ value as a toast.
 
 ---
 
-# Zikr — the fourth tab on Salah
+# Zikr — a tab on Salah
 
 `src/components/salah/zikr-*` owns it. Times used to sit here; it is now folded
 inside Rhythm (`rhythm-view.tsx`), because a month of times, the Hijri date and
@@ -732,14 +732,18 @@ history can never disagree about which days they counted.
 
 ---
 
-# Tahajjud — its own page, next to Salah
+# Tahajjud — a tab on Salah, with its own numbers
 
-The owner asked for it apart from Salah — its own record and its own stats —
-but placed beside it. So `/tahajjud` sits directly under Salah in the sidebar,
-and its panel on `/stats` sits directly under the Salah panel. It is never
-added into a salah number: the five are owed, the night prayer is offered.
-`src/components/tahajjud/` owns it; `night-data.ts` is the only place a night
-is read, written or counted.
+The owner wants it inside the Salah section but not mixed into it. So it is
+the second tab on Salah (Today · Tahajjud · Rhythm · Quran · Zikr), with its
+own night card, month and stats, and its `/stats` panel sits directly under
+the Salah panel. It is never added into a salah number: the five are owed, the
+night prayer is offered. `src/components/tahajjud/` owns it; `night-data.ts`
+is the only place a night is read, written or counted.
+
+**Salah's tab is in the URL** — `/salah?view=tahajjud`, written with
+`history.replaceState`, which Next keeps `useSearchParams` in step with. Link to
+a tab that way. `/tahajjud` (its own page for one day) redirects there.
 
 **A night is named by the morning it ends in.** Prayed at 3 AM on Tuesday, it
 is Tuesday's. `nightClock` decides which night is in play: before Maghrib it is

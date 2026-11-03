@@ -120,7 +120,6 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       items: [
         { href: "/habits", label: t("nav.habits"), icon: Flame },
         { href: "/salah", label: t("nav.salah"), icon: Moon },
-        { href: "/tahajjud", label: t("nav.tahajjud"), icon: MoonStar },
         { href: "/consumption", label: t("nav.consumption"), icon: Library },
         { href: "/focus", label: t("nav.focus"), icon: Timer },
       ],
