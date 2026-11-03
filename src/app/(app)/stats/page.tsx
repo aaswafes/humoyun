@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { BarChart3 } from "lucide-react";
-import { todayISO } from "@/lib/date";
+import { formatTime, todayISO } from "@/lib/date";
 import { prayerStreak, useStore } from "@/lib/store";
 import { PRAYER_LABELS } from "@/lib/types";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
@@ -31,6 +31,8 @@ import { TagDrift } from "@/components/stats/tag-drift";
 import { ConsistencyHeatmap } from "@/components/stats/consistency-heatmap";
 import { HabitMatrix } from "@/components/stats/habit-matrix";
 import { SalahPanel } from "@/components/stats/salah-panel";
+import { TahajjudPanel } from "@/components/stats/tahajjud-panel";
+import { buildNightIndex } from "@/components/tahajjud/night-data";
 import { ReadingPanel } from "@/components/stats/reading-panel";
 import { WellbeingPanel } from "@/components/stats/wellbeing-panel";
 import { GoalsPanel } from "@/components/stats/goals-panel";
@@ -203,6 +205,7 @@ export default function StatsPage() {
 
   // ---- wellbeing, goals, shelves ----
   const wellbeing = React.useMemo(() => buildWellbeing(days, dayLogs), [days, dayLogs]);
+  const nightIndex = React.useMemo(() => buildNightIndex(dayLogs), [dayLogs]);
   const goalStats = React.useMemo(
     () => buildGoalStats(days, goals, projects, allTasks),
     [days, goals, projects, allTasks],
@@ -359,6 +362,7 @@ export default function StatsPage() {
           ["Focus sessions", sessionCount],
           ["Perfect days", perfectDays(scores)],
           ["Salah streak (days)", salahStreak],
+          ["Tahajjud nights", days.filter((d) => nightIndex.has(d)).length],
           ["Measured estimates", estimate.n],
           ["Median actual / planned", estimate.ratio != null ? estimate.ratio.toFixed(2) : ""],
         ],
@@ -411,6 +415,14 @@ export default function StatsPage() {
         ]),
       },
       {
+        title: "Tahajjud",
+        columns: ["Night into", "Rakat", "Time"],
+        rows: days.filter((d) => nightIndex.has(d)).map((d) => {
+          const night = nightIndex.get(d);
+          return [d, night?.rakat ?? "", night?.at != null ? formatTime(night.at, hour12) : ""];
+        }),
+      },
+      {
         title: "Reading",
         columns: ["Week", "Book pages", "Qur'an pages", "Minutes"],
         rows: weeks.map((w) => [w.key, w.pages, w.quranPages, Math.round(w.minutes)]),
@@ -445,9 +457,9 @@ export default function StatsPage() {
       tone: "success",
     });
   }, [
-    label, activeTags, days.length, stats, focusTotal, sessionCount, salahStreak, scores, estimate,
+    label, activeTags, stats, focusTotal, sessionCount, salahStreak, scores, estimate,
     weekdays, hours, samples, tagDrift, habitSeries, prayerStats, weeks, toast,
-    readingHistory, wellbeing, goalStats,
+    readingHistory, wellbeing, goalStats, days, nightIndex, hour12,
   ]);
 
   const filteredNote = activeTags.length
@@ -560,6 +572,8 @@ export default function StatsPage() {
                 streak={salahStreak}
                 days={days.length}
               />
+
+              <TahajjudPanel days={days} index={nightIndex} hour12={hour12} />
 
               <ReadingPanel weeks={weeks} projections={projections} history={readingHistory} />
 

@@ -68,7 +68,12 @@ export function rawatibFor(madhab: string): Record<PrayerName, Rawatib> {
   };
 }
 
-/** Nafl that stand on their own rather than attaching to a fard. */
+/**
+ * Nafl that stand on their own rather than attaching to a fard.
+ *
+ * Tahajjud is not here: it has its own page, record and stats (`/tahajjud`,
+ * `day_logs.data.tahajjud`). Old ticks of `nafl:tahajjud` are read there.
+ */
 export const NAFL: SunnahDef[] = [
   {
     id: "nafl:duha", label: "Duha", detail: "Mid-morning, once the sun has risen a spear's length",
@@ -77,10 +82,6 @@ export const NAFL: SunnahDef[] = [
   {
     id: "nafl:witr", label: "Witr", detail: "The odd prayer that seals the night",
     rakat: "1–3 rakat", slot: "nafl", emphasis: "muakkadah",
-  },
-  {
-    id: "nafl:tahajjud", label: "Tahajjud", detail: "In the last third of the night",
-    rakat: "2+ rakat", slot: "nafl", emphasis: "ghayr",
   },
 ];
 

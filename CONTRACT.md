@@ -732,6 +732,33 @@ history can never disagree about which days they counted.
 
 ---
 
+# Tahajjud — its own page, next to Salah
+
+The owner asked for it apart from Salah — its own record and its own stats —
+but placed beside it. So `/tahajjud` sits directly under Salah in the sidebar,
+and its panel on `/stats` sits directly under the Salah panel. It is never
+added into a salah number: the five are owed, the night prayer is offered.
+`src/components/tahajjud/` owns it; `night-data.ts` is the only place a night
+is read, written or counted.
+
+**A night is named by the morning it ends in.** Prayed at 3 AM on Tuesday, it
+is Tuesday's. `nightClock` decides which night is in play: before Maghrib it is
+the one that ended this morning, from Maghrib on it is tonight (tomorrow's
+date).
+
+**A night lives in `day_logs.data.tahajjud`,** `{ rakat, at }`, and no record
+means not kept. `withTahajjud` merges, so it never drops the salah or zikr
+blocks in the same column. There are no stored totals.
+
+**Old ticks still count.** Before this page, Tahajjud was a sunnah tick
+(`nafl:tahajjud` in `data.salah.sunnah`). `tahajjudOf` reads that as a kept night
+with no count, and `withTahajjud` removes it the first time the night is
+changed, so a night is never recorded in two places. The Salah card no longer
+shows Tahajjud or the last third, and its sunnah count ignores ids it cannot
+show.
+
+---
+
 # Addendum — the phone (Safari first)
 
 The owner uses Qalamchi on an iPhone, in Safari and as a home-screen app. Every

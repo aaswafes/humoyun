@@ -17,9 +17,7 @@ import {
   NAFL_BY_ID, allSunnahIds, rawatibFor, salahDataOf, toggleInList, withSalahData,
   type SunnahDef,
 } from "./day-data";
-import {
-  duhaWindow, nextPrayer, openWindow, tahajjudRowMinute, type TimesTriple,
-} from "./windows";
+import { duhaWindow, nextPrayer, openWindow, type TimesTriple } from "./windows";
 
 type Row =
   | { kind: "prayer"; key: string; min: number; name: PrayerName }
@@ -77,28 +75,28 @@ export function TodayCard({
   const next = nextPrayer(t, nowMin);
   const urgent = useWindowUrgent(open?.window.end ?? Number.POSITIVE_INFINITY, 20);
 
-  // Sunrise, duha and the last third sit in the same timeline as the five, so
-  // the day reads top to bottom in clock order instead of in a footnote.
+  // Sunrise and duha sit in the same timeline as the five, so the day reads
+  // top to bottom in clock order instead of in a footnote. Tahajjud and the
+  // last third live on their own page now.
   const rows = React.useMemo<Row[]>(() => {
     const list: Row[] = [
       ...PRAYER_NAMES.map((name) => ({ kind: "prayer" as const, key: name, name, min: t.today[name] })),
       { kind: "marker", key: "sunrise", min: t.today.sunrise, label: "Sunrise", note: "Fajr window closes", icon: Sunrise },
     ];
-    const lastThird = tahajjudRowMinute(t);
     if (showSunnah) {
       list.push(
         { kind: "nafl", key: "duha", min: duhaWindow(t).start, def: NAFL_BY_ID["nafl:duha"], icon: Sun },
         { kind: "nafl", key: "witr", min: t.today.isha + 45, def: NAFL_BY_ID["nafl:witr"], icon: MoonStar },
-        { kind: "nafl", key: "tahajjud", min: lastThird, def: NAFL_BY_ID["nafl:tahajjud"], icon: MoonStar },
       );
-    } else {
-      list.push({ kind: "marker", key: "lastThird", min: lastThird, label: "Last third", note: "Tahajjud", icon: MoonStar });
     }
     return list.sort((a, b) => a.min - b.min);
   }, [t, showSunnah]);
 
   const recorded = PRAYER_NAMES.filter((n) => HANDLED_STATUSES.includes(statuses.get(n) ?? "none")).length;
-  const sunnahTotal = React.useMemo(() => allSunnahIds(madhab).length, [madhab]);
+  const sunnahIds = React.useMemo(() => allSunnahIds(madhab), [madhab]);
+  // A day can still hold ids that left this list (the old tahajjud tick), so
+  // count only the ones this card can show.
+  const sunnahDone = data.sunnah.filter((id) => sunnahIds.includes(id)).length;
 
   const hijri = hijriFor(date, hijriOffset, nowMin >= t.today.maghrib);
   const note = hijriNote(hijri);
@@ -171,7 +169,7 @@ export function TodayCard({
           Sunnah &amp; nafl
           {showSunnah && (
             <span className="tnum ml-1.5 text-ink-3">
-              {data.sunnah.length}/{sunnahTotal}
+              {sunnahDone}/{sunnahIds.length}
             </span>
           )}
         </button>
