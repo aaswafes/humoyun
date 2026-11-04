@@ -229,3 +229,15 @@ export function usualRakat(index: Map<string, TahajjudNight>): number {
   }
   return rakat;
 }
+
+/**
+ * The record a tick writes, from the card or the month alike. A time is only
+ * filled in when the tick is happening inside that night; anything else would
+ * be a guess written down as a fact.
+ */
+export function freshNight(
+  index: Map<string, TahajjudNight>, clock: NightClock, date: string, nowMin: number,
+): TahajjudNight {
+  const during = date === clock.key && clock.phase !== "over" && nowMin >= clock.isha;
+  return { rakat: usualRakat(index), at: during ? ((nowMin % 1440) + 1440) % 1440 : null };
+}

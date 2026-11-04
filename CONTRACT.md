@@ -754,6 +754,13 @@ date).
 means not kept. `withTahajjud` merges, so it never drops the salah or zikr
 blocks in the same column. There are no stored totals.
 
+**A night is marked from the card's tick or from its square on the month.** A
+square not yet kept marks the night on a tap and opens it in the card; a kept
+square only opens, so a stray tap never erases a count and time — un-marking
+is the card's tick. Both write `freshNight`, so they agree on the count and on
+when a time is filled in. (The month used to only open a night, and the owner
+tapped it, got nothing, and could not find the way to mark one.)
+
 **Old ticks still count.** Before this page, Tahajjud was a sunnah tick
 (`nafl:tahajjud` in `data.salah.sunnah`). `tahajjudOf` reads that as a kept night
 with no count, and `withTahajjud` removes it the first time the night is

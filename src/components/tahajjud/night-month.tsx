@@ -12,8 +12,9 @@ import { currentStreak, longestStreak, type TahajjudNight } from "./night-data";
 
 /**
  * The month of nights, one square each, named by the morning it ends in.
- * A tap opens that night in the card rather than flipping it: a kept night
- * also carries a count and a time, and a stray tap should never erase them.
+ * A tap marks a night not yet kept and opens it in the card; a kept night only
+ * opens, since it also carries a count and a time that a stray tap should
+ * never erase. Un-marking is the card's tick.
  */
 export function NightMonth({
   current, picked, index, weekStart, onPick,
@@ -119,7 +120,7 @@ export function NightMonth({
           )}
         </p>
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-4">
-          Each square is the night that ends that morning. Tap one to open it in the card.
+          Each square is the night that ends that morning. Tap one to mark it kept; the card holds its rakat and time.
         </p>
       </div>
     </div>

@@ -10,7 +10,7 @@ import { Field } from "@/components/ui/form";
 import { WindowCountdown } from "@/components/salah/countdown";
 import { LocationLine } from "@/components/salah/location-line";
 import {
-  MAX_RAKAT, tahajjudOf, usualRakat, withTahajjud,
+  MAX_RAKAT, freshNight, tahajjudOf, withTahajjud,
   type NightClock, type TahajjudNight,
 } from "./night-data";
 
@@ -75,14 +75,7 @@ export function NightCard({
   }
 
   function toggle() {
-    if (night) {
-      write(null);
-      return;
-    }
-    // A time is only filled in when the tick is happening inside that night;
-    // anything else would be a guess written down as a fact.
-    const during = isCurrent && !over && nowMin >= clock.isha;
-    write({ rakat: usualRakat(index), at: during ? ((nowMin % 1440) + 1440) % 1440 : null });
+    write(night ? null : freshNight(index, clock, picked, nowMin));
   }
 
   const recordTitle = isCurrent
