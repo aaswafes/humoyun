@@ -24,6 +24,8 @@ import { UpcomingView } from "@/components/inbox/upcoming-view";
 import { AllView, filterTasks } from "@/components/inbox/all-view";
 import { DoneView } from "@/components/inbox/done-view";
 import { BulkBar } from "@/components/inbox/bulk-bar";
+import { PageTour } from "@/components/tour/tour";
+import { INBOX_TOUR } from "@/components/tour/tours/inbox";
 
 function TabLabel({
   text, count, tone = "default",
@@ -105,6 +107,7 @@ function InboxSurface() {
 
   return (
     <>
+      <PageTour id="inbox" steps={INBOX_TOUR} />
       <PageHeader
         title="Inbox"
         subtitle={subtitle}
@@ -123,6 +126,7 @@ function InboxSurface() {
               active={legendOpen}
               onClick={() => setLegendOpen(!legendOpen)}
               className="shrink-0 touch:hidden"
+              data-tour="inbox.keys"
             >
               <CircleHelp />
             </IconButton>
@@ -131,34 +135,38 @@ function InboxSurface() {
               active={selecting}
               onClick={() => setSelecting(!selecting)}
               className="shrink-0"
+              data-tour="inbox.select"
             >
               <ListChecks />
             </IconButton>
             {/* The tab bar's + is the phone's New, as on every other page. */}
-            <Button variant="primary" size="sm" onClick={openQuickAdd} className="shrink-0 max-md:hidden">
+            <Button variant="primary" size="sm" onClick={openQuickAdd} className="shrink-0 max-md:hidden" data-tour="inbox.new">
               <Plus className="size-3.5" />
               New
             </Button>
           </>
         }
       >
-        <Segmented<TriageTab>
-          value={tab}
-          onChange={setTab}
-          // "All" is 36px of word; a fingertip gets 44 of tab.
-          className="touch:[&>button]:min-w-11"
-          options={[
-            { value: "inbox", label: <TabLabel text={t("nav.inbox")} count={inboxCount} /> },
-            {
-              value: "upcoming",
-              label: <TabLabel text={t("when.upcoming")} count={overdueCount} tone="danger" />,
-              title: overdueCount ? `${overdueCount} overdue` : undefined,
-            },
-            { value: "someday", label: <TabLabel text={t("when.someday")} count={somedayCount} /> },
-            { value: "all", label: t("when.all") },
-            { value: "done", label: t("action.done") },
-          ]}
-        />
+        {/* Segmented takes no extra props, so the tour's anchor is a plain flex box around it. */}
+        <div data-tour="inbox.tabs" className="flex">
+          <Segmented<TriageTab>
+            value={tab}
+            onChange={setTab}
+            // "All" is 36px of word; a fingertip gets 44 of tab.
+            className="touch:[&>button]:min-w-11"
+            options={[
+              { value: "inbox", label: <TabLabel text={t("nav.inbox")} count={inboxCount} /> },
+              {
+                value: "upcoming",
+                label: <TabLabel text={t("when.upcoming")} count={overdueCount} tone="danger" />,
+                title: overdueCount ? `${overdueCount} overdue` : undefined,
+              },
+              { value: "someday", label: <TabLabel text={t("when.someday")} count={somedayCount} /> },
+              { value: "all", label: t("when.all") },
+              { value: "done", label: t("action.done") },
+            ]}
+          />
+        </div>
       </PageHeader>
 
       <PageBody wide>
@@ -174,7 +182,7 @@ function InboxSurface() {
             <ControlRow searchRef={searchRef} />
 
             <div className={cn(withRail && "lg:grid lg:grid-cols-[minmax(0,1fr)_256px] lg:gap-10")}>
-              <div className="min-w-0">
+              <div data-tour="inbox.list" className="min-w-0">
                 {tab === "inbox" && <InboxView />}
                 {tab === "someday" && <SomedayView onSeeInbox={() => setTab("inbox")} />}
                 {tab === "upcoming" && <UpcomingView onSeeAll={() => setTab("all")} />}
@@ -183,7 +191,7 @@ function InboxSurface() {
               </div>
 
               {withRail && (
-                <aside aria-label="Triage rail" className="mt-10 lg:mt-0">
+                <aside data-tour="inbox.rail" aria-label="Triage rail" className="mt-10 lg:mt-0">
                   <div className="lg:sticky lg:top-4">
                     <DateRail />
                   </div>

@@ -182,7 +182,7 @@ export function TimeBreakdown({
   };
 
   return (
-    <Panel id="panel-focus" title="Where the time went" subtitle={summary} table={table}>
+    <Panel id="panel-focus" tour="stats.focus" title="Where the time went" subtitle={summary} table={table}>
       {!hasData ? (
         <EmptyState
           className="py-8"

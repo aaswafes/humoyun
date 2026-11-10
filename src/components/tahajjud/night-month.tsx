@@ -39,7 +39,7 @@ export function NightMonth({
   const isFuture = month > startOfMonth(current);
 
   return (
-    <div>
+    <div data-tour="salah.tahajjud.month">
       <header className="flex items-center gap-1">
         <p className="flex-1 text-[12.5px] font-medium text-ink-2">
           {monthName(month)} <span className="tnum text-ink-3">{yearOf(month)}</span>

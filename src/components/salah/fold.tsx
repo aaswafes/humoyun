@@ -81,7 +81,7 @@ export function useRemembered<T extends string>(
  * separated by a hairline and by space, never by a card inside a card.
  */
 export function Fold({
-  id, title, summary, open, onOpenChange, children, level = "section", className,
+  id, title, summary, open, onOpenChange, children, level = "section", className, tour,
 }: {
   id: string;
   title: string;
@@ -92,6 +92,8 @@ export function Fold({
   children: React.ReactNode;
   level?: "section" | "sub";
   className?: string;
+  /** `data-tour` anchor for the header row, so a page tour can point at a closed fold. */
+  tour?: string;
 }) {
   const panelId = `salah-${id}-panel`;
   const sub = level === "sub";
@@ -99,7 +101,7 @@ export function Fold({
 
   return (
     <section className={cn("hairline-t", className)}>
-      <Heading>
+      <Heading data-tour={tour}>
         <button
           type="button"
           aria-expanded={open}

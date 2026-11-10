@@ -270,7 +270,7 @@ export function FocusDial({
         </div>
       </DialFace>
 
-      <div className="mt-5 flex flex-col items-center gap-2">
+      <div className="mt-5 flex flex-col items-center gap-2" data-tour={ambient ? undefined : "focus.kind"}>
         {ambient ? (
           <span className="max-w-[300px] truncate text-[13px] text-ink-3">
             {kindLine(engine.subject) || "Open focus"}
@@ -285,7 +285,7 @@ export function FocusDial({
         )}
       </div>
 
-      <div className="mt-5">{controls}</div>
+      <div className="mt-5" data-tour={ambient ? undefined : "focus.controls"}>{controls}</div>
       {distraction && <div className="mt-4">{distraction}</div>}
 
       {/* The set only earns its space once a set is under way. Until then the

@@ -46,7 +46,7 @@ export function MonthGrid({ today }: { today: string }) {
   const isFuture = month > startOfMonth(today);
 
   return (
-    <div>
+    <div data-tour="salah.month">
       <header className="flex items-center gap-1">
         <p className="flex-1 text-[12.5px] font-medium text-ink-2">
           {monthName(month)} <span className="tnum text-ink-3">{yearOf(month)}</span>

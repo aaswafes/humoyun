@@ -42,7 +42,7 @@ export function useFold(key: string, defaultOpen = false) {
  * value of the panel so it can be judged without opening it.
  */
 export function Fold({
-  label, summary, open, onToggle, children, className, panelClassName,
+  label, summary, open, onToggle, children, className, panelClassName, tour,
 }: {
   label: string;
   /** States what is inside — a number, a ratio, a name. Never "details". */
@@ -52,11 +52,13 @@ export function Fold({
   children: React.ReactNode;
   className?: string;
   panelClassName?: string;
+  /** `data-tour` anchor for the page tour. */
+  tour?: string;
 }) {
   const panelId = React.useId();
 
   return (
-    <section className={cn("min-w-0", className)}>
+    <section data-tour={tour} className={cn("min-w-0", className)}>
       <button
         type="button"
         aria-expanded={open}

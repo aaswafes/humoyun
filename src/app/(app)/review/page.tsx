@@ -16,6 +16,8 @@ import { PastReviews, focusReflection } from "@/components/review/past-reviews";
 import { SummaryDialog } from "@/components/review/summary";
 import { Guided, type GuidedStep } from "@/components/review/guided";
 import { useReviewPrefs } from "@/components/review/prefs";
+import { PageTour } from "@/components/tour/tour";
+import { REVIEW_TOUR } from "@/components/tour/tours/review";
 import { answeredCount, draftOf, findReview, isWritten } from "@/components/review/review-doc";
 import {
   buildPeriod, measurementNote, periodStart, SCOPES, SCOPE_LABEL, SCOPE_NOUN, shiftPeriod,
@@ -145,20 +147,23 @@ export default function ReviewPage() {
 
   return (
     <>
+      <PageTour id="review" steps={REVIEW_TOUR} />
       <PageHeader
         title="Review"
         actions={
           <>
-            <Segmented
-              size="sm"
-              value={prefs.layout}
-              onChange={(layout) => setPrefs({ layout })}
-              options={[
-                { value: "guided", label: "Guided", title: "Step through it one part at a time (V)" },
-                { value: "full", label: "Everything", title: "See everything at once (V)" },
-              ]}
-            />
-            <IconButton label="Copy or print this review as plain text (P)" onClick={() => setSummaryOpen(true)}>
+            <div data-tour="review.layout" className="flex">
+              <Segmented
+                size="sm"
+                value={prefs.layout}
+                onChange={(layout) => setPrefs({ layout })}
+                options={[
+                  { value: "guided", label: "Guided", title: "Step through it one part at a time (V)" },
+                  { value: "full", label: "Everything", title: "See everything at once (V)" },
+                ]}
+              />
+            </div>
+            <IconButton data-tour="review.copy" label="Copy or print this review as plain text (P)" onClick={() => setSummaryOpen(true)}>
               <FileText />
             </IconButton>
             <Button size="sm" variant="secondary" disabled={atCurrent} onClick={() => goto(currentStart)}>
@@ -167,30 +172,32 @@ export default function ReviewPage() {
           </>
         }
       >
-        <Segmented
-          size="sm"
-          value={scope}
-          onChange={setScope}
-          options={SCOPES.map((s) => ({
-            value: s,
-            label: SCOPE_LABEL[s].replace("ly", ""),
-            title: `${SCOPE_LABEL[s]} review`,
-          }))}
-        />
-        <PeriodNav
-          period={period}
-          weekStartDay={weekStartDay}
-          canGoForward={canGoForward}
-          onPrev={() => goto(shiftPeriod(scope, period.start, -1))}
-          onNext={() => goto(shiftPeriod(scope, period.start, 1))}
-          onJump={goto}
-        />
+        <div data-tour="review.periods" className="flex items-center gap-2">
+          <Segmented
+            size="sm"
+            value={scope}
+            onChange={setScope}
+            options={SCOPES.map((s) => ({
+              value: s,
+              label: SCOPE_LABEL[s].replace("ly", ""),
+              title: `${SCOPE_LABEL[s]} review`,
+            }))}
+          />
+          <PeriodNav
+            period={period}
+            weekStartDay={weekStartDay}
+            canGoForward={canGoForward}
+            onPrev={() => goto(shiftPeriod(scope, period.start, -1))}
+            onNext={() => goto(shiftPeriod(scope, period.start, 1))}
+            onJump={goto}
+          />
+        </div>
       </PageHeader>
 
       <PageBody>
         {/* The one hero on this screen. Everything under it is grey until you
             reach the prompts, which are the only thing here you actually write. */}
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <div data-tour="review.title" className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
             <h2 className="display-serif text-[44px] leading-none text-ink tnum">
               {period.title}

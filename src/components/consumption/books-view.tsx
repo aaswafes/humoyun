@@ -9,6 +9,8 @@ import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primiti
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { useT } from "@/lib/i18n";
 import { ConsumptionTabs } from "@/components/consumption/tabs";
+import { PageTour } from "@/components/tour/tour";
+import { BOOKS_TOUR } from "@/components/tour/tours/consumption";
 import { AddBookModal } from "@/components/books/add-book-modal";
 import { BookCard, type BookCardMeta } from "@/components/books/book-card";
 import { BookSheet } from "@/components/books/book-sheet";
@@ -253,8 +255,9 @@ export function BooksView() {
     });
   }
 
-  const addButton = (
-    <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+  // The header's copy carries the tour anchor; the empty state's does not.
+  const addButton = (tour?: string) => (
+    <Button variant="primary" size="sm" onClick={() => setAdding(true)} data-tour={tour}>
       <Plus className="size-3.5" />
       Add book
     </Button>
@@ -266,7 +269,7 @@ export function BooksView() {
 
   return (
     <>
-      <PageHeader title={t("nav.consumption")} subtitle={subtitle} actions={addButton}>
+      <PageHeader title={t("nav.consumption")} subtitle={subtitle} actions={addButton("books.add")}>
         {books.length > 0 && (
           <Segmented<LibraryView>
             size="sm"
@@ -279,6 +282,7 @@ export function BooksView() {
       </PageHeader>
 
       <ConsumptionTabs active="books" />
+      <PageTour id="books" steps={BOOKS_TOUR} />
 
       <PageBody wide>
         {!ready ? (
@@ -288,7 +292,7 @@ export function BooksView() {
             icon={Library}
             title="Your shelf is empty"
             description="Add a book with its page count and a pace, and Qalamchi drops a reading block on every day until the last page."
-            action={addButton}
+            action={addButton()}
             className="py-24"
           />
         ) : (
@@ -297,7 +301,7 @@ export function BooksView() {
               Two quiet rows instead of two panels: everything that analyses or
               plans the library folds away, so the page opens on the shelf.
             */}
-            <div className="mb-8 divide-y divide-line hairline-b">
+            <div className="mb-8 divide-y divide-line hairline-b" data-tour="books.insights">
               <LibraryInsights
                 days={days}
                 weekStart={weekStart}
@@ -366,7 +370,7 @@ export function BooksView() {
                 )}
               >
                 {(dragging) => (
-                <div className="space-y-10">
+                <div className="space-y-10" data-tour="books.shelf">
                   {[
                     ...groups.filter((group) => group.rows.length > 0),
                     // Empty destinations join at the end, never in the middle:

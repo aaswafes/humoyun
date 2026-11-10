@@ -46,12 +46,14 @@ function dueDateFor(frame: Timeframe, today = todayISO()): string | null {
 }
 
 function BoardCard({
-  goal, index, onOpen, activeId,
+  goal, index, onOpen, activeId, tour,
 }: {
   goal: Goal;
   index: GoalIndex;
   onOpen: (id: string) => void;
   activeId: string | null;
+  /** `data-tour` anchor — the board's first card only. */
+  tour?: string;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: goal.id,
@@ -60,7 +62,7 @@ function BoardCard({
   const body = useDragBody(listeners);
 
   return (
-    <div ref={setNodeRef} className={cn("relative", isDragging && "opacity-40")}>
+    <div ref={setNodeRef} data-tour={tour} className={cn("relative", isDragging && "opacity-40")}>
       <GoalCard
         goal={goal}
         stats={index.stats(goal.id)}
@@ -86,7 +88,7 @@ function BoardCard({
 }
 
 function BoardColumn({
-  frame, goals, index, onOpen, onCreate, activeId,
+  frame, goals, index, onOpen, onCreate, activeId, firstId,
 }: {
   frame: Timeframe;
   goals: Goal[];
@@ -94,13 +96,15 @@ function BoardColumn({
   onOpen: (id: string) => void;
   onCreate: (frame: Timeframe) => void;
   activeId: string | null;
+  /** The board's first card, which the page tour points at. */
+  firstId: string | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `${COL}${frame}` });
   const range = timeframeRange(frame);
 
   return (
     <section className="group/col relative w-[250px] shrink-0 max-md:w-full">
-      <div className="mb-3 flex items-baseline gap-1.5 px-0.5">
+      <div data-tour={frame === TIMEFRAMES[0] ? "goals.column" : undefined} className="mb-3 flex items-baseline gap-1.5 px-0.5">
         <h2 className="text-[12.5px] font-medium text-ink-2">{TIMEFRAME_LABELS[frame]}</h2>
         {range && <span className="text-[11px] text-ink-4">{range}</span>}
         <span className="text-[11px] text-ink-4 tnum">{goals.length}</span>
@@ -124,7 +128,14 @@ function BoardColumn({
         )}
       >
         {goals.map((goal) => (
-          <BoardCard key={goal.id} goal={goal} index={index} onOpen={onOpen} activeId={activeId} />
+          <BoardCard
+            key={goal.id}
+            goal={goal}
+            index={index}
+            onOpen={onOpen}
+            activeId={activeId}
+            tour={goal.id === firstId ? "goals.card" : undefined}
+          />
         ))}
 
         {goals.length === 0 && (
@@ -168,6 +179,7 @@ export function GoalBoard({
   }, [goals]);
 
   const dragged = activeId ? goals.find((g) => g.id === activeId) ?? null : null;
+  const firstId = TIMEFRAMES.map((f) => columns.get(f)?.[0]?.id).find(Boolean) ?? null;
 
   function onDragEnd(event: DragEndEvent) {
     setActiveId(null);
@@ -198,7 +210,7 @@ export function GoalBoard({
     >
       {/* Below md the shelves stack into one list, read top to bottom from
           this month outwards — seven 250px columns would show one at a time. */}
-      <div className="flex gap-5 overflow-x-auto overscroll-x-contain pb-4 max-md:flex-col max-md:gap-8 max-md:overflow-visible max-md:pb-2">
+      <div data-tour="goals.board" className="flex gap-5 overflow-x-auto overscroll-x-contain pb-4 max-md:flex-col max-md:gap-8 max-md:overflow-visible max-md:pb-2">
         {TIMEFRAMES.map((frame) => (
           <BoardColumn
             key={frame}
@@ -207,6 +219,7 @@ export function GoalBoard({
             index={index}
             onOpen={onOpen}
             activeId={activeId}
+            firstId={firstId}
             onCreate={(f) => onCreate({ end_date: dueDateFor(f) })}
           />
         ))}

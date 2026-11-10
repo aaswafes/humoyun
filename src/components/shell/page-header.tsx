@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import { IconButton, Button } from "@/components/ui/primitives";
 import { openQuickAdd } from "./quick-add";
+import { TourButton } from "@/components/tour/tour";
 
 /**
  * Every page wears the same 52px chrome: sidebar toggle, title, actions.
@@ -63,6 +64,9 @@ export function PageHeader({
           {children}
         </div>
       )}
+      {/* Sits beside the actions on both widths: on a phone it shares the
+          title row, which has room for one more 28px control. */}
+      <TourButton className="max-md:order-none" />
       {actions ?? (
         // The tab bar's + is the phone's New; a second one here would be the
         // same button twice on one screen.

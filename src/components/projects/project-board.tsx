@@ -31,7 +31,7 @@ function BoardCard({
   const body = useDragBody(listeners);
 
   return (
-    <div ref={setNodeRef} className={cn("relative", isDragging && "opacity-40")}>
+    <div ref={setNodeRef} className={cn("relative", isDragging && "opacity-40")} data-tour="projects.card">
       <ProjectCard
         project={project}
         stats={index.stats(project.id)}
@@ -169,7 +169,10 @@ export function ProjectBoard({
           is the same up-and-down the thumb already scrolls with. Visible
           overflow there, or each drop zone's -m-1 lets the board wiggle 4px
           sideways. */}
-      <div className="flex gap-5 overflow-x-auto overscroll-x-contain pb-4 pl-[26px] max-md:flex-col max-md:gap-8 max-md:overflow-visible">
+      <div
+        data-tour="projects.board"
+        className="flex gap-5 overflow-x-auto overscroll-x-contain pb-4 pl-[26px] max-md:flex-col max-md:gap-8 max-md:overflow-visible"
+      >
         {BOARD_STATUSES.map((status) => (
           <BoardColumn
             key={status}

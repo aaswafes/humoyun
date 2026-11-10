@@ -54,7 +54,7 @@ export function useFold(key: string, defaultOpen = false) {
  * sits on spacing, so a panel inside the fold never doubles a border.
  */
 export function Fold({
-  title, summary, open, onToggle, icon: Icon, accessory, children, className, bodyClassName,
+  title, summary, open, onToggle, icon: Icon, accessory, children, className, bodyClassName, tour,
 }: {
   title: string;
   /** Reads in place of the content while folded. Keep it factual: "5h 20m planned · 1 unscheduled". */
@@ -67,11 +67,13 @@ export function Fold({
   children: React.ReactNode;
   className?: string;
   bodyClassName?: string;
+  /** `data-tour` anchor for the page tour. */
+  tour?: string;
 }) {
   const bodyId = React.useId();
 
   return (
-    <section className={cn("min-w-0", className)}>
+    <section data-tour={tour} className={cn("min-w-0", className)}>
       <div className="flex min-w-0 items-center gap-1">
         <button
           type="button"

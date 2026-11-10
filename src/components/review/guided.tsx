@@ -37,6 +37,7 @@ export function Guided({
   return (
     <div>
       <nav
+        data-tour="review.steps"
         aria-label="Review steps"
         className="flex flex-wrap items-center gap-1 hairline-b pb-3"
       >

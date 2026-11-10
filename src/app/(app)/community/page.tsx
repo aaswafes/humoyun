@@ -12,6 +12,8 @@ import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { Button, EmptyState, Input, Skeleton, Textarea } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
 import { Modal, TintPicker } from "@/components/ui/overlays";
+import { PageTour } from "@/components/tour/tour";
+import { COMMUNITY_TOUR } from "@/components/tour/tours/community";
 import { createCommunity, fetchMyCommunities, joinByCode, useLoad, useUserId } from "@/components/community/community-data";
 
 export default function CommunityPage() {
@@ -31,11 +33,11 @@ export default function CommunityPage() {
         subtitle={communities.length > 0 ? `${communities.length} ${communities.length === 1 ? "community" : "communities"}` : undefined}
         actions={
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => setJoining(true)}>
+            <Button size="sm" data-tour="community.join" onClick={() => setJoining(true)}>
               <LogIn className="size-3.5" />
               Join
             </Button>
-            <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
+            <Button size="sm" variant="primary" data-tour="community.new" onClick={() => setCreating(true)}>
               <Plus className="size-3.5" />
               New
             </Button>
@@ -80,7 +82,7 @@ export default function CommunityPage() {
             }
           />
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-line" data-tour="community.list">
             {communities.map((c) => {
               const mine = memberships.find((m) => m.community_id === c.id);
               const shared = [
@@ -119,6 +121,7 @@ export default function CommunityPage() {
 
       {creating && <CreateDialog onClose={() => setCreating(false)} onDone={reload} />}
       {joining && <JoinDialog onClose={() => setJoining(false)} />}
+      <PageTour id="community" steps={COMMUNITY_TOUR} />
     </>
   );
 }

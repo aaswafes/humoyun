@@ -23,6 +23,8 @@ import { LanguageSection } from "@/components/settings/language-section";
 import { UmrSection } from "@/components/settings/umr-section";
 import { ShortcutsCard } from "@/components/settings/shortcuts-card";
 import { startReminders } from "@/components/settings/reminders";
+import { PageTour } from "@/components/tour/tour";
+import { SETTINGS_TOUR } from "@/components/tour/tours/settings";
 
 // `id` is the stable thing — it is in the URL and in the tab's DOM id — so
 // the label is looked up at render rather than stored here.
@@ -128,6 +130,7 @@ export default function SettingsPage() {
           <div
             role="tablist"
             aria-label="Settings sections"
+            data-tour="settings.tabs"
             className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:sticky md:top-6 md:mx-0 md:block md:space-y-px md:self-start md:overflow-visible md:px-0 md:pb-0"
           >
             {TABS.map(({ id, labelKey, icon: Icon }, i) => {
@@ -139,6 +142,7 @@ export default function SettingsPage() {
                   ref={(el) => { tabRefs.current[i] = el; }}
                   role="tab"
                   id={`settings-tab-${id}`}
+                  data-tour={`settings.tab-${id}`}
                   aria-selected={active}
                   aria-controls="settings-panel"
                   tabIndex={active ? 0 : -1}
@@ -191,6 +195,8 @@ export default function SettingsPage() {
 
         <ShortcutsCard />
       </PageBody>
+
+      <PageTour id="settings" steps={SETTINGS_TOUR} />
     </>
   );
 }

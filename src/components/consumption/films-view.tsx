@@ -9,6 +9,8 @@ import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primiti
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { useT } from "@/lib/i18n";
 import { ConsumptionTabs } from "@/components/consumption/tabs";
+import { PageTour } from "@/components/tour/tour";
+import { FILMS_TOUR } from "@/components/tour/tours/consumption";
 import { ShelfDnd, ShelfGroup, ShelfItem } from "@/components/shelf/shelf-dnd";
 import { MEDIA_REFILABLE, useMediaRefile } from "@/components/shelf/use-media-refile";
 import { AddMediaModal } from "@/components/watch/add-media-modal";
@@ -192,8 +194,9 @@ export function FilmsView() {
   const canRefile = view === "shelf" && MEDIA_REFILABLE.includes(group);
   const refile = useMediaRefile(group, MEDIA_FACET_FALLBACKS);
 
-  const addButton = (
-    <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+  // The header's copy carries the tour anchor; the empty state's does not.
+  const addButton = (tour?: string) => (
+    <Button variant="primary" size="sm" onClick={() => setAdding(true)} data-tour={tour}>
       <Plus className="size-3.5" />
       Add title
     </Button>
@@ -205,7 +208,7 @@ export function FilmsView() {
 
   return (
     <>
-      <PageHeader title={t("nav.consumption")} subtitle={subtitle} actions={addButton}>
+      <PageHeader title={t("nav.consumption")} subtitle={subtitle} actions={addButton("films.add")}>
         {media.length > 0 && (
           <Segmented<View>
             size="sm"
@@ -218,6 +221,7 @@ export function FilmsView() {
       </PageHeader>
 
       <ConsumptionTabs active="films" />
+      <PageTour id="films" steps={FILMS_TOUR} />
 
       <PageBody wide>
         {!ready ? (
@@ -227,13 +231,13 @@ export function FilmsView() {
             icon={Clapperboard}
             title="Nothing to watch yet"
             description="Add an anime or a series with its episode count and a pace — episodes a day — and Qalamchi drops a watch block on every day until the finale. A film is simply one evening on the calendar."
-            action={addButton}
+            action={addButton()}
             className="py-24"
           />
         ) : (
           <>
             {/* The analysis strip folds away, so the page opens on the shelf. */}
-            <div className="mb-8 hairline-b">
+            <div className="mb-8 hairline-b" data-tour="films.insights">
               <WatchInsights days={days} finished={finishedCount} />
             </div>
 
@@ -289,7 +293,7 @@ export function FilmsView() {
                 )}
               >
                 {(dragging) => (
-                <div className="space-y-10">
+                <div className="space-y-10" data-tour="films.shelf">
                   {[
                     ...groups.filter((g) => g.rows.length > 0),
                     // Empty destinations join at the end, never in the middle:

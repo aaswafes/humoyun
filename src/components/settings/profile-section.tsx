@@ -10,6 +10,7 @@ import { diffDays, formatDate, toISO, todayISO } from "@/lib/date";
 import { Button, Input, Progress } from "@/components/ui/primitives";
 import { Field } from "@/components/ui/form";
 import { accountLabel, isUsernameAccount } from "@/lib/username";
+import { resetTours } from "@/components/tour/tour";
 import { Callout, FoldGroup, Group, Pane, Row, StaticField } from "./ui";
 
 const AVATAR_PRESETS = ["H", "🌙", "📓", "🕌", "☕", "🏔", "✍️", "🌿"];
@@ -159,6 +160,7 @@ export function ProfileSection() {
   const profile = useStore((s) => s.profile);
   const email = useStore((s) => s.email);
   const updateProfile = useStore((s) => s.updateProfile);
+  const toast = useStore((s) => s.toast);
 
   const displayName = profile?.display_name ?? "";
   const avatar = profile?.avatar ?? "";
@@ -292,6 +294,24 @@ export function ProfileSection() {
             <span className="text-[13px] text-ink-2 tnum">{formatDate(createdISO, { year: true })}</span>
           </Row>
         )}
+      </Group>
+
+      <Group title="Help">
+        <Row
+          label="Page guides"
+          hint="Show the guide on every page again. The ? at the top of each page replays its guide any time."
+        >
+          <Button
+            size="sm"
+            data-tour="settings.guides"
+            onClick={() => {
+              resetTours();
+              toast({ title: "Guides will show again", tone: "success" });
+            }}
+          >
+            Show guides again
+          </Button>
+        </Row>
       </Group>
 
       <FoldGroup

@@ -30,6 +30,8 @@ import { HabitModal } from "@/components/habits/habit-modal";
 import { HabitSheet } from "@/components/habits/habit-sheet";
 import { ArchivedList } from "@/components/habits/archived-list";
 import { ArchiveDialog } from "@/components/habits/archive-dialog";
+import { PageTour } from "@/components/tour/tour";
+import { HABITS_TOUR } from "@/components/tour/tours/habits";
 
 export default function HabitsPage() {
   const ready = useStore((s) => s.ready);
@@ -187,6 +189,7 @@ export default function HabitsPage() {
       open={archive.open}
       onToggle={archive.toggle}
       className="hairline-t pt-3"
+      tour="habits.archived"
     >
       <p className="mb-1 max-w-[64ch] text-[12.5px] leading-relaxed text-ink-4">
         Archived habits stop appearing on your day but keep every log, every note and the reason you
@@ -205,11 +208,12 @@ export default function HabitsPage() {
 
   return (
     <>
+      <PageTour id="habits" steps={HABITS_TOUR} />
       {/* No subtitle: today's progress is stated once, by the Today block below. */}
       <PageHeader
         title="Habits"
         actions={
-          <Button variant="primary" size="sm" onClick={() => setEditor({ habit: null })}>
+          <Button data-tour="habits.new" variant="primary" size="sm" onClick={() => setEditor({ habit: null })}>
             <Plus className="size-3.5" />
             New habit
           </Button>
@@ -254,7 +258,7 @@ export default function HabitsPage() {
               onSkip={(habitId, date, reason) => setSkip(habitId, date, reason)}
             />
 
-            <section>
+            <section data-tour="habits.list">
               <div className="mb-2 flex flex-wrap items-baseline gap-2">
                 <SectionLabel>All habits</SectionLabel>
                 <span className="text-[11px] text-ink-4 tnum">{active.length}</span>
@@ -282,7 +286,7 @@ export default function HabitsPage() {
                       return (
                         <React.Fragment key={habit.id}>
                           {header && <SlotHeader slot={slot} first={i === 0} />}
-                          <SortableHabit id={habit.id} divided={i > 0 && !header}>
+                          <SortableHabit id={habit.id} divided={i > 0 && !header} tour={i === 0 ? "habits.row" : undefined}>
                             {(handle) => (
                               <HabitCard
                                 habit={habit}
@@ -387,10 +391,12 @@ function SlotHeader({ slot, first }: { slot: Slot; first: boolean }) {
 }
 
 function SortableHabit({
-  id, divided, children,
+  id, divided, tour, children,
 }: {
   id: string;
   divided: boolean;
+  /** `data-tour` anchor — the first row only. */
+  tour?: string;
   children: (handle: React.ReactNode) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -399,6 +405,7 @@ function SortableHabit({
   return (
     <div
       ref={setNodeRef}
+      data-tour={tour}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...body}
       className={cn(

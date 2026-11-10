@@ -40,6 +40,8 @@ import { LibraryPanel } from "@/components/stats/library-panel";
 import { useLibraryPrefs } from "@/components/books/library-prefs";
 import { buildReadingHistory } from "@/components/books/reading-history";
 import { readDaysIndex } from "@/components/books/pace";
+import { PageTour } from "@/components/tour/tour";
+import { STATS_TOUR } from "@/components/tour/tours/stats";
 
 /**
  * A ghost series only makes sense when it lines up index for index. Weekly
@@ -472,7 +474,11 @@ export default function StatsPage() {
       <PageHeader
         title="Stats"
         subtitle={label}
-        actions={<Segmented value={range} onChange={setRange} options={RANGE_OPTIONS} size="sm" />}
+        actions={
+          <div className="flex" data-tour="stats.range">
+            <Segmented value={range} onChange={setRange} options={RANGE_OPTIONS} size="sm" />
+          </div>
+        }
       />
 
       <PageBody wide>
@@ -504,7 +510,7 @@ export default function StatsPage() {
                 filteredNote={filteredNote}
               />
 
-              <StatTiles tiles={tiles} />
+              <StatTiles tiles={tiles} tour="stats.tiles" />
               <InsightLines insights={insights} />
             </div>
 
@@ -593,6 +599,8 @@ export default function StatsPage() {
           </div>
         )}
       </PageBody>
+
+      <PageTour id="stats" steps={STATS_TOUR} />
     </>
   );
 }

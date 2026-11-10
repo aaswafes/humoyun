@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useStore } from "@/lib/store";
+import { PageTour } from "@/components/tour/tour";
+import { SALAH_TAHAJJUD_TOUR } from "@/components/tour/tours/salah";
 import type { TimesTriple } from "@/components/salah/windows";
 import { NightCard } from "./night-card";
 import { NightMonth } from "./night-month";
@@ -44,6 +46,7 @@ export function TahajjudView({ today, t, nowMin }: { today: string; t: TimesTrip
 
   return (
     <div className="flex flex-col gap-8">
+      <PageTour id="salah.tahajjud" steps={SALAH_TAHAJJUD_TOUR} />
       <div className={RAIL}>
         <NightCard
           clock={clock}
@@ -62,7 +65,7 @@ export function TahajjudView({ today, t, nowMin }: { today: string; t: TimesTrip
         />
       </div>
 
-      <div className="hairline-t pt-6">
+      <div data-tour="salah.tahajjud.stats" className="hairline-t pt-6">
         <TahajjudStats current={current} index={index} weekStart={weekStart} />
       </div>
     </div>

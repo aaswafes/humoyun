@@ -50,7 +50,7 @@ export function TodayStrip({
   const grouped = usedSlots.length > 1;
 
   return (
-    <section>
+    <section data-tour="habits.today">
       <div className="flex items-baseline gap-2">
         <SectionLabel>Today</SectionLabel>
         <span className="text-[11.5px] text-ink-4">{formatDate(date)}</span>

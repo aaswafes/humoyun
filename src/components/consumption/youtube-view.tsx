@@ -9,6 +9,8 @@ import { Button, EmptyState, Segmented, Skeleton } from "@/components/ui/primiti
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { useT } from "@/lib/i18n";
 import { ConsumptionTabs } from "@/components/consumption/tabs";
+import { PageTour } from "@/components/tour/tour";
+import { YOUTUBE_TOUR } from "@/components/tour/tours/consumption";
 import { ShelfDnd, ShelfGroup, ShelfItem } from "@/components/shelf/shelf-dnd";
 import { MEDIA_REFILABLE, useMediaRefile } from "@/components/shelf/use-media-refile";
 import {
@@ -199,8 +201,9 @@ export function YoutubeView() {
   const canRefile = view === "shelf" && MEDIA_REFILABLE.includes(group);
   const refile = useMediaRefile(group, YOUTUBE_FACET_FALLBACKS);
 
-  const addButton = (
-    <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+  // The header's copy carries the tour anchor; the empty state's does not.
+  const addButton = (tour?: string) => (
+    <Button variant="primary" size="sm" onClick={() => setAdding(true)} data-tour={tour}>
       <Plus className="size-3.5" />
       Add video
     </Button>
@@ -213,7 +216,7 @@ export function YoutubeView() {
 
   return (
     <>
-      <PageHeader title={t("nav.consumption")} subtitle={subtitle} actions={addButton}>
+      <PageHeader title={t("nav.consumption")} subtitle={subtitle} actions={addButton("youtube.add")}>
         {media.length > 0 && (
           <Segmented<View>
             size="sm"
@@ -226,6 +229,7 @@ export function YoutubeView() {
       </PageHeader>
 
       <ConsumptionTabs active="youtube" />
+      <PageTour id="youtube" steps={YOUTUBE_TOUR} />
 
       <PageBody wide>
         {!ready ? (
@@ -235,13 +239,13 @@ export function YoutubeView() {
             icon={MonitorPlay}
             title="Nothing saved to watch yet"
             description="Paste a YouTube link, give it a channel, and it waits here until you want it. A playlist takes a number of videos and a pace — videos a day — and Qalamchi lays a watch block on every day until the last one."
-            action={addButton}
+            action={addButton()}
             className="py-24"
           />
         ) : (
           <>
             {/* The analysis strip folds away, so the page opens on the queue. */}
-            <div className="mb-8 hairline-b">
+            <div className="mb-8 hairline-b" data-tour="youtube.insights">
               <YoutubeInsights days={days} />
             </div>
 
@@ -297,7 +301,7 @@ export function YoutubeView() {
                 )}
               >
                 {(dragging) => (
-                <div className="space-y-10">
+                <div className="space-y-10" data-tour="youtube.shelf">
                   {[
                     ...groups.filter((g) => g.rows.length > 0),
                     // Empty destinations join at the end, never in the middle:

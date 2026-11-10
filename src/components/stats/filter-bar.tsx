@@ -33,7 +33,7 @@ export function FilterBar({
   const count = active.length + (compare ? 1 : 0);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2" data-tour="stats.filters">
       <Popover
         align="start"
         className="max-h-[360px] w-[264px] overflow-y-auto"

@@ -75,7 +75,7 @@ export function QuickLog({
   }
 
   return (
-    <div className={cn("surface p-3.5", className)}>
+    <div className={cn("surface p-3.5", className)} data-tour="umr.log">
       <div className="flex items-baseline gap-2">
         <h2 className="text-[12.5px] font-medium text-ink">Log time</h2>
         <p className="min-w-0 flex-1 truncate text-[11.5px] text-ink-4">

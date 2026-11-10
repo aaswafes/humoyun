@@ -63,7 +63,7 @@ export function ShortcutsCard() {
   const [open, setOpen] = useFold("humoyun.settings.shortcutsOpen", false);
 
   return (
-    <section aria-labelledby="shortcuts-heading" className="mt-12">
+    <section aria-labelledby="shortcuts-heading" className="mt-12" data-tour="settings.shortcuts">
       <button
         type="button"
         aria-expanded={open}

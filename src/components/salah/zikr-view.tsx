@@ -6,6 +6,8 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { addDays, formatDate, friendlyDate } from "@/lib/date";
 import { IconButton } from "@/components/ui/primitives";
+import { PageTour } from "@/components/tour/tour";
+import { SALAH_ZIKR_TOUR } from "@/components/tour/tours/salah";
 import { Fold, useFold } from "./fold";
 import { ZikrBoard, ZikrToday } from "./zikr-board";
 import { groupNumber, setDeltas, setTotal, type ZikrItem, type ZikrSet } from "./zikr-data";
@@ -67,12 +69,13 @@ export function ZikrView({ today }: { today: string }) {
 
   return (
     <div className={RAIL}>
+      <PageTour id="salah.zikr" steps={SALAH_ZIKR_TOUR} />
       <div className="flex flex-col gap-6">
         <section className="surface p-5">
           <header className="flex flex-wrap items-center justify-between gap-2">
             {/* touch:gap-2.5 is exactly the arrows' borrowed 10px, so on a
                 phone their press areas meet the date's instead of covering it. */}
-            <div className="flex min-w-0 items-center gap-0.5 touch:gap-2.5">
+            <div data-tour="salah.zikr.day" className="flex min-w-0 items-center gap-0.5 touch:gap-2.5">
               <IconButton label="Previous day" size="sm" onClick={() => setDate(addDays(date, -1))}>
                 <ChevronLeft />
               </IconButton>
@@ -116,7 +119,7 @@ export function ZikrView({ today }: { today: string }) {
             </p>
           )}
 
-          <div className="mt-4">
+          <div data-tour="salah.zikr.board" className="mt-4">
             <ZikrBoard
               items={prefs.items}
               sets={prefs.sets}
@@ -129,7 +132,7 @@ export function ZikrView({ today }: { today: string }) {
           </div>
 
           {prefs.items.length > 0 && (
-            <div className="hairline-t mt-5 pt-4">
+            <div data-tour="salah.zikr.today" className="hairline-t mt-5 pt-4">
               <ZikrToday
                 items={prefs.items}
                 counts={counts}
@@ -146,6 +149,7 @@ export function ZikrView({ today }: { today: string }) {
 
         <Fold
           id="zikr-record"
+          tour="salah.zikr.stats"
           title="Statistics and history"
           summary={
             stats.total > 0
@@ -160,6 +164,7 @@ export function ZikrView({ today }: { today: string }) {
 
         <Fold
           id="zikr-manage"
+          tour="salah.zikr.manage"
           title="Manage"
           summary={
             prefs.items.length === 0
@@ -196,7 +201,7 @@ export function ZikrView({ today }: { today: string }) {
         </Fold>
       </div>
 
-      <div className="flex flex-col gap-6">
+      <div data-tour="salah.zikr.lifetime" className="flex flex-col gap-6">
         <ZikrLifetime stats={stats} today={today} />
       </div>
     </div>

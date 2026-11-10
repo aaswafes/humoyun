@@ -444,6 +444,7 @@ export function PlanStrip({ date, minutesNow }: { date: string; minutesNow: numb
 
   return (
     <Fold
+      tour="today.plan"
       icon={CalendarRange}
       title="Plan the day"
       summary={summary}

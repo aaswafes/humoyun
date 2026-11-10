@@ -110,13 +110,17 @@ function SalahScreen() {
         {/* The five views are this section's navigation, so on a phone they
             span the row like an iOS segmented control: thumb-sized, and
             "Zikr" no longer a 38px sliver at the end. */}
-        <Segmented
-          size="sm"
-          value={view}
-          onChange={setView}
-          options={VIEWS.map((v) => ({ value: v.value, label: v.label, title: v.title }))}
-          className="max-md:flex max-md:w-full max-md:[&>button]:h-7 max-md:[&>button]:flex-1 max-md:[&>button]:text-[13px] touch:[&>button]:min-w-10"
-        />
+        {/* The wrapper only carries the tour's anchor; Segmented takes no
+            extra attributes. flex keeps it from adding a line box. */}
+        <div data-tour="salah.tabs" className="flex max-md:w-full">
+          <Segmented
+            size="sm"
+            value={view}
+            onChange={setView}
+            options={VIEWS.map((v) => ({ value: v.value, label: v.label, title: v.title }))}
+            className="max-md:flex max-md:w-full max-md:[&>button]:h-7 max-md:[&>button]:flex-1 max-md:[&>button]:text-[13px] touch:[&>button]:min-w-10"
+          />
+        </div>
       </PageHeader>
 
       <PageBody className="max-w-[1120px]">

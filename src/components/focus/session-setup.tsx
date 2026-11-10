@@ -35,7 +35,7 @@ export function SessionSetup({
       className="max-h-[70vh] w-[292px] overflow-y-auto"
       onOpenChange={onOpenChange}
       trigger={
-        <IconButton label="Session settings">
+        <IconButton label="Session settings" data-tour="focus.setup">
           <Settings2 />
         </IconButton>
       }

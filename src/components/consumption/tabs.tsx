@@ -55,7 +55,7 @@ export function ConsumptionTabs({ active }: { active: ConsumptionTab }) {
   const counts = useShelfCounts();
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5 bg-canvas px-3 py-1.5 hairline-b" role="tablist">
+    <div className="flex shrink-0 items-center gap-0.5 bg-canvas px-3 py-1.5 hairline-b" role="tablist" data-tour="consumption.tabs">
       {CONSUMPTION_TABS.map(({ tab, href, key, icon: Icon }) => {
         const selected = tab === active;
         const count = counts[tab];

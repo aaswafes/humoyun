@@ -70,7 +70,7 @@ export function DamPanel({
     : null;
 
   return (
-    <Panel id="umr-dam" title="The Dam cap" subtitle={subtitle} table={table}>
+    <Panel id="umr-dam" tour="umr.stats.dam" title="The Dam cap" subtitle={subtitle} table={table}>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         {[
           {

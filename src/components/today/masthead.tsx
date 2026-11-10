@@ -74,7 +74,7 @@ export function Masthead({ date, now }: { date: string; now: number }) {
     });
 
   return (
-    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 max-md:gap-x-3 max-md:gap-y-3">
+    <header data-tour="today.masthead" className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 max-md:gap-x-3 max-md:gap-y-3">
       <div className="flex items-end gap-4">
         <span className="display-serif tnum select-none text-[64px] leading-[0.76] text-ink">
           {dayNumber(date)}

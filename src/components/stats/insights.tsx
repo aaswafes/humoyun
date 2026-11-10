@@ -28,7 +28,7 @@ export function InsightLines({ insights }: { insights: Insight[] }) {
   const held = insights.filter((i) => !i.ok);
 
   return (
-    <section aria-label="What the numbers say">
+    <section aria-label="What the numbers say" data-tour="stats.insights">
       {solid.length === 0 ? (
         <MiniEmpty className="py-2">
           Nothing here clears its own sample size yet. Keep logging and the first honest reading

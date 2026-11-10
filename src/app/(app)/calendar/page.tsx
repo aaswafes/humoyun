@@ -31,6 +31,8 @@ import { AgendaView } from "@/components/calendar/agenda-view";
 import { YearView } from "@/components/calendar/year-view";
 import { DayPeek } from "@/components/calendar/day-peek";
 import { RailSheet, RightRail } from "@/components/calendar/right-rail";
+import { PageTour } from "@/components/tour/tour";
+import { CALENDAR_TOUR } from "@/components/tour/tours/calendar";
 import { ChipBody, DENSITIES, type ChipDensity } from "@/components/calendar/task-chip";
 import { useStickyChoice, useStickyFlag } from "@/components/calendar/view-prefs";
 import {
@@ -298,6 +300,7 @@ export default function CalendarPage() {
               trigger={
                 <IconButton
                   label="View options"
+                  data-tour="calendar.options"
                   active={optionsOpen}
                   aria-haspopup="dialog"
                   aria-expanded={optionsOpen}
@@ -367,7 +370,7 @@ export default function CalendarPage() {
             </Popover>
 
             {/* The tab bar's + is the phone's New. */}
-            <Button variant="primary" size="sm" onClick={openQuickAdd} className="max-md:hidden">
+            <Button variant="primary" size="sm" onClick={openQuickAdd} className="max-md:hidden" data-tour="calendar.new">
               <Plus className="size-3.5" />
               New
             </Button>
@@ -376,7 +379,7 @@ export default function CalendarPage() {
       >
         {/* Three clusters, not one long row: where you are, what you are looking
             at, and what you can do about it. */}
-        <div className="flex items-center gap-4 max-md:gap-2">
+        <div className="flex items-center gap-4 max-md:gap-2" data-tour="calendar.nav">
           <div className="flex items-center gap-0.5">
             <Button
               size="sm"
@@ -439,7 +442,7 @@ export default function CalendarPage() {
           onDragCancel={onDragCancel}
         >
           <DndBoundary>
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 flex-1 flex-col" data-tour="calendar.grid">
             {view === "month" && (
               <MonthView
                 anchor={anchor}
@@ -499,6 +502,8 @@ export default function CalendarPage() {
       )}
 
       <RailSheet date={anchor} open={shelvesOpen} onClose={() => setShelvesOpen(false)} />
+
+      <PageTour id="calendar" steps={CALENDAR_TOUR} />
     </>
   );
 }

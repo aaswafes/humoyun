@@ -19,6 +19,8 @@ import { UmrEntryList } from "@/components/umr/entry-list";
 import { useUmrLedger } from "@/components/umr/use-umr";
 import { SessionEditor } from "@/components/focus/session-editor";
 import { fmtMin, pct } from "@/components/umr/derive";
+import { PageTour } from "@/components/tour/tour";
+import { UMR_TOUR } from "@/components/tour/tours/umr";
 
 // =========================================================
 // Umr — where the life is going, one day at a time.
@@ -82,7 +84,7 @@ export default function UmrPage() {
         title="Umr"
         subtitle={subtitle}
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" data-tour="umr.links">
             <Link href="/umr/stats">
               <Button size="sm" variant="secondary">
                 <BarChart3 className="size-3.5" />
@@ -97,7 +99,7 @@ export default function UmrPage() {
           </div>
         }
       >
-        <div className="mr-1 flex items-center gap-0.5">
+        <div className="mr-1 flex items-center gap-0.5" data-tour="umr.day">
           <IconButton label="Previous day" size="sm" onClick={() => setDate(addDays(date, -1))}>
             <ChevronLeft />
           </IconButton>
@@ -133,7 +135,7 @@ export default function UmrPage() {
         ) : (
           <div className="space-y-4">
             {/* ---- the day, cut five ways ---- */}
-            <section className="surface p-4" aria-label="The day">
+            <section className="surface p-4" aria-label="The day" data-tour="umr.split">
               <div className="flex items-baseline gap-2">
                 <h2 className="text-[12.5px] font-medium text-ink">
                   {formatDate(date, { weekday: true })}
@@ -178,7 +180,7 @@ export default function UmrPage() {
             <UmrTriage entries={dayEntries} />
 
             {/* ---- what the day was made of ---- */}
-            <section className="surface p-4" aria-label="Entries">
+            <section className="surface p-4" aria-label="Entries" data-tour="umr.entries">
               <div className="flex items-baseline gap-2">
                 <h2 className="text-[12.5px] font-medium text-ink">Where it went</h2>
                 <p className="min-w-0 flex-1 truncate text-[11.5px] text-ink-4">
@@ -209,6 +211,7 @@ export default function UmrPage() {
       </PageBody>
 
       <SessionEditor sessionId={editingSession} onClose={() => setEditingSession(null)} />
+      <PageTour id="umr" steps={UMR_TOUR} />
     </>
   );
 }

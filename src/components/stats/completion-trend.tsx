@@ -123,7 +123,7 @@ export function CompletionTrend({
   ];
 
   return (
-    <Panel id="panel-completion" title="Completion trend" subtitle={summary} table={table}>
+    <Panel id="panel-completion" tour="stats.completion" title="Completion trend" subtitle={summary} table={table}>
       {!totals.done ? (
         <EmptyState
           className="py-8"

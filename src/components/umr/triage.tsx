@@ -108,7 +108,7 @@ export function UmrTriage({
 
   if (rows.length === 0) {
     return (
-      <div className={cn("surface p-3.5", className)}>
+      <div className={cn("surface p-3.5", className)} data-tour="umr.triage">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="size-4 shrink-0 text-success" aria-hidden />
           <p className="text-[12.5px] text-ink-2">Every recorded minute has a kind.</p>
@@ -118,7 +118,7 @@ export function UmrTriage({
   }
 
   return (
-    <div className={cn("surface p-3.5", className)}>
+    <div className={cn("surface p-3.5", className)} data-tour="umr.triage">
       <div className="flex items-baseline gap-2">
         <h2 className="text-[12.5px] font-medium text-ink">Uncategorised</h2>
         <p className="min-w-0 flex-1 truncate text-[11.5px] text-ink-4 tnum">

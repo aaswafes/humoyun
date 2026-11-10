@@ -26,6 +26,8 @@ import {
   damDays, damDiscipline, fmtMin, grainFor, hourProfile, pct, previousWindow, sourceBreakdown,
   summarise, umrRangeDates, weekdayProfile, type UmrRangeKey,
 } from "@/components/umr/derive";
+import { PageTour } from "@/components/tour/tour";
+import { UMR_STATS_TOUR } from "@/components/tour/tours/umr-stats";
 
 // =========================================================
 // Umr, at length.
@@ -212,7 +214,7 @@ export default function UmrStatsPage() {
             : "Nothing recorded in this window"
         }
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" data-tour="umr.stats.actions">
             <Button size="sm" variant="secondary" onClick={exportCsv} disabled={!hasAnything}>
               <Download className="size-3.5" />
               Export
@@ -226,13 +228,15 @@ export default function UmrStatsPage() {
           </div>
         }
       >
-        <Segmented<UmrRangeKey>
-          size="sm"
-          value={range}
-          onChange={setRange}
-          options={UMR_RANGES.map((r) => ({ value: r.value, label: r.label, title: r.title }))}
-          className="mr-1"
-        />
+        <div className="flex" data-tour="umr.stats.range">
+          <Segmented<UmrRangeKey>
+            size="sm"
+            value={range}
+            onChange={setRange}
+            options={UMR_RANGES.map((r) => ({ value: r.value, label: r.label, title: r.title }))}
+            className="mr-1"
+          />
+        </div>
       </PageHeader>
 
       <PageBody wide>
@@ -252,7 +256,7 @@ export default function UmrStatsPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {/* ---- the window at a glance ---- */}
-            <section aria-label="The window" className="surface p-4">
+            <section aria-label="The window" className="surface p-4" data-tour="umr.stats.window">
               <div className="flex items-baseline gap-2">
                 <h2 className="text-[12.5px] font-medium text-ink">
                   {days[0]} → {days[days.length - 1]}
@@ -272,7 +276,7 @@ export default function UmrStatsPage() {
               <CategoryLegend totals={summary.totals} unassigned={summary.unassigned} className="mt-3" />
             </section>
 
-            <StatTiles tiles={tiles} />
+            <StatTiles tiles={tiles} tour="umr.stats.tiles" />
 
             {/* ---- the page, in sentences ---- */}
             {insights.length > 0 && (
@@ -334,6 +338,8 @@ export default function UmrStatsPage() {
           </div>
         )}
       </PageBody>
+
+      <PageTour id="umr.stats" steps={UMR_STATS_TOUR} />
     </>
   );
 }

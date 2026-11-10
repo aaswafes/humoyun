@@ -41,7 +41,7 @@ export function SourcesPanel({
     }`;
 
   return (
-    <Panel id="umr-sources" title="How much of this is measured" subtitle={subtitle} table={table}>
+    <Panel id="umr-sources" tour="umr.stats.sources" title="How much of this is measured" subtitle={subtitle} table={table}>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         {[
           { label: "Recorded", value: fmtMin(total), sub: `${pct(summary.coverage)} of the clock` },

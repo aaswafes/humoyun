@@ -515,6 +515,7 @@ export function RightRail({
     return (
       <aside
         aria-label="Books, films and unscheduled"
+        data-tour="calendar.rail"
         className="flex w-11 shrink-0 flex-col items-center gap-1 border-l border-line pl-1 pt-0.5 max-md:hidden"
       >
         <IconButton label="Show books, films and unscheduled" size="md" onClick={() => onOpenChange(true)}>
@@ -545,7 +546,7 @@ export function RightRail({
   }
 
   return (
-    <aside className="flex w-[292px] shrink-0 flex-col border-l border-line pl-4 max-md:hidden">
+    <aside className="flex w-[292px] shrink-0 flex-col border-l border-line pl-4 max-md:hidden" data-tour="calendar.rail">
       <div className="flex items-center gap-1 pb-1">
         <p className="min-w-0 flex-1 truncate text-[11.5px] text-ink-4">
           Drag onto any day · buttons use {friendlyDate(date).toLowerCase()}

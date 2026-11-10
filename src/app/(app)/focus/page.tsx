@@ -24,6 +24,8 @@ import {
 } from "@/components/focus/sessions-panel";
 import { computeStats, groupSessions, type SessionView } from "@/components/focus/focus-data";
 import type { FocusSession } from "@/lib/types";
+import { PageTour } from "@/components/tour/tour";
+import { FOCUS_TOUR } from "@/components/tour/tours/focus";
 
 const NO_SESSIONS: SessionView[] = [];
 
@@ -155,7 +157,7 @@ export default function FocusPage() {
               onManage={() => setSettingsOpen(true)}
               onOpenChange={setSetupOpen}
             />
-            <IconButton label="Deep work (D)" active={deep} onClick={() => setDeep(true)}>
+            <IconButton label="Deep work (D)" active={deep} onClick={() => setDeep(true)} data-tour="focus.deep">
               <Moon />
             </IconButton>
           </div>
@@ -173,6 +175,7 @@ export default function FocusPage() {
 
         {/* Once the clock is running the room gets quieter, not busier. */}
         <div
+          data-tour={groups.length ? "focus.folds" : undefined}
           className={cn(
             "mt-10 transition-opacity duration-300 ease-[var(--ease-out-apple)]",
             engine.phase === "focus" && "opacity-40 focus-within:opacity-100 hover:opacity-100",
@@ -266,6 +269,8 @@ export default function FocusPage() {
       >
         <FocusDial engine={engine} ambient />
       </DeepWork>
+
+      <PageTour id="focus" steps={FOCUS_TOUR} />
 
       <FocusSettings engine={engine} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 

@@ -391,10 +391,12 @@ function DataTable({ spec }: { spec: TableSpec }) {
 }
 
 export function Panel({
-  id, title, subtitle, actions, table, children, className,
+  id, title, subtitle, actions, table, children, className, tour,
 }: {
   /** Also the fold key this panel is remembered under. */
   id: string;
+  /** `data-tour` anchor for the page tour, put on the fold's header row. */
+  tour?: string;
   title: string;
   /** The one sentence that says what the chart says, readable while folded. */
   subtitle?: React.ReactNode;
@@ -412,7 +414,7 @@ export function Panel({
 
   return (
     <section id={id} aria-label={title} className={cn("scroll-mt-[64px] py-5", className)}>
-      <h2>
+      <h2 data-tour={tour}>
         <button
           type="button"
           data-panel-toggle

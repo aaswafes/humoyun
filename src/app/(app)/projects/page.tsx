@@ -15,6 +15,8 @@ import { ProjectSheet } from "@/components/projects/project-sheet";
 import { ProjectTimeline } from "@/components/projects/project-timeline";
 import { buildProjectIndex, isLive } from "@/components/projects/project-model";
 import { useProjectActions } from "@/components/projects/use-project-actions";
+import { PageTour } from "@/components/tour/tour";
+import { PROJECTS_TOUR } from "@/components/tour/tours/projects";
 
 type View = "board" | "list" | "timeline";
 
@@ -85,13 +87,16 @@ export default function ProjectsPage() {
         title="Projects"
         subtitle={ready ? subtitle : undefined}
         actions={
-          <Button variant="primary" size="sm" onClick={() => create("active")}>
+          <Button variant="primary" size="sm" onClick={() => create("active")} data-tour="projects.new">
             <Plus className="size-3.5" />
             New project
           </Button>
         }
       >
-        <Segmented value={view} options={VIEW_OPTIONS} onChange={setView} size="sm" className="mr-1" />
+        {/* A bare box for the tour to point at: Segmented takes no extra props. */}
+        <div data-tour="projects.views">
+          <Segmented value={view} options={VIEW_OPTIONS} onChange={setView} size="sm" className="mr-1" />
+        </div>
       </PageHeader>
 
       <PageBody wide>
@@ -156,6 +161,8 @@ export default function ProjectsPage() {
       </PageBody>
 
       <ProjectSheet projectId={openId} index={index} onClose={() => setOpenId(null)} />
+
+      <PageTour id="projects" steps={PROJECTS_TOUR} />
     </>
   );
 }

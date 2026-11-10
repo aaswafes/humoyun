@@ -84,7 +84,7 @@ export function NightCard({
 
   return (
     <section className="surface p-5">
-      <header className="flex items-start justify-between gap-4">
+      <header data-tour="salah.tahajjud.now" className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[13.5px] font-medium text-ink">
             Tonight{" "}
@@ -131,7 +131,7 @@ export function NightCard({
         </div>
       )}
 
-      <ul className="-mx-2.5 mt-4">
+      <ul data-tour="salah.tahajjud.night" className="-mx-2.5 mt-4">
         {rows.map((row) => {
           const Icon = row.icon;
           const isNow = !over && nowMin >= row.min && nowMin < row.until;
@@ -155,7 +155,7 @@ export function NightCard({
         })}
       </ul>
 
-      <div ref={recordRef} className="hairline-t mt-4 scroll-mt-4 pt-4">
+      <div ref={recordRef} data-tour="salah.tahajjud.record" className="hairline-t mt-4 scroll-mt-4 pt-4">
         <div className="flex min-h-7 items-center justify-between gap-3">
           <p className="text-[12px] text-ink-3">{recordTitle}</p>
           {!isCurrent && (

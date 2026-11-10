@@ -8,6 +8,8 @@ import { dayName, dayNumber, formatTime, monthName } from "@/lib/date";
 import { prayerLabel } from "@/lib/prayer";
 import { PRAYER_NAMES, type PrayerName, type PrayerStatus } from "@/lib/types";
 import { IconButton, Progress } from "@/components/ui/primitives";
+import { PageTour } from "@/components/tour/tour";
+import { SALAH_TOUR } from "@/components/tour/tours/salah";
 import { HANDLED_STATUSES, PRAYER_STATE, StateMark } from "./prayer-state";
 import { Countdown, WindowCountdown, useWindowUrgent } from "./countdown";
 import { LocationLine } from "./location-line";
@@ -107,7 +109,8 @@ export function TodayCard({
 
   return (
     <section className="surface p-5">
-      <header className="flex items-start justify-between gap-4">
+      <PageTour id="salah" steps={SALAH_TOUR} />
+      <header data-tour="salah.now" className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[13.5px] font-medium text-ink">
             Today{" "}
@@ -158,6 +161,7 @@ export function TodayCard({
           type="button"
           aria-pressed={showSunnah}
           onClick={onToggleSunnah}
+          data-tour="salah.sunnah"
           className={cn(
             "relative h-7 cursor-pointer rounded-full border px-2.5 text-[11.5px] font-medium touch-hit",
             "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-apple)]",
@@ -175,7 +179,7 @@ export function TodayCard({
         </button>
       </div>
 
-      <ul className="-mx-2.5 mt-1.5">
+      <ul data-tour="salah.prayers" className="-mx-2.5 mt-1.5">
         {rows.map((row) => {
           if (row.kind === "marker") {
             const Icon = row.icon;
@@ -330,7 +334,7 @@ export function TodayCard({
         missed, the rawatib around it and the adhkar after it.
       </p>
 
-      <div className="hairline-t mt-4 pt-3">
+      <div data-tour="salah.location" className="hairline-t mt-4 pt-3">
         <LocationLine />
       </div>
     </section>

@@ -88,7 +88,7 @@ function TileBody({ tile }: { tile: Tile }) {
  * button onto the section that explains it — and because that section may be
  * folded, opening it is part of the jump.
  */
-export function StatTiles({ tiles }: { tiles: Tile[] }) {
+export function StatTiles({ tiles, tour }: { tiles: Tile[]; /** `data-tour` anchor for the page tour. */ tour?: string }) {
   const reduced = useReducedMotion();
 
   function jump(id: string) {
@@ -103,7 +103,7 @@ export function StatTiles({ tiles }: { tiles: Tile[] }) {
   }
 
   return (
-    <div className="surface overflow-hidden">
+    <div className="surface overflow-hidden" data-tour={tour}>
       <div className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4">
         {tiles.map((t) => {
           if (!t.target) {

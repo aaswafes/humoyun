@@ -20,6 +20,8 @@ import { FocusCard } from "@/components/today/focus-card";
 import { ComingUpCard } from "@/components/today/coming-up-card";
 import { UmrCard } from "@/components/today/umr-card";
 import { Leftovers } from "@/components/today/leftovers";
+import { PageTour } from "@/components/tour/tour";
+import { TODAY_TOUR } from "@/components/tour/tours/today";
 
 export default function TodayPage() {
   const router = useRouter();
@@ -62,6 +64,7 @@ export default function TodayPage() {
   return (
     <>
       {/* One fact in the chrome — the hours and the overdue count have their own homes below. */}
+      <PageTour id="today" steps={TODAY_TOUR} />
       <PageHeader title="Today" subtitle={open ? `${open} open` : "All clear"} />
 
       {/* On a phone the tasks come straight after the date. The status strip
@@ -72,7 +75,7 @@ export default function TodayPage() {
       <PageBody wide className="max-md:flex max-md:flex-col">
         <Masthead date={today} now={now} />
 
-        <div className="mt-6 max-md:order-2 max-md:mt-10">
+        <div data-tour="today.now" className="mt-6 max-md:order-2 max-md:mt-10">
           <NowStrip date={today} now={now} />
         </div>
 
@@ -83,7 +86,7 @@ export default function TodayPage() {
 
             {list.length > 0 && <PlanStrip date={today} minutesNow={minutesNow} />}
 
-            <div className="mt-6">
+            <div data-tour="today.tasks" className="mt-6">
               {overdue.length > 0 && (
                 <TaskSection
                   title="Overdue"
@@ -137,6 +140,7 @@ export default function TodayPage() {
               <button
                 type="button"
                 onClick={planTomorrow}
+                data-tour="today.tomorrow"
                 className="-mx-2 mt-1 flex w-[calc(100%+1rem)] items-center gap-1.5 rounded-md px-2 py-2 text-left cursor-pointer transition-colors duration-150 ease-[var(--ease-out-apple)] hover:bg-hover touch:min-h-11"
               >
                 <CalendarPlus className="size-3.5 shrink-0 text-ink-4" />
@@ -150,7 +154,7 @@ export default function TodayPage() {
           </div>
 
           {/* ---- rail: folded sections on hairlines, not a stack of cards ---- */}
-          <aside className="flex min-w-0 flex-col divide-y divide-line min-[1100px]:hairline-l min-[1100px]:pl-8 max-md:order-3 max-md:mt-8">
+          <aside data-tour="today.rail" className="flex min-w-0 flex-col divide-y divide-line min-[1100px]:hairline-l min-[1100px]:pl-8 max-md:order-3 max-md:mt-8">
             <SalahCard date={today} minutesNow={minutesNow} />
             <HabitsCard date={today} />
             <ReadingCard date={today} />

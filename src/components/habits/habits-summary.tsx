@@ -66,6 +66,7 @@ export function HabitsSummary({
       open={open}
       onToggle={toggle}
       className={className}
+      tour="habits.progress"
     >
       <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4">
         <Stat

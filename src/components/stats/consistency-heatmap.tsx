@@ -167,7 +167,7 @@ export function ConsistencyHeatmap({
   };
 
   return (
-    <Panel id="panel-consistency" title="Consistency" subtitle={summary} table={table}>
+    <Panel id="panel-consistency" tour="stats.consistency" title="Consistency" subtitle={summary} table={table}>
       {!digest.tracked ? (
         <EmptyState
           className="py-8"

@@ -34,7 +34,7 @@ export function DamMeter({
       : "nothing earned yet";
 
   return (
-    <div className={cn("surface p-3.5", className)}>
+    <div className={cn("surface p-3.5", className)} data-tour="umr.dam">
       <div className="flex items-baseline gap-2">
         <span className={cn(`tint-${meta.tint}`, "flex items-center gap-1.5")}>
           <Gamepad2 className="size-3.5 shrink-0" style={{ color: "var(--tint)" }} aria-hidden />

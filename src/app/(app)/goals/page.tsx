@@ -20,6 +20,8 @@ import { GoalReview } from "@/components/goals/goal-review";
 import { GoalSheet } from "@/components/goals/goal-sheet";
 import { GoalTimeline } from "@/components/goals/goal-timeline";
 import { NewGoalDialog } from "@/components/goals/new-goal-dialog";
+import { PageTour } from "@/components/tour/tour";
+import { GOALS_TOUR } from "@/components/tour/tours/goals";
 import {
   buildGoalIndex, goalAttention, HORIZONS, pct, periodRange,
 } from "@/components/goals/goal-model";
@@ -156,6 +158,7 @@ export default function GoalsPage() {
 
   return (
     <>
+      <PageTour id="goals" steps={GOALS_TOUR} />
       <PageHeader
         title="Goals"
         // Between md and lg — an iPad beside its sidebar — the five tabs and
@@ -164,13 +167,15 @@ export default function GoalsPage() {
         // a phone (second row for the tabs) and lg+ still show it.
         subtitle={ready ? <span className="md:max-lg:hidden">{subtitle}</span> : undefined}
         actions={
-          <Button variant="primary" size="sm" onClick={() => setCreating({ date: null })}>
+          <Button data-tour="goals.new" variant="primary" size="sm" onClick={() => setCreating({ date: null })}>
             <Plus className="size-3.5" />
             New goal
           </Button>
         }
       >
-        <Segmented value={view} options={viewOptions} onChange={setView} size="sm" className="mr-1" />
+        <div data-tour="goals.views" className="flex">
+          <Segmented value={view} options={viewOptions} onChange={setView} size="sm" className="mr-1" />
+        </div>
       </PageHeader>
 
       <PageBody wide>

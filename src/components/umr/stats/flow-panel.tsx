@@ -78,7 +78,7 @@ export function FlowPanel({
     : null;
 
   return (
-    <Panel id="umr-flow" title="Where the time goes" subtitle={subtitle} table={table}>
+    <Panel id="umr-flow" tour="umr.stats.flow" title="Where the time goes" subtitle={subtitle} table={table}>
       <Chart
         height={(w) => Math.max(180, Math.min(280, w * 0.3))}
         label={`Minutes per ${grainWord}, stacked by kind of living`}
