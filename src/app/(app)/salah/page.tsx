@@ -16,14 +16,16 @@ import { TodayCard } from "@/components/salah/today-card";
 import { ZikrView } from "@/components/salah/zikr-view";
 import { UpcomingReadings } from "@/components/salah/upcoming-readings";
 import { TahajjudView } from "@/components/tahajjud/tahajjud-view";
+import { QazoView } from "@/components/qazo/qazo-view";
 import { useSalahPrefs } from "@/components/salah/prefs";
 import { nextPrayer, openWindow, type TimesTriple } from "@/components/salah/windows";
 
-type View = "today" | "tahajjud" | "rhythm" | "quran" | "zikr";
+type View = "today" | "tahajjud" | "qazo" | "rhythm" | "quran" | "zikr";
 
 const VIEWS: { value: View; label: string; title: string }[] = [
   { value: "today", label: "Today", title: "The five, their windows and what follows them" },
   { value: "tahajjud", label: "Tahajjud", title: "The night prayer — its own record and its own numbers" },
+  { value: "qazo", label: "Qazo", title: "The prayers missed before you prayed regularly, and paying them back" },
   { value: "rhythm", label: "Rhythm", title: "Jamaah, alone and qadha — with the month of times, the Hijri date and the qibla" },
   { value: "quran", label: "Quran", title: "Khatm progress, juz by juz, and the reading plan" },
   { value: "zikr", label: "Zikr", title: "The counter, what this hour asks for, and a lifetime of counts" },
@@ -118,7 +120,7 @@ function SalahScreen() {
             value={view}
             onChange={setView}
             options={VIEWS.map((v) => ({ value: v.value, label: v.label, title: v.title }))}
-            className="max-md:flex max-md:w-full max-md:[&>button]:h-7 max-md:[&>button]:flex-1 max-md:[&>button]:text-[13px] touch:[&>button]:min-w-10"
+            className="max-md:flex max-md:w-full max-md:[&>button]:h-7 max-md:[&>button]:flex-1 max-md:[&>button]:px-1 max-md:[&>button]:text-[12.5px] touch:[&>button]:min-w-10"
           />
         </div>
       </PageHeader>
@@ -140,6 +142,8 @@ function SalahScreen() {
           </div>
         ) : view === "tahajjud" ? (
           <TahajjudView today={today} t={times} nowMin={nowMin} />
+        ) : view === "qazo" ? (
+          <QazoView today={today} />
         ) : view === "rhythm" ? (
           <RhythmView
             today={today}

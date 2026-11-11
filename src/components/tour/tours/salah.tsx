@@ -8,10 +8,10 @@ export const SALAH_TOUR: TourStep[] = [
   },
   {
     anchor: "salah.tabs",
-    title: "Five tabs",
+    title: "Six tabs",
     body: (
       <>
-        <b>Switch</b> between Today, Tahajjud, Rhythm (jamaah, qadha, the Hijri date and the qibla), Quran (your khatm and reading plan) and Zikr.
+        <b>Switch</b> between Today, Tahajjud, Qazo (the prayers you owe from before you prayed regularly), Rhythm (jamaah, qadha, the Hijri date and the qibla), Quran (your khatm and reading plan) and Zikr.
       </>
     ),
     side: "bottom",
@@ -163,5 +163,41 @@ export const SALAH_TAHAJJUD_TOUR: TourStep[] = [
     anchor: "salah.tahajjud.stats",
     title: "Your numbers",
     body: "Once you have marked nights, this fills in: totals at a glance, the last year night by night, the nights of the week you rise most, and every night recorded.",
+  },
+];
+
+/** Salah's Qazo tab. */
+export const SALAH_QAZO_TOUR: TourStep[] = [
+  {
+    title: "Qazo",
+    body: "Count the fard prayers you missed between the day salah became fard on you and the day you started praying regularly, then pay them back here.",
+  },
+  {
+    anchor: "salah.qazo.total",
+    title: "What's left",
+    body: "The total still owed, and the date you've made up to. Days are paid back in order, oldest first.",
+  },
+  {
+    anchor: "salah.qazo.today",
+    title: "Record as you pray",
+    body: (
+      <>
+        <b>Tap +</b> after each qazo prayer, or <b>One whole day</b> after you pray all of a day&rsquo;s prayers.
+      </>
+    ),
+  },
+  {
+    anchor: "salah.qazo.month",
+    title: "Where you are",
+    body: (
+      <>
+        This opens on the month you&rsquo;ve reached. <b>Tap</b> a day to mark everything up to it as made up.
+      </>
+    ),
+  },
+  {
+    anchor: "salah.qazo.stats",
+    title: "Your numbers",
+    body: "Your pace over the last 30 days, your streak, and roughly when you'll finish at that pace.",
   },
 ];
