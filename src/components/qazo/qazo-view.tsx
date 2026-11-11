@@ -6,10 +6,10 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import {
   addDays, addMonths, dayNumber, diffDays, endOfMonth, formatDate, monthName,
-  startOfMonth, startOfWeek, weekdayHeaders, yearOf,
+  startOfMonth, yearOf,
 } from "@/lib/date";
 import { Button, IconButton, Progress } from "@/components/ui/primitives";
-import { ConfirmDialog } from "@/components/ui/overlays";
+import { StateDot } from "@/components/salah/prayer-state";
 import { PageTour } from "@/components/tour/tour";
 import { SALAH_QAZO_TOUR } from "@/components/tour/tours/salah";
 import { QazoSetup } from "./qazo-setup";
@@ -54,7 +54,6 @@ function QazoBoard({
 }) {
   const dayLogs = useStore((s) => s.dayLogs);
   const setDayLog = useStore((s) => s.setDayLog);
-  const weekStart = useStore((s) => s.profile?.week_start ?? 1);
   const s = React.useMemo(() => summarize(config, dayLogs, today), [config, dayLogs, today]);
 
   // Every tap lands on today's log, so the day's total, the pace and the
@@ -69,11 +68,22 @@ function QazoBoard({
     setDayLog(today, { data: withQazo(log, next) });
   }
 
-  // "I've made up everything through this day" — moves the whole-day pointer
-  // there by adjusting `prior`, so a catch-up never inflates today's pace.
-  function setThrough(day: string) {
-    const target = Math.min(s.owedDays, diffDays(day, config.farz) + 1);
-    setConfig({ ...config, prior: Math.max(0, config.prior + (target - s.wholeDays)) });
+  // A dot in the grid is the same as + and −. An empty dot fills that prayer
+  // up to and including it, counted as made up today. A filled dot empties
+  // back to it, taking from today's count first and the rest from the
+  // prayer's correction, so earlier days' records are never rewritten.
+  function setDot(p: QazoPrayer, idx: number) {
+    const done = s.done[p];
+    if (idx >= done) {
+      bump({ [p]: idx + 1 - done });
+      return;
+    }
+    const back = done - idx;
+    const fromToday = Math.min(back, s.today[p] ?? 0);
+    if (fromToday) bump({ [p]: -fromToday });
+    if (back > fromToday) {
+      setConfig({ ...config, adjust: { ...config.adjust, [p]: (config.adjust[p] ?? 0) - (back - fromToday) } });
+    }
   }
 
   return (
@@ -84,7 +94,7 @@ function QazoBoard({
           <Headline s={s} config={config} onEdit={onEdit} />
           <TodayPanel s={s} onBump={bump} />
         </div>
-        <DebtMonth s={s} config={config} weekStart={weekStart} onThrough={setThrough} />
+        <QazoGrid s={s} config={config} onDot={setDot} />
       </div>
       <div data-tour="salah.qazo.stats" className="hairline-t pt-6">
         <QazoStats s={s} today={today} />
@@ -181,40 +191,47 @@ function TodayPanel({ s, onBump }: { s: QazoSummary; onBump: (c: Partial<Record<
 }
 
 /**
- * The owed days, a month at a time. It opens on the month you've reached, so
+ * The owed days as rows, one dot per prayer — the same grid as the Today
+ * tab. A diamond is made up, a hollow dot is still owed, and tapping a dot is
+ * the same as + or −. It opens on the month of the next day to make up, so
  * coming back never means paging through the years again.
  */
-function DebtMonth({
-  s, config, weekStart, onThrough,
+function QazoGrid({
+  s, config, onDot,
 }: {
   s: QazoSummary;
   config: QazoConfig;
-  weekStart: number;
-  onThrough: (day: string) => void;
+  onDot: (p: QazoPrayer, idx: number) => void;
 }) {
   const lastOwed = addDays(config.regular, -1);
+  // The month where the furthest-behind prayer still has an empty dot.
   const anchor = s.nextDay ?? (s.owedDays ? lastOwed : config.farz);
-  const [month, setMonth] = React.useState(() => startOfMonth(anchor));
-  const [asking, setAsking] = React.useState<string | null>(null);
+  const anchorMonth = startOfMonth(anchor);
+  const [month, setMonth] = React.useState(anchorMonth);
 
   // When the pointer crosses into a new month, follow it there.
-  const anchorMonth = startOfMonth(anchor);
   const [followed, setFollowed] = React.useState(anchorMonth);
   if (followed !== anchorMonth) {
     setFollowed(anchorMonth);
     setMonth(anchorMonth);
   }
 
+  // Only the owed part of the month: the first and last months are partial.
   const days = React.useMemo(() => {
     const out: string[] = [];
-    for (let d = month, end = endOfMonth(month); d <= end; d = addDays(d, 1)) out.push(d);
+    const from = month < config.farz ? config.farz : month;
+    const end = endOfMonth(month) > lastOwed ? lastOwed : endOfMonth(month);
+    for (let d = from; d <= end; d = addDays(d, 1)) out.push(d);
     return out;
-  }, [month]);
-  const lead = diffDays(month, startOfWeek(month, weekStart));
-  const headers = React.useMemo(() => weekdayHeaders(weekStart, "min"), [weekStart]);
-  const most = Math.max(...s.prayers.map((p) => s.done[p]));
+  }, [month, config.farz, lastOwed]);
+
   const firstMonth = startOfMonth(config.farz);
   const lastMonth = startOfMonth(s.owedDays ? lastOwed : config.farz);
+  const columns = { gridTemplateColumns: `24px repeat(${s.prayers.length}, minmax(0, 1fr))` };
+  const madeHere = days.reduce((sum, d) => {
+    const idx = diffDays(d, config.farz);
+    return sum + s.prayers.filter((p) => idx < s.done[p]).length;
+  }, 0);
 
   return (
     <div data-tour="salah.qazo.month">
@@ -222,8 +239,8 @@ function DebtMonth({
         <p className="flex-1 text-[12.5px] font-medium text-ink-2">
           {monthName(month)} <span className="tnum text-ink-3">{yearOf(month)}</span>
         </p>
-        {month !== startOfMonth(anchor) && (
-          <Button size="sm" variant="ghost" onClick={() => setMonth(startOfMonth(anchor))}>
+        {month !== anchorMonth && (
+          <Button size="sm" variant="ghost" onClick={() => setMonth(anchorMonth)}>
             Where I am
           </Button>
         )}
@@ -235,60 +252,56 @@ function DebtMonth({
         </IconButton>
       </header>
 
-      <div className="mt-3 grid grid-cols-7 gap-y-0.5">
-        {headers.map((h, i) => (
-          <span key={i} aria-hidden className="pb-1 text-center text-[10.5px] font-medium text-ink-4">{h}</span>
-        ))}
-        {Array.from({ length: lead }, (_, i) => <span key={`lead-${i}`} />)}
+      <p className="tnum mt-1 text-[11.5px] text-ink-3">
+        {madeHere} of {days.length * s.prayers.length} made up this month
+      </p>
+
+      <div className="mt-3">
+        <div className="grid pb-1.5" style={columns}>
+          <span />
+          {s.prayers.map((p) => (
+            <span key={p} title={QAZO_LABELS[p]} className="text-center text-[10.5px] font-medium text-ink-4">
+              {QAZO_LABELS[p].charAt(0)}
+            </span>
+          ))}
+        </div>
+
         {days.map((day) => {
           const idx = diffDays(day, config.farz);
-          const owed = idx >= 0 && idx < s.owedDays;
-          const full = owed && idx < s.wholeDays;
-          const partial = owed && !full && idx < most;
           const isNext = day === s.nextDay;
           return (
-            <button
-              key={day}
-              type="button"
-              disabled={!owed}
-              onClick={() => setAsking(day)}
-              aria-label={`${formatDate(day, { year: true })}, ${!owed ? "not owed" : full ? "made up" : partial ? "partly made up" : "still owed"}`}
-              className={cn(
-                "grid h-9 cursor-pointer place-items-center rounded-md touch:h-11",
-                "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
-                "hover:bg-hover active:scale-90 disabled:pointer-events-none",
-              )}
-            >
-              <span
-                className={cn(
-                  "tnum grid size-7 place-items-center rounded-full text-[12px]",
-                  !owed && "text-ink-4 opacity-40",
-                  full && "bg-accent-soft font-semibold text-accent",
-                  partial && "ring-1 ring-accent text-ink-2",
-                  owed && !full && !partial && "text-ink-2",
-                  isNext && "ring-2 ring-accent font-semibold",
-                )}
-              >
+            <div key={day} className={cn("grid items-center rounded-md", isNext && "bg-selected")} style={columns}>
+              <span className={cn("tnum text-center text-[10.5px]", isNext ? "font-semibold text-ink" : "text-ink-4")}>
                 {dayNumber(day)}
               </span>
-            </button>
+              {s.prayers.map((p) => {
+                const made = idx < s.done[p];
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => onDot(p, idx)}
+                    title={`${QAZO_LABELS[p]} · ${formatDate(day, { year: true })} · ${made ? "made up" : "owed"}`}
+                    aria-label={`${QAZO_LABELS[p]} on ${formatDate(day, { year: true })}, ${made ? "made up" : "still owed"}`}
+                    aria-pressed={made}
+                    className={cn(
+                      "grid h-7 cursor-pointer place-items-center rounded-md touch:h-10",
+                      "transition-[background-color,transform] duration-150 ease-[var(--ease-out-apple)]",
+                      "hover:bg-hover active:scale-90",
+                    )}
+                  >
+                    <StateDot status={made ? "qadha" : "none"} />
+                  </button>
+                );
+              })}
+            </div>
           );
         })}
       </div>
 
-      <p className="mt-4 text-[11.5px] leading-relaxed text-ink-4">
-        Filled days are made up; the ringed one is next. Tap a day to mark everything up to it as made up.
+      <p className="mt-3 text-[11.5px] leading-relaxed text-ink-4">
+        Tap a dot to mark that qazo made up — the same as +. Tap a filled one to take it back.
       </p>
-
-      <ConfirmDialog
-        open={!!asking}
-        onClose={() => setAsking(null)}
-        onConfirm={() => asking && onThrough(asking)}
-        tone="primary"
-        confirmLabel="Yes, up to here"
-        title={asking ? `Made up everything through ${longDate(asking)}?` : ""}
-        description="Every prayer up to and including this day counts as made up. Choosing an earlier day moves your progress back."
-      />
     </div>
   );
 }

@@ -191,7 +191,7 @@ export const SALAH_QAZO_TOUR: TourStep[] = [
     title: "Where you are",
     body: (
       <>
-        This opens on the month you&rsquo;ve reached. <b>Tap</b> a day to mark everything up to it as made up.
+        One row per owed day, one dot per prayer. It opens on the month you&rsquo;ve reached. <b>Tap</b> a dot to mark it made up — the same as +.
       </>
     ),
   },

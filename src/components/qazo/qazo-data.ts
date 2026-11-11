@@ -14,7 +14,7 @@
 //
 // The debt is walked in order: the first day owed is the first day made up.
 // That makes "how far have I got" a date — "up to 14 January 2024" — and the
-// month view opens there by itself, with no tapping back through the years.
+// grid opens on that month by itself, with no tapping back through the years.
 // =========================================================
 
 import * as React from "react";
@@ -38,6 +38,11 @@ export interface QazoConfig {
   witr: boolean;
   /** Whole days made up before or outside the daily record. */
   prior: number;
+  /**
+   * Per-prayer corrections, negative when a filled dot was tapped back to
+   * empty and today's record had nothing left to take it from.
+   */
+  adjust: Partial<Record<QazoPrayer, number>>;
   /** Kept only so the form can show how farz was worked out. */
   birth: string | null;
   age: number | null;
@@ -54,11 +59,18 @@ function readConfig(prefs: Record<string, unknown> | undefined): QazoConfig | nu
   const regular = typeof raw.regular === "string" && ISO.test(raw.regular) ? raw.regular : raw.farz;
   const prior = Number(raw.prior);
   const age = Number(raw.age);
+  const adjust: Partial<Record<QazoPrayer, number>> = {};
+  const rawAdjust = (raw.adjust ?? {}) as Record<string, unknown>;
+  for (const p of [...QAZO_FIVE, "witr"] as QazoPrayer[]) {
+    const v = Number(rawAdjust[p]);
+    if (Number.isFinite(v) && v !== 0) adjust[p] = Math.round(v);
+  }
   return {
     farz: raw.farz,
     regular: regular < raw.farz ? raw.farz : regular,
     witr: raw.witr !== false,
     prior: Number.isFinite(prior) && prior > 0 ? Math.round(prior) : 0,
+    adjust,
     birth: typeof raw.birth === "string" && ISO.test(raw.birth) ? raw.birth : null,
     age: Number.isFinite(age) && age > 0 ? Math.round(age) : null,
   };
@@ -145,7 +157,9 @@ export interface QazoSummary {
 export function summarize(config: QazoConfig, dayLogs: DayLog[], today: string): QazoSummary {
   const prayers = prayersOf(config);
   const days = owedDays(config);
-  const raw = Object.fromEntries(prayers.map((p) => [p, config.prior])) as Record<QazoPrayer, number>;
+  const raw = Object.fromEntries(
+    prayers.map((p) => [p, config.prior + (config.adjust[p] ?? 0)]),
+  ) as Record<QazoPrayer, number>;
   const byDate = new Map<string, number>();
   let todayCounts: QazoCounts = {};
 
@@ -158,7 +172,7 @@ export function summarize(config: QazoConfig, dayLogs: DayLog[], today: string):
     for (const p of prayers) raw[p] += c[p] ?? 0;
   }
 
-  const done = Object.fromEntries(prayers.map((p) => [p, Math.min(days, raw[p])])) as Record<QazoPrayer, number>;
+  const done = Object.fromEntries(prayers.map((p) => [p, Math.max(0, Math.min(days, raw[p]))])) as Record<QazoPrayer, number>;
   const owedTotal = days * prayers.length;
   const doneTotal = prayers.reduce((a, p) => a + done[p], 0);
   const remaining = owedTotal - doneTotal;

@@ -49,6 +49,7 @@ export function QazoSetup({
       regular,
       witr,
       prior: initial?.prior ?? 0,
+      adjust: initial?.adjust ?? {},
       birth: mode === "birthday" ? birth : null,
       age: mode === "birthday" ? ageNum : null,
     });
