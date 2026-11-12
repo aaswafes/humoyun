@@ -140,8 +140,18 @@ export interface QazoSummary {
   remaining: number;
   /** Whole days fully made up (every prayer) — the walk through the debt. */
   wholeDays: number;
-  /** The next owed day still to make up, or null once it is all paid. */
-  nextDay: string | null;
+  /**
+   * Where you are: the furthest any unfinished prayer has got. Making up all
+   * the Fajrs first puts you in June even while Dhuhr is still in May.
+   */
+  frontier: {
+    /** The next day to make up for the leading prayer. */
+    next: string;
+    /** The last day it has made up, or null if nothing is made up yet. */
+    through: string | null;
+  } | null;
+  /** Per prayer: the next owed day for it, or null once it is all made up. */
+  nextFor: Record<QazoPrayer, string | null>;
   /** date -> prayers made up that day, every day that has any. */
   byDate: Map<string, number>;
   today: QazoCounts;
@@ -197,9 +207,23 @@ export function summarize(config: QazoConfig, dayLogs: DayLog[], today: string):
 
   return {
     prayers, owedDays: days, done, owedTotal, doneTotal, remaining, wholeDays,
-    nextDay: wholeDays < days ? addDays(config.farz, wholeDays) : null,
+    frontier: frontierOf(config.farz, days, prayers, done),
+    nextFor: Object.fromEntries(
+      prayers.map((p) => [p, done[p] < days ? addDays(config.farz, done[p]) : null]),
+    ) as Record<QazoPrayer, string | null>,
     byDate, today: todayCounts, last30, pace, eta, streak, bestDay,
   };
+}
+
+function frontierOf(
+  farz: string, days: number, prayers: QazoPrayer[], done: Record<QazoPrayer, number>,
+): QazoSummary["frontier"] {
+  // A finished prayer is out of the walk: once every Fajr is made up, where
+  // you are is wherever the prayers still in progress have got to.
+  const open = prayers.filter((p) => done[p] < days);
+  if (!open.length) return null;
+  const lead = Math.max(...open.map((p) => done[p]));
+  return { next: addDays(farz, lead), through: lead > 0 ? addDays(farz, lead - 1) : null };
 }
 
 /** Rough years/months/days for a span of days, for the headline. */

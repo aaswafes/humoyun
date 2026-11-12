@@ -121,11 +121,17 @@ function Headline({ s, config, onEdit }: { s: QazoSummary; config: QazoConfig; o
       </div>
       <Progress className="mt-4" value={s.doneTotal} max={Math.max(1, s.owedTotal)} height={6} />
       <p className="mt-4 text-[13px] leading-relaxed text-ink-2">
-        {s.nextDay ? (
-          <>
-            You&rsquo;re up to <b className="font-semibold text-ink">{longDate(s.nextDay)}</b> — {n(s.wholeDays)} of{" "}
-            {n(s.owedDays)} days fully made up.
-          </>
+        {s.frontier ? (
+          s.frontier.through ? (
+            <>
+              You&rsquo;re up to <b className="font-semibold text-ink">{longDate(s.frontier.through)}</b>
+              {s.wholeDays ? <> — every prayer is made up for the first {n(s.wholeDays)} days.</> : "."}
+            </>
+          ) : (
+            <>
+              Starting from <b className="font-semibold text-ink">{longDate(s.frontier.next)}</b>, the first day owed.
+            </>
+          )
         ) : s.owedDays ? (
           <>All of it is made up. Alhamdulillah.</>
         ) : (
@@ -169,7 +175,9 @@ function TodayPanel({ s, onBump }: { s: QazoSummary; onBump: (c: Partial<Record<
               <div className="min-w-0 flex-1">
                 <p className="text-[13.5px] font-medium text-ink">{QAZO_LABELS[p]}</p>
                 <p className="tnum text-[11.5px] text-ink-4">
-                  {left > 0 ? `${n(left)} left` : "all made up"}
+                  {left > 0
+                    ? `${n(left)} left · next ${formatDate(s.nextFor[p] as string, { weekday: false, year: true })}`
+                    : "all made up"}
                 </p>
               </div>
               <IconButton label={`Undo one ${QAZO_LABELS[p]}`} disabled={!mine} onClick={() => onBump({ [p]: -1 })}>
@@ -205,7 +213,7 @@ function QazoGrid({
 }) {
   const lastOwed = addDays(config.regular, -1);
   // The month where the furthest-behind prayer still has an empty dot.
-  const anchor = s.nextDay ?? (s.owedDays ? lastOwed : config.farz);
+  const anchor = s.frontier?.next ?? (s.owedDays ? lastOwed : config.farz);
   const anchorMonth = startOfMonth(anchor);
   const [month, setMonth] = React.useState(anchorMonth);
 
@@ -268,7 +276,7 @@ function QazoGrid({
 
         {days.map((day) => {
           const idx = diffDays(day, config.farz);
-          const isNext = day === s.nextDay;
+          const isNext = day === s.frontier?.next;
           return (
             <div key={day} className={cn("grid items-center rounded-md", isNext && "bg-selected")} style={columns}>
               <span className={cn("tnum text-center text-[10.5px]", isNext ? "font-semibold text-ink" : "text-ink-4")}>
@@ -290,7 +298,13 @@ function QazoGrid({
                       "hover:bg-hover active:scale-90",
                     )}
                   >
-                    <StateDot status={made ? "qadha" : "none"} />
+                    {idx === s.done[p] ? (
+                      // Each prayer's next one to make up, so the column you are
+                      // working through is plain at a glance.
+                      <span aria-hidden className="block size-[9px] rounded-full border-[1.5px] border-accent" />
+                    ) : (
+                      <StateDot status={made ? "qadha" : "none"} />
+                    )}
                   </button>
                 );
               })}
@@ -300,7 +314,8 @@ function QazoGrid({
       </div>
 
       <p className="mt-3 text-[11.5px] leading-relaxed text-ink-4">
-        Tap a dot to mark that qazo made up — the same as +. Tap a filled one to take it back.
+        Diamonds are made up; the blue ring in each column is that prayer&rsquo;s next one. Tap a dot to mark it
+        made up — the same as +. Tap a filled one to take it back.
       </p>
     </div>
   );
